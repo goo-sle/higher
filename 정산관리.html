@@ -1,63 +1,41 @@
 <div id="settle-page">
 <style>
-  #settle-page .type-grid {
-    display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px;
-  }
-  #settle-page .type-card {
-    background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px;
-  }
-  #settle-page .type-card .tc-title {
-    font-size:13px; font-weight:700; color:var(--text); border-bottom:1px solid var(--border);
-    padding-bottom:8px; margin-bottom:10px;
-  }
-  #settle-page .tc-row {
-    display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;
-  }
+  #settle-page .type-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  #settle-page .type-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px; }
+  #settle-page .type-card .tc-title { font-size:13px; font-weight:700; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px; }
+  #settle-page .tc-row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; }
   #settle-page .tc-row .lbl { color:var(--text2); }
   #settle-page .tc-row .val { font-weight:600; color:var(--text); }
   #settle-page .tc-row .val.money { color:var(--accent); }
-
-  #settle-page .filter-bar {
-    background:#fff; border:1px solid var(--border); border-radius:10px;
-    padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;
-  }
-  #settle-page select, #settle-page input {
-    padding:6px 10px; border:1px solid var(--border); border-radius:6px;
-    font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
-  }
-  #settle-page .tbl-wrap {
-    background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto;
-  }
+  #settle-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  #settle-page select, #settle-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  #settle-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
   #settle-page table { width:100%; min-width:1100px; border-collapse:collapse; font-size:12px; }
-  #settle-page thead th {
-    background:#1e293b; color:#fff; padding:11px 8px; font-weight:500;
-    border-right:1px solid #2d3f55; white-space:nowrap; text-align:center;
-  }
-  #settle-page tbody td {
-    padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle;
-  }
+  #settle-page thead th { background:#1e293b; color:#fff; padding:11px 8px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
+  #settle-page tbody td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #settle-page tbody tr:last-child td { border-bottom:none; }
   #settle-page tbody tr:hover { background:#f8fafc; }
-
   .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
-  .unpaid-badge { background:rgba(239,68,68,.1);  color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
-  .action-btn   { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
-  .btn-confirm  { background:var(--accent); color:#fff; }
+  .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .btn-confirm { background:var(--accent); color:#fff; }
   .btn-confirm:hover { background:var(--accent2); }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
   .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
   .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
   .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
+  .loading-wrap { display:flex;align-items:center;justify-content:center;height:100px;color:var(--muted);font-size:13px;gap:8px; }
+  .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 
-<!-- 타입별 요약 카드 -->
-<div class="type-grid" id="settle-type-cards"></div>
+<div class="type-grid" id="settle-type-cards">
+  <div style="grid-column:1/-1"><div class="loading-wrap"><div class="spinner"></div> 로드 중...</div></div>
+</div>
 
-<!-- 필터 -->
 <div class="filter-bar">
   <select id="sf-type" onchange="renderSettle()">
     <option value="">슬롯타입 전체</option>
-    ${HA.SLOT_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
   </select>
   <select id="sf-paid" onchange="renderSettle()">
     <option value="">정산상태 전체</option>
@@ -67,7 +45,7 @@
   <div style="display:flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;gap:4px;">
     <input type="date" id="sf-from" style="border:none;outline:none;font-size:12px;width:110px;">
     <span style="color:var(--muted)">~</span>
-    <input type="date" id="sf-to"   style="border:none;outline:none;font-size:12px;width:110px;">
+    <input type="date" id="sf-to" style="border:none;outline:none;font-size:12px;width:110px;">
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="sf-kw" placeholder="대행사/아이디 검색" style="width:180px;">
@@ -81,55 +59,50 @@
     <thead>
       <tr>
         <th><input type="checkbox" id="sf-all" onchange="toggleAll(this)"></th>
-        <th>번호</th>
-        <th>슬롯번호</th>
-        <th>대행사</th>
-        <th>유저ID</th>
-        <th>슬롯타입</th>
-        <th>스토어명</th>
-        <th>시작일</th>
-        <th>종료일</th>
-        <th>유입수</th>
-        <th>단가(원)</th>
-        <th>정산금액</th>
-        <th>정산상태</th>
-        <th>확인</th>
+        <th>번호</th><th>슬롯키</th><th>대행사</th><th>유저ID</th>
+        <th>슬롯타입</th><th>스토어명</th><th>시작일</th><th>종료일</th>
+        <th>유입수</th><th>단가(원)</th><th>정산금액</th><th>정산상태</th><th>확인</th>
       </tr>
     </thead>
-    <tbody id="settle-body"></tbody>
+    <tbody id="settle-body">
+      <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+    </tbody>
   </table>
 </div>
 <div class="pagination" id="settle-pagination"></div>
 
 <script>
 (function(){
-  let page = 1; const PER = 20;
+  let page = 1;
+  const PER = 20;
+  let allSlots = [];
+  let allUsers = [];
+  let paidSet  = new Set();
 
-  // 정산 상태는 별도 스토리지로 관리
-  function getPaidSet() {
-    return new Set(JSON.parse(localStorage.getItem('ha_paid_slots')||'[]'));
-  }
-  function setPaid(id, val) {
-    const s = getPaidSet();
-    val ? s.add(id) : s.delete(id);
-    localStorage.setItem('ha_paid_slots', JSON.stringify([...s]));
+  // 슬롯 타입 옵션 채우기
+  const typeSelect = document.getElementById('sf-type');
+  if (typeSelect && window.HA) {
+    HA.SLOT_TYPES.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      typeSelect.appendChild(o);
+    });
   }
 
   function getUserPrice(userId) {
-    const user = HA.getUsers().find(u=>u.username===userId);
+    const user = allUsers.find(u => u.username === userId);
     return user ? (user.unitPrice||0) : 0;
   }
 
-  function renderTypeCards() {
-    const slots   = HA.getSlots().filter(s=>s.status==='active'||s.status==='expired');
-    const paidSet = getPaidSet();
-    const cards   = document.getElementById('settle-type-cards');
+  async function renderTypeCards() {
+    const cards = document.getElementById('settle-type-cards');
     if(!cards) return;
+    const slots = allSlots.filter(s => s.status==='active' || s.status==='expired');
     cards.innerHTML = HA.SLOT_TYPES.map(type => {
-      const list = slots.filter(s=>s.slotType===type);
-      const total = list.reduce((a,s)=>a+getUserPrice(s.userId),0);
-      const paid  = list.filter(s=>paidSet.has(s.id)).reduce((a,s)=>a+getUserPrice(s.userId),0);
-      const unpaid= total - paid;
+      const list   = slots.filter(s => s.slotType === type);
+      const total  = list.reduce((a,s) => a+getUserPrice(s.userId), 0);
+      const paid   = list.filter(s => paidSet.has(s._key)).reduce((a,s) => a+getUserPrice(s.userId), 0);
+      const unpaid = total - paid;
       return `<div class="type-card">
         <div class="tc-title">${type}</div>
         <div class="tc-row"><span class="lbl">슬롯수</span><span class="val">${list.length}개</span></div>
@@ -141,17 +114,16 @@
   }
 
   function getFiltered() {
-    const type  = document.getElementById('sf-type').value;
-    const paid  = document.getElementById('sf-paid').value;
-    const from  = document.getElementById('sf-from').value;
-    const to    = document.getElementById('sf-to').value;
-    const kw    = (document.getElementById('sf-kw').value||'').toLowerCase();
-    const paidSet = getPaidSet();
+    const type = document.getElementById('sf-type').value;
+    const paid = document.getElementById('sf-paid').value;
+    const from = document.getElementById('sf-from').value;
+    const to   = document.getElementById('sf-to').value;
+    const kw   = (document.getElementById('sf-kw').value||'').toLowerCase();
 
-    return HA.getSlots().filter(s=>s.status==='active'||s.status==='expired').filter(s=>{
-      if(type && s.slotType!==type) return false;
-      if(paid==='paid'   && !paidSet.has(s.id)) return false;
-      if(paid==='unpaid' &&  paidSet.has(s.id)) return false;
+    return allSlots.filter(s => s.status==='active' || s.status==='expired').filter(s => {
+      if(type && s.slotType !== type) return false;
+      if(paid==='paid'   && !paidSet.has(s._key)) return false;
+      if(paid==='unpaid' &&  paidSet.has(s._key)) return false;
       if(from && s.startDate < from) return false;
       if(to   && s.endDate   > to)   return false;
       if(kw && ![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw))) return false;
@@ -159,24 +131,34 @@
     });
   }
 
-  window.renderSettle = function() {
-    renderTypeCards();
-    const all = getFiltered();
-    const paidSet = getPaidSet();
+  window.renderSettle = async function() {
+    document.getElementById('settle-body').innerHTML =
+      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+
+    // Firebase에서 병렬로 데이터 가져오기
+    [allSlots, allUsers, paidSet] = await Promise.all([
+      HA.getSlots(),
+      HA.getUsers(),
+      HA.getPaidSet(),
+    ]);
+
+    await renderTypeCards();
+
+    const all   = getFiltered();
     const start = (page-1)*PER;
     const list  = all.slice(start, start+PER);
+    const body  = document.getElementById('settle-body');
 
-    const body = document.getElementById('settle-body');
     if(!list.length) {
-      body.innerHTML='<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
-      body.innerHTML = list.map((s,i)=>{
-        const price = getUserPrice(s.userId);
-        const isPaid = paidSet.has(s.id);
+      body.innerHTML = list.map((s,i) => {
+        const price  = getUserPrice(s.userId);
+        const isPaid = paidSet.has(s._key);
         return `<tr>
-          <td><input type="checkbox" class="sf-check" data-id="${s.id}"></td>
+          <td><input type="checkbox" class="sf-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${start+i+1}</td>
-          <td style="color:var(--text2)">${s.id}</td>
+          <td style="color:var(--text2);font-size:10px">${s._key.slice(-6)}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
           <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
@@ -189,13 +171,12 @@
           <td>${isPaid?'<span class="paid-badge">정산완료</span>':'<span class="unpaid-badge">미정산</span>'}</td>
           <td>
             <button class="action-btn ${isPaid?'':'btn-confirm'}" style="${isPaid?'background:#f1f5f9;color:var(--text2)':''}"
-              onclick="togglePaid(${s.id}, ${!isPaid})">${isPaid?'취소':'입금확인'}</button>
+              onclick="togglePaid('${s._key}', ${!isPaid})">${isPaid?'취소':'입금확인'}</button>
           </td>
         </tr>`;
       }).join('');
     }
 
-    // pagination
     const pages = Math.ceil(all.length/PER)||1;
     const pg = document.getElementById('settle-pagination');
     let ph = `<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,page-1)})">&lsaquo;</button>`;
@@ -207,17 +188,17 @@
   window.goSP = n => { page=n; renderSettle(); };
   window.toggleAll = cb => document.querySelectorAll('.sf-check').forEach(c=>c.checked=cb.checked);
 
-  window.togglePaid = function(id, val) {
-    setPaid(id, val); renderSettle();
+  window.togglePaid = async function(key, val) {
+    await HA.setPaid(key, val);
+    renderSettle();
   };
 
   window.exportCSV = function() {
     const all = getFiltered();
-    const paidSet = getPaidSet();
-    const rows = [['슬롯번호','대행사','유저ID','슬롯타입','스토어명','시작일','종료일','유입수','정산금액','정산상태']];
-    all.forEach(s=>{
+    const rows = [['슬롯키','대행사','유저ID','슬롯타입','스토어명','시작일','종료일','유입수','정산금액','정산상태']];
+    all.forEach(s => {
       const price = getUserPrice(s.userId);
-      rows.push([s.id, s.agencyId, s.userId, s.slotType, s.storeName, s.startDate, s.endDate, s.inflow||0, price, paidSet.has(s.id)?'완료':'미완료']);
+      rows.push([s._key, s.agencyId, s.userId, s.slotType, s.storeName, s.startDate, s.endDate, s.inflow||0, price, paidSet.has(s._key)?'완료':'미완료']);
     });
     const csv = rows.map(r=>r.join(',')).join('\n');
     const a = document.createElement('a');
