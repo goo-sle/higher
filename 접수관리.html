@@ -36,7 +36,7 @@
   .modal-title { font-size:17px; font-weight:700; margin-bottom:20px; }
   .modal-field { margin-bottom:14px; }
   .modal-field label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
-  .modal-field input, .modal-field textarea, .modal-field select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; outline:none; color:var(--text); }
+  .modal-field input, .modal-field textarea, .modal-field select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; }
   .modal-field textarea { resize:vertical; min-height:70px; }
   .modal-field input:focus, .modal-field textarea:focus, .modal-field select:focus { border-color:var(--accent); }
   .modal-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -46,6 +46,8 @@
   .btn-save:hover { background:var(--accent2); }
   .btn-danger-save { background:var(--danger); }
   .btn-danger-save:hover { background:#b91c1c; }
+  .btn-warning-save { background:#d97706; }
+  .btn-warning-save:hover { background:#b45309; }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
   .pagination { display:flex; justify-content:center; gap:5px; margin-top:16px; }
   .pg-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; justify-content:center; }
@@ -56,11 +58,22 @@
   .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:13px; gap:8px; }
   .spinner { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
+  .status-change-section { border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:16px; background:#fafbfc; }
+  .status-change-section h4 { font-size:12px; color:var(--text2); font-weight:600; margin:0 0 10px 0; }
+  .status-btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .detail-kw-section { border:1px solid #e0f2fe; border-radius:8px; padding:14px; margin-top:10px; background:#f0f9ff; }
+  .detail-kw-section h4 { font-size:12px; color:#0369a1; font-weight:600; margin:0 0 10px 0; }
+  .kw-input-row { display:flex; gap:8px; }
+  .kw-input-row input { flex:1; padding:7px 10px; border:1px solid #bae6fd; border-radius:6px; font-size:13px; outline:none; }
+  .kw-input-row input:focus { border-color:#0284c7; }
+  .kw-save-btn { padding:7px 14px; background:#0284c7; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+  .kw-save-btn:hover { background:#0369a1; }
 </style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
   <span id="receipt-count" style="font-size:13px;color:var(--text2)">로드 중...</span>
   <div style="display:flex;gap:8px;">
+    <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 엑셀 다운로드</button>
     <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 일괄 승인</button>
     <button class="action-btn btn-reject"  style="padding:7px 16px;font-size:12px;" onclick="bulkReject()">선택 일괄 반려</button>
   </div>
@@ -103,9 +116,9 @@
 (function(){
   let currentPage = 1;
   const PER_PAGE  = 20;
-  let allSlots    = []; // Firebase에서 가져온 전체 슬롯 캐시
+  let allSlots    = [];
 
-  // 슬롯 타입 옵션 채우기
+  // 슬롯 타입 옵션
   const typeSelect = document.getElementById('filter-type');
   if (typeSelect && window.HA) {
     HA.SLOT_TYPES.forEach(t => {
@@ -134,12 +147,10 @@
     });
   }
 
-  // ── Firebase에서 데이터 불러와서 렌더 ─────────────────────
   window.renderReceipts = async function() {
     document.getElementById('receipt-body').innerHTML =
       '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    // Firebase에서 슬롯 전체 가져오기
     allSlots = await HA.getSlots();
 
     const all     = getFiltered();
@@ -175,6 +186,12 @@
               ` : ''}
               ${s.status==='active' ? `
                 <button class="action-btn" style="background:#fff3cd;color:#92400e;" onclick="openEditModal('${s._key}')">수정</button>
+                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기로</button>
+                <button class="action-btn btn-reject" onclick="openRejectModal('${s._key}')">반려</button>
+              ` : ''}
+              ${s.status==='rejected' ? `
+                <button class="action-btn btn-approve" onclick="approveOne('${s._key}')">승인</button>
+                <button class="action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="changeStatusTo('${s._key}','pending')">대기로</button>
               ` : ''}
               <button class="action-btn" style="background:rgba(239,68,68,.1);color:var(--danger);" onclick="deleteOne('${s._key}')">삭제</button>
             </div>
@@ -211,6 +228,8 @@
   // ── 승인 ─────────────────────────────────────────────────
   window.approveOne = async function(key) {
     await HA.approveSlot(key);
+    const overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
     renderReceipts();
   };
 
@@ -218,6 +237,16 @@
     const keys = getCheckedKeys();
     if (!keys.length) return alert('선택된 항목이 없습니다.');
     await Promise.all(keys.map(k => HA.approveSlot(k)));
+    renderReceipts();
+  };
+
+  // ── 상태 변경 (승인→대기, 반려→대기 등) ─────────────────
+  window.changeStatusTo = async function(key, newStatus) {
+    const labelMap = { pending: '대기', active: '승인', rejected: '반려' };
+    if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
+    await HA.updateSlot(key, { status: newStatus, rejectReason: newStatus !== 'rejected' ? '' : undefined });
+    const overlay = document.querySelector('.modal-overlay');
+    if (overlay) overlay.remove();
     renderReceipts();
   };
 
@@ -262,12 +291,21 @@
     renderReceipts();
   };
 
-  // ── 상세 보기 ─────────────────────────────────────────────
+  // ── 상세 보기 (키워드 직접 입력 포함) ─────────────────────
   window.viewDetail = function(key) {
     const s = allSlots.find(x => x._key === key);
     if (!s) return;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+
+    const statusBtns = (() => {
+      let btns = '';
+      if (s.status !== 'active')   btns += `<button class="action-btn btn-approve" style="padding:6px 14px;" onclick="approveOne('${s._key}')">승인으로 변경</button>`;
+      if (s.status !== 'pending')  btns += `<button class="action-btn btn-warning-save" style="padding:6px 14px;" onclick="changeStatusTo('${s._key}','pending')">대기로 변경</button>`;
+      if (s.status !== 'rejected') btns += `<button class="action-btn btn-reject" style="padding:6px 14px;" onclick="openRejectFromDetail('${s._key}')">반려로 변경</button>`;
+      return btns;
+    })();
+
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">슬롯 상세 정보</div>
@@ -280,16 +318,52 @@
           <dt>MID</dt><dd>${s.mid||'-'}</dd>
           <dt>작업키워드</dt><dd>${s.workKeyword||'-'}</dd>
           <dt>기간</dt><dd>${s.startDate} ~ ${s.endDate}</dd>
-          <dt>상태</dt><dd>${s.status}</dd>
+          <dt>상태</dt><dd>${stMap[s.status]||s.status}</dd>
           ${s.rejectReason ? `<dt>반려사유</dt><dd style="color:var(--danger)">${s.rejectReason}</dd>` : ''}
           <dt>메모</dt><dd>${s.memo||'-'}</dd>
         </dl>
+
+        <!-- 키워드 입력 영역 -->
+        <div class="detail-kw-section">
+          <h4>🔑 검색 키워드 입력</h4>
+          <div class="kw-input-row">
+            <input type="text" id="detail-keyword-input" value="${s.searchKeyword||''}" placeholder="검색 키워드를 입력해주세요">
+            <button class="kw-save-btn" onclick="saveDetailKeyword('${s._key}')">저장</button>
+          </div>
+        </div>
+
+        <!-- 상태 변경 영역 -->
+        <div class="status-change-section">
+          <h4>상태 변경</h4>
+          <div class="status-btns">
+            ${statusBtns}
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
-          ${s.status==='pending' ? `<button class="btn-save" onclick="approveOne('${s._key}');this.closest('.modal-overlay').remove()">승인</button>` : ''}
         </div>
       </div>`;
     document.body.appendChild(overlay);
+  };
+
+  // 상세 모달에서 키워드 저장
+  window.saveDetailKeyword = async function(key) {
+    const kw = document.getElementById('detail-keyword-input').value.trim();
+    await HA.updateSlot(key, { searchKeyword: kw });
+    // allSlots 캐시 업데이트
+    const idx = allSlots.findIndex(x => x._key === key);
+    if (idx !== -1) allSlots[idx].searchKeyword = kw;
+    // 저장 확인 피드백
+    const btn = document.querySelector('.kw-save-btn');
+    if (btn) { btn.textContent = '저장됨 ✓'; btn.style.background = '#16a34a'; setTimeout(() => { btn.textContent = '저장'; btn.style.background = '#0284c7'; }, 1500); }
+  };
+
+  // 상세 모달에서 반려 처리
+  window.openRejectFromDetail = function(key) {
+    const existingOverlay = document.querySelector('.modal-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    openRejectModal(key);
   };
 
   // ── 수정 ─────────────────────────────────────────────────
@@ -312,6 +386,7 @@
           <div class="modal-field"><label>종료일</label><input type="date" id="e-endDate" value="${s.endDate||''}"></div>
         </div>
         <div class="modal-field"><label>순위키워드</label><input id="e-rankKeyword" value="${s.rankKeyword||''}"></div>
+        <div class="modal-field"><label>검색키워드</label><input id="e-searchKeyword" value="${s.searchKeyword||''}"></div>
         <div class="modal-field"><label>URL</label><input id="e-url" value="${s.url||''}"></div>
         <div class="modal-field"><label>MID</label><input id="e-mid" value="${s.mid||''}"></div>
         <div class="modal-field"><label>메모</label><textarea id="e-memo">${s.memo||''}</textarea></div>
@@ -325,17 +400,134 @@
 
   window.saveEdit = async function(key) {
     await HA.updateSlot(key, {
-      storeName:   document.getElementById('e-storeName').value,
-      slotType:    document.getElementById('e-slotType').value,
-      startDate:   document.getElementById('e-startDate').value,
-      endDate:     document.getElementById('e-endDate').value,
-      rankKeyword: document.getElementById('e-rankKeyword').value,
-      url:         document.getElementById('e-url').value,
-      mid:         document.getElementById('e-mid').value,
-      memo:        document.getElementById('e-memo').value,
+      storeName:     document.getElementById('e-storeName').value,
+      slotType:      document.getElementById('e-slotType').value,
+      startDate:     document.getElementById('e-startDate').value,
+      endDate:       document.getElementById('e-endDate').value,
+      rankKeyword:   document.getElementById('e-rankKeyword').value,
+      searchKeyword: document.getElementById('e-searchKeyword').value,
+      url:           document.getElementById('e-url').value,
+      mid:           document.getElementById('e-mid').value,
+      memo:          document.getElementById('e-memo').value,
     });
     document.querySelector('.modal-overlay').remove();
     renderReceipts();
+  };
+
+  // ── 엑셀 다운로드 (접수 시트 형식) ───────────────────────
+  window.downloadExcel = function() {
+    const filtered = getFiltered();
+    if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
+
+    // SheetJS CDN 동적 로드 후 생성
+    function buildAndDownload() {
+      const XLSX = window.XLSX;
+
+      const wb = XLSX.utils.book_new();
+
+      // ── 접수 시트 ──────────────────────────────────────
+      const receiptHeader = ['업체명','업체URL','업체PID번호','순위키워드','일수','시작일','트래픽 수량','분류','길찾기 수량','분류','비고','블랙','올리브','트-합계','길-합계'];
+      const receiptRows = filtered.map(s => [
+        s.storeName||'',
+        s.url||'',
+        s.mid||'',
+        s.rankKeyword||'',
+        s.days||'',
+        s.startDate||'',
+        s.trafficQty||'',
+        s.trafficType||'',
+        s.naverMapQty||'',
+        s.naverMapType||'',
+        s.memo||'',
+        s.black||'',
+        s.olive||'',
+        s.trafficTotal||'',
+        s.naverMapTotal||'',
+      ]);
+
+      const receiptData = [receiptHeader, ...receiptRows];
+      const wsReceipt = XLSX.utils.aoa_to_sheet(receiptData);
+
+      // 컬럼 너비
+      wsReceipt['!cols'] = [
+        {wch:20},{wch:50},{wch:14},{wch:14},{wch:6},{wch:12},
+        {wch:10},{wch:6},{wch:10},{wch:6},{wch:16},
+        {wch:8},{wch:8},{wch:10},{wch:10}
+      ];
+      XLSX.utils.book_append_sheet(wb, wsReceipt, '접수');
+
+      // ── 슬롯타입별 시트 (블랙, 올리브 등) ──────────────
+      const typeGroups = {};
+      filtered.forEach(s => {
+        const t = s.slotType || '기타';
+        if (!typeGroups[t]) typeGroups[t] = [];
+        typeGroups[t].push(s);
+      });
+
+      Object.entries(typeGroups).forEach(([type, slots]) => {
+        const header = ['상품등급명','업체명','업체URL','업체PID번호','순위키워드','일 목표','일 수','예약일','검색키워드'];
+        const rows = slots.map(s => [
+          s.slotType||'',
+          s.storeName||'',
+          s.url||'',
+          s.mid||'',
+          s.rankKeyword||'',
+          s.dailyTarget||'',
+          s.days||'',
+          s.startDate||'',
+          s.searchKeyword||'',
+        ]);
+        const wsType = XLSX.utils.aoa_to_sheet([header, ...rows]);
+        wsType['!cols'] = [
+          {wch:10},{wch:20},{wch:50},{wch:14},{wch:14},
+          {wch:8},{wch:6},{wch:12},{wch:20}
+        ];
+        // 시트 이름 30자 이내 제한
+        const sheetName = String(type).slice(0,30);
+        XLSX.utils.book_append_sheet(wb, wsType, sheetName);
+      });
+
+      // ── 전체 목록 시트 ──────────────────────────────────
+      const allHeader = ['번호','접수일시','대행사','유저ID','슬롯타입','스토어명','순위키워드','검색키워드','URL','MID','시작일','종료일','상태','반려사유','메모'];
+      const allRows = filtered.map((s,i) => [
+        i+1,
+        (s.createdAt||'').slice(0,10),
+        s.agencyId||'',
+        s.userId||'',
+        s.slotType||'',
+        s.storeName||'',
+        s.rankKeyword||'',
+        s.searchKeyword||'',
+        s.url||'',
+        s.mid||'',
+        s.startDate||'',
+        s.endDate||'',
+        { pending:'대기', active:'승인', rejected:'반려', expired:'만료' }[s.status] || s.status,
+        s.rejectReason||'',
+        s.memo||'',
+      ]);
+      const wsAll = XLSX.utils.aoa_to_sheet([allHeader, ...allRows]);
+      wsAll['!cols'] = [
+        {wch:5},{wch:12},{wch:10},{wch:12},{wch:10},{wch:20},
+        {wch:14},{wch:20},{wch:50},{wch:14},{wch:12},{wch:12},
+        {wch:6},{wch:20},{wch:20}
+      ];
+      XLSX.utils.book_append_sheet(wb, wsAll, '전체목록');
+
+      // 파일명: 접수_YYYYMMDD.xlsx
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+      XLSX.writeFile(wb, `접수_${dateStr}.xlsx`);
+    }
+
+    if (window.XLSX) {
+      buildAndDownload();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = buildAndDownload;
+      document.head.appendChild(script);
+    }
   };
 
   // 최초 로드
