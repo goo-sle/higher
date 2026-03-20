@@ -35,6 +35,16 @@
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* ── 반응형 ── */
+  @media (max-width: 768px) {
+    #notice-page .action-bar { flex-wrap: wrap; gap: 6px; }
+    #notice-page .action-bar > * { flex: 1 1 calc(50% - 6px); min-width: 120px; }
+    #notice-page .action-bar > div[style*="margin-left:auto"] { flex: 1 1 100%; margin-left: 0 !important; }
+    #notice-page .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #notice-page table { min-width: 600px; }
+    .modal-box { width: calc(100vw - 32px); padding: 20px; }
+  }
 </style>
 
 <div class="action-bar">
