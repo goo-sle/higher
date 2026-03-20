@@ -217,8 +217,8 @@
     const totT=ag.reduce((a,s)=>a+(s.dailyTarget||0),0);
     const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
     const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${ma.toLocaleString()}원</td></tr>`;}).join('');
-    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${da.toLocaleString()}원</td></tr>`;}).join('');
+    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${ma.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(ma*1.1).toLocaleString()}원</td></tr>`;}).join('');
+    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${da.toLocaleString()}원</td><td style="font-weight:700;color:var(--info)">${Math.round(da*1.1).toLocaleString()}원</td></tr>`;}).join('');
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">
@@ -226,14 +226,15 @@
       <div class="sp-sub">유저ID: ${userId} · 단가: ${p.toLocaleString()}원/개</div>
       <div class="sp-cards">
         <div class="sp-card"><div class="sp-card-label">총 정산금액</div><div class="sp-card-value" style="color:var(--accent)">${totA.toLocaleString()}원</div></div>
-        <div class="sp-card"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--info)">${paidA.toLocaleString()}원</div></div>
+        <div class="sp-card"><div class="sp-card-label">총 입금액</div><div class="sp-card-value" style="color:var(--info)">${Math.round(totA*1.1).toLocaleString()}원</div></div>
+        <div class="sp-card"><div class="sp-card-label">정산 완료</div><div class="sp-card-value" style="color:var(--accent)">${paidA.toLocaleString()}원</div></div>
       </div>
       <div class="sp-section">월별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th></tr></thead>
-        <tbody>${mRows||'<tr><td colspan="4" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <table class="sp-tbl"><thead><tr><th>월</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th><th>입금액</th></tr></thead>
+        <tbody>${mRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
       <div class="sp-section">일별 합산</div>
-      <table class="sp-tbl"><thead><tr><th>날짜</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th></tr></thead>
-        <tbody>${dRows||'<tr><td colspan="4" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
+      <table class="sp-tbl"><thead><tr><th>날짜</th><th>슬롯수</th><th>일목표합산</th><th>정산금액</th><th>입금액</th></tr></thead>
+        <tbody>${dRows||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">데이터 없음</td></tr>'}</tbody></table>
       <div class="sp-footer"><button class="btn-close-sp" onclick="this.closest('.sp-overlay').remove()">닫기</button></div>
     </div>`;
     document.body.appendChild(ov);
