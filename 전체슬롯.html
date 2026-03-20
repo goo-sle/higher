@@ -64,8 +64,8 @@
 
 <div class="filter-bar">
   <select id="f-status" onchange="renderSlots()">
-    <option value="active">진행중</option>
     <option value="">상태 전체</option>
+    <option value="active">진행중</option>
     <option value="expired">만료</option>
   </select>
   <input type="text" id="f-agency" placeholder="대행사 검색" style="width:130px;" oninput="renderSlots()">
@@ -113,8 +113,8 @@
     const userid = (document.getElementById('f-userid').value||'').toLowerCase();
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
     return allSlots.filter(s => {
-      const st = status || 'active';
-      if (s.status !== st) return false;
+      const st = status || '';
+      if (st && s.status !== st) return false;
       if (agency && !(s.agencyId||'').toLowerCase().includes(agency)) return false;
       if (userid && !(s.userId||'').toLowerCase().includes(userid))   return false;
       if (kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
@@ -185,7 +185,7 @@
     if(el) el.textContent = `선택: ${n}건`;
   };
   window.resetFilter = () => {
-    document.getElementById('f-status').value='active';
+    document.getElementById('f-status').value='';
     document.getElementById('f-agency').value='';
     document.getElementById('f-userid').value='';
     document.getElementById('f-kw').value='';
