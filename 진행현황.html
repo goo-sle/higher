@@ -262,7 +262,7 @@
           </div>
           <div class="modal-field">
             <label>작업 키워드</label>
-            <input id="m-workKeyword" value="${s.workKeyword||''}">
+            <input id="m-workKeyword" value="${s.searchKeyword||s.workKeyword||''}">
           </div>
         </div>
         <div class="modal-row">
@@ -315,7 +315,8 @@
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,
       mid:         document.getElementById('m-mid').value,
-      workKeyword: document.getElementById('m-workKeyword').value,
+      workKeyword:  document.getElementById('m-workKeyword').value,
+      searchKeyword: document.getElementById('m-workKeyword').value,
       days:        Number(document.getElementById('m-days').value)||0,
       dailyTarget: Number(document.getElementById('m-dailyTarget').value)||0,
       startDate:   document.getElementById('m-startDate').value,
