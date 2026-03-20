@@ -1,22 +1,42 @@
 <div id="settle-page">
 <style>
-  #settle-page .type-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-  #settle-page .type-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px; }
-  #settle-page .type-card .tc-title { font-size:13px; font-weight:700; color:var(--text); border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px; }
-  #settle-page .tc-row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; }
-  #settle-page .tc-row .lbl { color:var(--text2); }
-  #settle-page .tc-row .val { font-weight:600; color:var(--text); }
-  #settle-page .tc-row .val.money { color:var(--accent); }
+  #settle-page .summary-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin-bottom:20px; }
+  #settle-page .sum-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px 24px; position:relative; overflow:hidden; }
+  #settle-page .sum-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; }
+  #settle-page .sum-card.month::after { background:var(--accent); }
+  #settle-page .sum-card.today::after { background:var(--info); }
+  #settle-page .sum-card .sc-label { font-size:11px; color:var(--text2); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+  #settle-page .sum-card.month .sc-value { font-size:28px; font-weight:800; color:var(--accent); line-height:1; }
+  #settle-page .sum-card.today .sc-value { font-size:28px; font-weight:800; color:var(--info); line-height:1; }
+  #settle-page .sum-card .sc-sub { font-size:12px; color:var(--muted); margin-top:6px; }
+
   #settle-page .filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
   #settle-page select, #settle-page input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
   #settle-page .tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
-  #settle-page table { width:100%; min-width:1100px; border-collapse:collapse; font-size:12px; }
-  #settle-page thead th { background:#1e293b; color:#fff; padding:11px 8px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
-  #settle-page tbody td { padding:10px 8px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+  #settle-page table { width:100%; border-collapse:collapse; font-size:12px; }
+  #settle-page thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; border-right:1px solid #2d3f55; white-space:nowrap; text-align:center; }
+  #settle-page tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
   #settle-page tbody tr:last-child td { border-bottom:none; }
-  #settle-page tbody tr:hover { background:#f8fafc; }
+
+  .agency-row { cursor:pointer; transition:.15s; }
+  .agency-row:hover { background:#f0fdf4 !important; }
+  .agency-row td:first-child { text-align:left; padding-left:16px; }
+  .agency-name { font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px; }
+  .toggle-icon { font-size:10px; color:var(--muted); display:inline-block; transition:.2s; }
+  .toggle-icon.open { transform:rotate(90deg); }
+
+  .detail-row { display:none; }
+  .detail-row.show { display:table-row; }
+  .detail-row > td { padding:0 !important; border-bottom:2px solid var(--accent) !important; }
+  .detail-inner { padding:12px 20px; background:#f8fafc; }
+  .detail-table { width:100%; border-collapse:collapse; font-size:11px; }
+  .detail-table th { color:var(--text2); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--border); text-align:center; background:#f1f5f9; }
+  .detail-table td { padding:7px 8px; border-bottom:1px solid #eef2f7; text-align:center; }
+  .detail-table tr:last-child td { border-bottom:none; }
+
   .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .partial-badge{ background:rgba(245,158,11,.1); color:#b45309; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-confirm { background:var(--accent); color:#fff; }
   .btn-confirm:hover { background:var(--accent2); }
@@ -24,15 +44,17 @@
   .pagination { display:flex;justify-content:center;gap:5px;margin-top:16px; }
   .pg-btn { width:30px;height:30px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center; }
   .pg-btn.active { background:var(--info);color:#fff;border-color:var(--info); }
-  .loading-wrap { display:flex;align-items:center;justify-content:center;height:100px;color:var(--muted);font-size:13px;gap:8px; }
+  .loading-wrap { display:flex;align-items:center;justify-content:center;height:120px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
   @keyframes spin { to{transform:rotate(360deg)} }
 </style>
 
-<div class="type-grid" id="settle-type-cards">
+<!-- 요약 카드 -->
+<div class="summary-grid" id="settle-summary">
   <div style="grid-column:1/-1"><div class="loading-wrap"><div class="spinner"></div> 로드 중...</div></div>
 </div>
 
+<!-- 필터 -->
 <div class="filter-bar">
   <select id="sf-type" onchange="renderSettle()">
     <option value="">슬롯타입 전체</option>
@@ -54,18 +76,23 @@
   </div>
 </div>
 
+<!-- 테이블 -->
 <div class="tbl-wrap">
   <table>
     <thead>
       <tr>
-        <th><input type="checkbox" id="sf-all" onchange="toggleAll(this)"></th>
-        <th>번호</th><th>슬롯키</th><th>대행사</th><th>유저ID</th>
-        <th>슬롯타입</th><th>스토어명</th><th>시작일</th><th>종료일</th>
-        <th>유입수</th><th>단가(원)</th><th>정산금액</th><th>정산상태</th><th>확인</th>
+        <th style="text-align:left;padding-left:16px">대행사</th>
+        <th>유저ID</th>
+        <th>접수일</th>
+        <th>일 목표 합산</th>
+        <th>단가(원)</th>
+        <th>정산금액</th>
+        <th>정산상태</th>
+        <th>확인</th>
       </tr>
     </thead>
     <tbody id="settle-body">
-      <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -78,8 +105,9 @@
   let allSlots = [];
   let allUsers = [];
   let paidSet  = new Set();
+  const todayStr = new Date().toISOString().slice(0,10);
+  const monthStr = todayStr.slice(0,7);
 
-  // 슬롯 타입 옵션 채우기
   const typeSelect = document.getElementById('sf-type');
   if (typeSelect && window.HA) {
     HA.SLOT_TYPES.forEach(t => {
@@ -90,27 +118,8 @@
   }
 
   function getUserPrice(userId) {
-    const user = allUsers.find(u => u.username === userId);
-    return user ? (user.unitPrice||0) : 0;
-  }
-
-  async function renderTypeCards() {
-    const cards = document.getElementById('settle-type-cards');
-    if(!cards) return;
-    const slots = allSlots.filter(s => s.status==='active' || s.status==='expired');
-    cards.innerHTML = HA.SLOT_TYPES.map(type => {
-      const list   = slots.filter(s => s.slotType === type);
-      const total  = list.reduce((a,s) => a+getUserPrice(s.userId), 0);
-      const paid   = list.filter(s => paidSet.has(s._key)).reduce((a,s) => a+getUserPrice(s.userId), 0);
-      const unpaid = total - paid;
-      return `<div class="type-card">
-        <div class="tc-title">${type}</div>
-        <div class="tc-row"><span class="lbl">슬롯수</span><span class="val">${list.length}개</span></div>
-        <div class="tc-row"><span class="lbl">총 정산</span><span class="val money">${total.toLocaleString()}원</span></div>
-        <div class="tc-row"><span class="lbl">완료</span><span class="val" style="color:var(--accent)">${paid.toLocaleString()}원</span></div>
-        <div class="tc-row"><span class="lbl">미완료</span><span class="val" style="color:var(--danger)">${unpaid.toLocaleString()}원</span></div>
-      </div>`;
-    }).join('');
+    const u = allUsers.find(u => u.username === userId);
+    return u ? (u.unitPrice||0) : 0;
   }
 
   function getFiltered() {
@@ -119,65 +128,130 @@
     const from = document.getElementById('sf-from').value;
     const to   = document.getElementById('sf-to').value;
     const kw   = (document.getElementById('sf-kw').value||'').toLowerCase();
-
     return allSlots.filter(s => s.status==='active' || s.status==='expired').filter(s => {
-      if(type && s.slotType !== type) return false;
-      if(paid==='paid'   && !paidSet.has(s._key)) return false;
-      if(paid==='unpaid' &&  paidSet.has(s._key)) return false;
-      if(from && s.startDate < from) return false;
-      if(to   && s.endDate   > to)   return false;
-      if(kw && ![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw))) return false;
+      if (type && s.slotType !== type) return false;
+      if (paid==='paid'   && !paidSet.has(s._key)) return false;
+      if (paid==='unpaid' &&  paidSet.has(s._key)) return false;
+      if (from && s.startDate < from) return false;
+      if (to   && s.endDate   > to)   return false;
+      if (kw && ![(s.agencyId||''),(s.userId||'')].some(v=>v.toLowerCase().includes(kw))) return false;
       return true;
     });
   }
 
+  function groupByAgency(slots) {
+    const map = {};
+    slots.forEach(s => {
+      const key = `${s.agencyId||'-'}__${s.userId||'-'}`;
+      if (!map[key]) map[key] = { agencyId: s.agencyId||'-', userId: s.userId||'-', slots: [] };
+      map[key].slots.push(s);
+    });
+    return Object.values(map);
+  }
+
+  function renderSummary() {
+    const base = allSlots.filter(s => s.status==='active' || s.status==='expired');
+    const monthSlots = base.filter(s => (s.createdAt||'').slice(0,7) === monthStr);
+    const todaySlots = base.filter(s => (s.createdAt||'').slice(0,10) === todayStr);
+    const monthAmt = monthSlots.reduce((a,s) => a + (s.dailyTarget||0) * getUserPrice(s.userId), 0);
+    const todayAmt = todaySlots.reduce((a,s) => a + (s.dailyTarget||0) * getUserPrice(s.userId), 0);
+    document.getElementById('settle-summary').innerHTML = `
+      <div class="sum-card month">
+        <div class="sc-label">이번 달 전체 합산 (${monthStr})</div>
+        <div class="sc-value">${monthAmt.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-sub">${monthSlots.length}건 접수</div>
+      </div>
+      <div class="sum-card today">
+        <div class="sc-label">오늘 합산 (${todayStr})</div>
+        <div class="sc-value">${todayAmt.toLocaleString()}<span style="font-size:14px;color:var(--muted);font-weight:400;margin-left:4px">원</span></div>
+        <div class="sc-sub">${todaySlots.length}건 접수</div>
+      </div>`;
+  }
+
   window.renderSettle = async function() {
     document.getElementById('settle-body').innerHTML =
-      '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="8"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    // Firebase에서 병렬로 데이터 가져오기
     [allSlots, allUsers, paidSet] = await Promise.all([
-      HA.getSlots(),
-      HA.getUsers(),
-      HA.getPaidSet(),
+      HA.getSlots(), HA.getUsers(), HA.getPaidSet(),
     ]);
 
-    await renderTypeCards();
+    renderSummary();
 
-    const all   = getFiltered();
-    const start = (page-1)*PER;
-    const list  = all.slice(start, start+PER);
-    const body  = document.getElementById('settle-body');
+    const groups = groupByAgency(getFiltered());
+    const start  = (page-1)*PER;
+    const list   = groups.slice(start, start+PER);
+    const body   = document.getElementById('settle-body');
 
-    if(!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
+    if (!list.length) {
+      body.innerHTML = '<tr class="empty-row"><td colspan="8">데이터가 없습니다.</td></tr>';
     } else {
-      body.innerHTML = list.map((s,i) => {
-        const price  = getUserPrice(s.userId);
-        const isPaid = paidSet.has(s._key);
-        return `<tr>
-          <td><input type="checkbox" class="sf-check" data-key="${s._key}"></td>
-          <td style="color:var(--text2)">${start+i+1}</td>
-          <td style="color:var(--text2);font-size:10px">${s._key.slice(-6)}</td>
-          <td style="font-weight:600">${s.agencyId||'-'}</td>
-          <td>${s.userId||'-'}</td>
-          <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
-          <td style="font-weight:500">${s.storeName||'-'}</td>
-          <td style="color:var(--text2)">${s.startDate||'-'}</td>
-          <td style="color:var(--text2)">${s.endDate||'-'}</td>
-          <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
-          <td>${price.toLocaleString()}</td>
-          <td style="font-weight:700;color:var(--accent)">${price.toLocaleString()}원</td>
-          <td>${isPaid?'<span class="paid-badge">정산완료</span>':'<span class="unpaid-badge">미정산</span>'}</td>
-          <td>
-            <button class="action-btn ${isPaid?'':'btn-confirm'}" style="${isPaid?'background:#f1f5f9;color:var(--text2)':''}"
-              onclick="togglePaid('${s._key}', ${!isPaid})">${isPaid?'취소':'입금확인'}</button>
-          </td>
-        </tr>`;
+      body.innerHTML = list.map((g, gi) => {
+        const price       = getUserPrice(g.userId);
+        const totalTarget = g.slots.reduce((a,s) => a+(s.dailyTarget||0), 0);
+        const totalAmt    = totalTarget * price;
+        const paidCount   = g.slots.filter(s => paidSet.has(s._key)).length;
+        const allPaid     = paidCount === g.slots.length;
+        const somePaid    = paidCount > 0 && !allPaid;
+        const statusBadge = allPaid
+          ? '<span class="paid-badge">정산완료</span>'
+          : somePaid
+            ? '<span class="partial-badge">일부완료</span>'
+            : '<span class="unpaid-badge">미정산</span>';
+        const firstDate = g.slots.map(s=>s.createdAt||'').sort()[0]?.slice(0,10)||'-';
+        const rowId = `ag-${gi}`;
+
+        const detailRows = g.slots.map(s => {
+          const amt = (s.dailyTarget||0) * price;
+          const ip  = paidSet.has(s._key);
+          return `<tr>
+            <td>${(s.createdAt||'').slice(0,10)}</td>
+            <td style="font-weight:500;text-align:left">${s.storeName||'-'}</td>
+            <td>${(s.dailyTarget||0).toLocaleString()}</td>
+            <td>${price.toLocaleString()}원</td>
+            <td style="font-weight:700;color:var(--accent)">${amt.toLocaleString()}원</td>
+            <td>${ip?'<span class="paid-badge">완료</span>':'<span class="unpaid-badge">미정산</span>'}</td>
+            <td><button class="action-btn ${ip?'':'btn-confirm'}" style="${ip?'background:#f1f5f9;color:var(--text2)':''}"
+              onclick="togglePaid('${s._key}',${!ip});event.stopPropagation()">${ip?'취소':'입금확인'}</button></td>
+          </tr>`;
+        }).join('');
+
+        return `
+          <tr class="agency-row" onclick="toggleDetail('${rowId}')">
+            <td>
+              <div class="agency-name">
+                <span class="toggle-icon" id="icon-${rowId}">▶</span>
+                ${g.agencyId}
+              </div>
+            </td>
+            <td>${g.userId}</td>
+            <td style="color:var(--text2)">${firstDate}</td>
+            <td><strong>${totalTarget.toLocaleString()}</strong></td>
+            <td style="color:var(--text2)">${price.toLocaleString()}원</td>
+            <td style="font-weight:700;color:var(--accent)">${totalAmt.toLocaleString()}원</td>
+            <td>${statusBadge}</td>
+            <td>
+              <button class="action-btn" style="${allPaid?'background:#f1f5f9;color:var(--text2)':'background:var(--accent);color:#fff'}"
+                onclick="bulkToggle('${rowId}',event)">${allPaid?'전체취소':'전체확인'}</button>
+            </td>
+          </tr>
+          <tr class="detail-row" id="${rowId}">
+            <td colspan="8">
+              <div class="detail-inner">
+                <table class="detail-table">
+                  <thead><tr>
+                    <th>접수일</th><th style="text-align:left">스토어명</th>
+                    <th>일 목표</th><th>단가</th><th>정산금액</th><th>상태</th><th>확인</th>
+                  </tr></thead>
+                  <tbody>${detailRows}</tbody>
+                </table>
+              </div>
+            </td>
+          </tr>`;
       }).join('');
     }
 
-    const pages = Math.ceil(all.length/PER)||1;
+    const pages = Math.ceil(groups.length/PER)||1;
     const pg = document.getElementById('settle-pagination');
     let ph = `<button class="pg-btn" onclick="goSP(1)">&laquo;</button><button class="pg-btn" onclick="goSP(${Math.max(1,page-1)})">&lsaquo;</button>`;
     for(let i=1;i<=pages;i++) ph+=`<button class="pg-btn ${i===page?'active':''}" onclick="goSP(${i})">${i}</button>`;
@@ -185,8 +259,29 @@
     pg.innerHTML = ph;
   };
 
+  window.toggleDetail = function(rowId) {
+    const row  = document.getElementById(rowId);
+    const icon = document.getElementById('icon-'+rowId);
+    if (!row) return;
+    row.classList.toggle('show');
+    if (icon) icon.classList.toggle('open');
+  };
+
+  window.bulkToggle = async function(rowId, e) {
+    e.stopPropagation();
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    // 해당 행의 모든 togglePaid 버튼에서 key 추출
+    const keys = [...row.querySelectorAll('button[onclick*="togglePaid"]')]
+      .map(b => { const m = b.getAttribute('onclick').match(/'([^']+)'/); return m?m[1]:null; })
+      .filter(Boolean);
+    if (!keys.length) return;
+    const allPaid = keys.every(k => paidSet.has(k));
+    await Promise.all(keys.map(k => HA.setPaid(k, !allPaid)));
+    renderSettle();
+  };
+
   window.goSP = n => { page=n; renderSettle(); };
-  window.toggleAll = cb => document.querySelectorAll('.sf-check').forEach(c=>c.checked=cb.checked);
 
   window.togglePaid = async function(key, val) {
     await HA.setPaid(key, val);
@@ -194,11 +289,14 @@
   };
 
   window.exportCSV = function() {
-    const all = getFiltered();
-    const rows = [['슬롯키','대행사','유저ID','슬롯타입','스토어명','시작일','종료일','유입수','정산금액','정산상태']];
-    all.forEach(s => {
-      const price = getUserPrice(s.userId);
-      rows.push([s._key, s.agencyId, s.userId, s.slotType, s.storeName, s.startDate, s.endDate, s.inflow||0, price, paidSet.has(s._key)?'완료':'미완료']);
+    const groups = groupByAgency(getFiltered());
+    const rows   = [['대행사','유저ID','접수일','일목표합산','단가','정산금액','정산상태']];
+    groups.forEach(g => {
+      const price    = getUserPrice(g.userId);
+      const total    = g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);
+      const allPaid  = g.slots.every(s=>paidSet.has(s._key));
+      const firstDate= g.slots.map(s=>s.createdAt||'').sort()[0]?.slice(0,10)||'-';
+      rows.push([g.agencyId, g.userId, firstDate, total, price, total*price, allPaid?'완료':'미완료']);
     });
     const csv = rows.map(r=>r.join(',')).join('\n');
     const a = document.createElement('a');
