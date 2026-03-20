@@ -104,7 +104,7 @@
     const from=document.getElementById('sf-from').value;
     const to=document.getElementById('sf-to').value;
     const kw=(document.getElementById('sf-kw').value||'').toLowerCase();
-    return allSlots.filter(s=>s.status==='active'||s.status==='expired').filter(s=>{
+    return allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending').filter(s=>{
       if(type&&s.slotType!==type)return false;
       if(paid==='paid'&&!paidSet.has(s._key))return false;
       if(paid==='unpaid'&&paidSet.has(s._key))return false;
@@ -127,7 +127,7 @@
   }
 
   function renderSummary(){
-    const base=allSlots.filter(s=>s.status==='active'||s.status==='expired');
+    const base=allSlots.filter(s=>s.status==='active'||s.status==='expired'||s.status==='pending');
     const mS=base.filter(s=>(s.createdAt||'').slice(0,7)===monthStr);
     const dS=base.filter(s=>(s.createdAt||'').slice(0,10)===todayStr);
     const mA=mS.reduce((a,s)=>a+(s.dailyTarget||0)*getPrice(s.userId),0);
@@ -195,7 +195,7 @@
 
   window.openAgencyPopup=function(agencyId,userId){
     const p=getPrice(userId);
-    const ag=allSlots.filter(s=>(s.status==='active'||s.status==='expired')&&s.agencyId===agencyId&&s.userId===userId);
+    const ag=allSlots.filter(s=>(s.status==='active'||s.status==='expired'||s.status==='pending')&&s.agencyId===agencyId&&s.userId===userId);
     const bm={},bd={};
     ag.forEach(s=>{
       const m=(s.createdAt||'').slice(0,7); if(!bm[m])bm[m]=[]; bm[m].push(s);
