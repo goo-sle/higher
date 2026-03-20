@@ -219,40 +219,87 @@
     renderSlots();
   };
 
+  const STATUS_KO = { pending:'승인대기', active:'진행중', rejected:'반려', expired:'만료' };
+  const READONLY_STYLE = 'background:#f8fafc;color:var(--text2);cursor:default;';
+
   function slotModal(s, title, onSave) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">${title}</div>
+
+        <!-- 읽기전용: 대행사/유저/슬롯타입/상태 -->
         <div class="modal-row">
-          <div class="modal-field"><label>대행사 ID</label><input id="m-agencyId" value="${s.agencyId||''}"></div>
-          <div class="modal-field"><label>유저 ID</label><input id="m-userId" value="${s.userId||''}"></div>
-        </div>
-        <div class="modal-row">
-          <div class="modal-field"><label>슬롯타입</label>
-            <select id="m-slotType">${HA.SLOT_TYPES.map(t=>`<option ${t===(s.slotType||'')?'selected':''}>${t}</option>`).join('')}</select>
+          <div class="modal-field">
+            <label>대행사 ID</label>
+            <input value="${s.agencyId||'-'}" readonly style="${READONLY_STYLE}">
           </div>
-          <div class="modal-field"><label>상태</label>
-            <select id="m-status">${['pending','active','rejected','expired'].map(st=>`<option ${st===s.status?'selected':''}>${st}</option>`).join('')}</select>
+          <div class="modal-field">
+            <label>유저 ID</label>
+            <input value="${s.userId||'-'}" readonly style="${READONLY_STYLE}">
           </div>
         </div>
-        <div class="modal-field"><label>스토어명</label><input id="m-storeName" value="${s.storeName||''}"></div>
-        <div class="modal-field"><label>순위키워드</label><input id="m-rankKeyword" value="${s.rankKeyword||''}"></div>
-        <div class="modal-field"><label>URL</label><input id="m-url" value="${s.url||''}"></div>
         <div class="modal-row">
-          <div class="modal-field"><label>MID</label><input id="m-mid" value="${s.mid||''}"></div>
-          <div class="modal-field"><label>작업키워드</label><input id="m-workKeyword" value="${s.workKeyword||''}"></div>
+          <div class="modal-field">
+            <label>슬롯타입</label>
+            <input value="${s.slotType||'-'}" readonly style="${READONLY_STYLE}">
+          </div>
+          <div class="modal-field">
+            <label>상태</label>
+            <input value="${STATUS_KO[s.status]||s.status||'-'}" readonly style="${READONLY_STYLE}">
+          </div>
+        </div>
+
+        <!-- 수정 가능 필드 (user-apply 양식 순서) -->
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>업체명 <small style="color:var(--muted);font-weight:400">(네이버 상호명)</small></label>
+            <input id="m-storeName" value="${s.storeName||''}">
+          </div>
+          <div class="modal-field">
+            <label>순위 키워드</label>
+            <input id="m-rankKeyword" value="${s.rankKeyword||''}">
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>URL</label>
+          <input id="m-url" value="${s.url||''}">
         </div>
         <div class="modal-row">
-          <div class="modal-field"><label>시작일</label><input type="date" id="m-startDate" value="${s.startDate||''}"></div>
-          <div class="modal-field"><label>종료일</label><input type="date" id="m-endDate" value="${s.endDate||''}"></div>
+          <div class="modal-field">
+            <label>MID</label>
+            <input id="m-mid" value="${s.mid||''}">
+          </div>
+          <div class="modal-field">
+            <label>작업 키워드</label>
+            <input id="m-workKeyword" value="${s.workKeyword||''}">
+          </div>
         </div>
         <div class="modal-row">
-          <div class="modal-field"><label>일 수</label><input type="number" id="m-days" value="${s.days||''}"></div>
-          <div class="modal-field"><label>일 목표</label><input type="number" id="m-dailyTarget" value="${s.dailyTarget||''}"></div>
+          <div class="modal-field">
+            <label>일 수</label>
+            <input type="number" id="m-days" value="${s.days||''}" oninput="modalCalcEnd()">
+          </div>
+          <div class="modal-field">
+            <label>일 목표</label>
+            <input type="number" id="m-dailyTarget" value="${s.dailyTarget||''}">
+          </div>
         </div>
-        <div class="modal-field"><label>메모</label><textarea id="m-memo">${s.memo||''}</textarea></div>
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>시작일</label>
+            <input type="date" id="m-startDate" value="${s.startDate||''}" oninput="modalCalcEnd()">
+          </div>
+          <div class="modal-field">
+            <label>종료일</label>
+            <input type="date" id="m-endDate" value="${s.endDate||''}">
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>메모</label>
+          <textarea id="m-memo">${s.memo||''}</textarea>
+        </div>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">취소</button>
           <button class="btn-save" id="modal-save-btn">저장</button>
@@ -262,21 +309,28 @@
     document.getElementById('modal-save-btn').onclick = onSave;
   }
 
+  // 일 수 변경 시 종료일 자동 계산
+  window.modalCalcEnd = function() {
+    const start = document.getElementById('m-startDate')?.value;
+    const days  = Number(document.getElementById('m-days')?.value);
+    if (start && days > 0) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + days);
+      document.getElementById('m-endDate').value = d.toISOString().slice(0,10);
+    }
+  };
+
   function getFormData() {
     return {
-      agencyId:    document.getElementById('m-agencyId').value,
-      userId:      document.getElementById('m-userId').value,
-      slotType:    document.getElementById('m-slotType').value,
-      status:      document.getElementById('m-status').value,
       storeName:   document.getElementById('m-storeName').value,
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,
       mid:         document.getElementById('m-mid').value,
       workKeyword: document.getElementById('m-workKeyword').value,
-      startDate:   document.getElementById('m-startDate').value,
-      endDate:     document.getElementById('m-endDate').value,
       days:        Number(document.getElementById('m-days').value)||0,
       dailyTarget: Number(document.getElementById('m-dailyTarget').value)||0,
+      startDate:   document.getElementById('m-startDate').value,
+      endDate:     document.getElementById('m-endDate').value,
       memo:        document.getElementById('m-memo').value,
     };
   }
