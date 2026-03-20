@@ -168,7 +168,7 @@
     if(!list.length){body.innerHTML='<tr class="empty-row"><td colspan="9">데이터가 없습니다.</td></tr>';return;}
     body.innerHTML=list.map(g=>{
       const p=getPrice(g.userId);
-      const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0),0);
+      const tot=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);
       const amt=g.slots.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
       const pc=g.slots.filter(s=>paidSet.has(s._key)).length;
       const allP=pc===g.slots.length;
@@ -216,8 +216,8 @@
     const totT=ag.reduce((a,s)=>a+(s.dailyTarget||0),0);
     const totA=ag.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
     const paidA=ag.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);
-    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${ma.toLocaleString()}원</td></tr>`;}).join('');
-    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${da.toLocaleString()}원</td></tr>`;}).join('');
+    const mRows=Object.keys(bm).sort().reverse().map(m=>{const ms=bm[m];const mt=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const ma=ms.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td style="font-weight:600">${m}</td><td>${ms.length}건</td><td>${mt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${ma.toLocaleString()}원</td></tr>`;}).join('');
+    const dRows=Object.keys(bd).sort().reverse().map(d=>{const ds=bd[d];const dt=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0),0);const da=ds.reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*p,0);return `<tr><td>${d}</td><td>${ds.length}건</td><td>${dt.toLocaleString()}</td><td style="font-weight:700;color:var(--accent)">${da.toLocaleString()}원</td></tr>`;}).join('');
     const ov=document.createElement('div');
     ov.className='sp-overlay';
     ov.innerHTML=`<div class="sp-box">
