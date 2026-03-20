@@ -83,7 +83,7 @@
       <tr>
         <th><input type="checkbox" id="s-check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>대행사</th><th>유저ID</th>
-        <th>스토어명</th><th>순위키워드</th>
+        <th>스토어명</th><th>MID</th><th>순위키워드</th>
         <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
       </tr>
     </thead>
@@ -134,7 +134,7 @@
   // ── Firebase에서 데이터 불러와서 렌더 ──────────────────────
   window.renderSlots = async function() {
     document.getElementById('slots-body').innerHTML =
-      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
     renderSummary();
@@ -146,7 +146,7 @@
     const body  = document.getElementById('slots-body');
 
     if (!list.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = list.map((s,i) => `
         <tr>
@@ -154,7 +154,8 @@
           <td style="color:var(--text2)">${start+i+1}</td>
           <td style="font-weight:600">${s.agencyId||'-'}</td>
           <td>${s.userId||'-'}</td>
-          <td style="font-weight:500">${s.storeName||'-'}</td>
+          <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : `<span style="font-weight:500">${s.storeName||'-'}</span>`}</td>
+          <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
@@ -262,7 +263,7 @@
           </div>
           <div class="modal-field">
             <label>작업 키워드</label>
-            <input id="m-workKeyword" value="${s.searchKeyword||s.workKeyword||''}">
+            <input id="m-workKeyword" value="${s.workKeyword||''}">
           </div>
         </div>
         <div class="modal-row">
@@ -315,8 +316,7 @@
       rankKeyword: document.getElementById('m-rankKeyword').value,
       url:         document.getElementById('m-url').value,
       mid:         document.getElementById('m-mid').value,
-      workKeyword:  document.getElementById('m-workKeyword').value,
-      searchKeyword: document.getElementById('m-workKeyword').value,
+      workKeyword: document.getElementById('m-workKeyword').value,
       days:        Number(document.getElementById('m-days').value)||0,
       dailyTarget: Number(document.getElementById('m-dailyTarget').value)||0,
       startDate:   document.getElementById('m-startDate').value,
