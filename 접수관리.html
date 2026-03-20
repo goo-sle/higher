@@ -95,8 +95,7 @@
   </div>
 </div>
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-  <span id="receipt-count" style="font-size:13px;color:var(--text2)">로드 중...</span>
+<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:16px;">
   <div style="display:flex;gap:8px;">
     <button class="action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="downloadExcel()">📥 엑셀 다운로드</button>
     <button class="action-btn btn-approve" style="padding:7px 16px;font-size:12px;" onclick="bulkApprove()">선택 일괄 승인</button>
@@ -110,9 +109,6 @@
     <option value="pending">대기</option>
     <option value="active">승인</option>
     <option value="rejected">반려</option>
-  </select>
-  <select id="filter-type" onchange="renderReceipts()">
-    <option value="">슬롯타입 전체</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="receipt-search" placeholder="업체/아이디/스토어명 검색" style="width:220px;">
@@ -143,16 +139,6 @@
   const PER_PAGE  = 20;
   let allSlots    = [];
 
-  // 슬롯 타입 옵션
-  const typeSelect = document.getElementById('filter-type');
-  if (typeSelect && window.HA) {
-    HA.SLOT_TYPES.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      typeSelect.appendChild(o);
-    });
-  }
-
   const stMap = {
     pending:  '<span class="status-badge s-pending">대기</span>',
     active:   '<span class="status-badge s-active">승인</span>',
@@ -162,11 +148,9 @@
 
   function getFiltered() {
     const status = document.getElementById('filter-status').value;
-    const type   = document.getElementById('filter-type').value;
     const kw     = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
     return allSlots.filter(s => {
       if (status && s.status !== status) return false;
-      if (type   && s.slotType !== type) return false;
       if (kw && ![s.agencyId,s.userId,s.storeName].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
@@ -178,11 +162,10 @@
 
     allSlots = await HA.getSlots();
 
-    const all     = getFiltered();
+    const all      = getFiltered();
     const pending  = allSlots.filter(s => s.status === 'pending').length;
     const active   = allSlots.filter(s => s.status === 'active').length;
     const rejected = allSlots.filter(s => s.status === 'rejected').length;
-    document.getElementById('receipt-count').textContent = `전체 ${all.length}건 | 승인대기 ${pending}건`;
     document.getElementById('stat-pending').textContent  = pending;
     document.getElementById('stat-active').textContent   = active;
     document.getElementById('stat-rejected').textContent = rejected;
@@ -204,7 +187,7 @@
           <td><span style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
           <td>${s.url ? `<a href="${s.url}" target="_blank" style="color:var(--accent);font-weight:500;text-decoration:none;">${s.storeName||'-'}</a>` : (s.storeName||'-')}</td>
           <td style="color:var(--text2);font-size:11px">${s.mid||'-'}</td>
-          <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
+          <td style="color:var(--text2)">${s.rankKeyword ? `<a href="https://m.search.naver.com/search.naver?where=m&query=${encodeURIComponent(s.rankKeyword)}" target="_blank" style="color:var(--text2);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text2)'">${s.rankKeyword}</a>` : '-'}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
           <td style="color:var(--text2)">${s.startDate||'-'}</td>
           <td style="color:var(--text2)">${s.endDate||'-'}</td>
@@ -351,6 +334,7 @@
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
+          <button class="btn-save" onclick="approveOne('${key}');closeDetailModal('${key}')">승인</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
