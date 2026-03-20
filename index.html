@@ -1,400 +1,498 @@
-/**
- * HA-STORE.JS — Firebase Realtime Database 버전
- * localStorage → Firebase로 교체
- * 기존 코드와 인터페이스 동일 (async/await 방식으로 변경)
- */
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HIGHER AD | ADMIN</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
+  <style>
+    :root {
+      --bg:#f0f4f8; --sidebar:#0f172a; --accent:#10b981; --accent2:#059669;
+      --muted:#94a3b8; --card:#ffffff; --border:#e2e8f0;
+      --text:#1e293b; --text2:#64748b; --danger:#ef4444; --warn:#f59e0b; --info:#3b82f6;
+    }
+    *, *::before, *::after { box-sizing:border-box; }
+    body { margin:0; font-family:'Pretendard',sans-serif; background:var(--bg); display:none; min-height:100vh; color:var(--text); }
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-import { getDatabase, ref, set, get, push, update, remove, onValue, child }
-  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+    aside { width:240px; background:var(--sidebar); color:#fff; display:flex; flex-direction:column; position:fixed; height:100vh; z-index:100; }
+    .brand { padding:32px 24px 24px; cursor:pointer; }
+    .brand-name { font-size:20px; font-weight:900; letter-spacing:-0.5px; }
+    .brand-name span { color:var(--accent); }
+    .brand-sub { font-size:10px; color:var(--muted); margin-top:3px; letter-spacing:2px; text-transform:uppercase; }
+    .nav-section { padding:0 12px; }
+    .nav-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; padding:16px 10px 6px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; font-weight:500; transition:all .2s; margin-bottom:2px; user-select:none; }
+    .nav-item:hover { color:#fff; background:rgba(255,255,255,.06); }
+    .nav-item.active { color:#fff; background:var(--accent); box-shadow:0 4px 12px rgba(16,185,129,.25); }
+    .nav-item .badge { margin-left:auto; background:var(--warn); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:10px; }
+    .nav-item.active .badge { background:rgba(255,255,255,.3); }
+    .sidebar-bottom { margin-top:auto; padding:16px 12px; border-top:1px solid rgba(255,255,255,.06); }
+    .admin-info { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; }
+    .admin-avatar { width:34px; height:34px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#fff; flex-shrink:0; }
+    .admin-name { font-size:13px; font-weight:600; }
+    .admin-role { font-size:11px; color:var(--muted); }
+    .btn-logout { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--muted); font-size:13px; transition:.2s; margin-top:4px; }
+    .btn-logout:hover { color:#fff; background:rgba(255,255,255,.06); }
 
-// ── Firebase 초기화 ──────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyCRnAMy3PyD0zracrwyo17hEZ-R40pAvt4",
-  authDomain: "higherad-530c4.firebaseapp.com",
-  databaseURL: "https://higherad-530c4-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "higherad-530c4",
-  storageBucket: "higherad-530c4.firebasestorage.app",
-  messagingSenderId: "1028078651420",
-  appId: "1:1028078651420:web:71c8b8c5e69f0772d637d9"
-};
+    main { flex-grow:1; margin-left:240px; padding:32px 36px; }
+    #content-area { animation:fadeIn .3s ease-out; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
+    .page-heading { font-size:22px; font-weight:800; color:var(--text); }
+    .top-right { display:flex; align-items:center; gap:12px; }
 
-const app  = initializeApp(firebaseConfig);
-const db   = getDatabase(app);
-const auth = getAuth(app);
+    /* 상태 pill */
+    .status-pill { padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.5px; border:1px solid; transition:.3s; }
+    .status-pill.ok      { background:rgba(16,185,129,.08); color:var(--accent); border-color:rgba(16,185,129,.3); }
+    .status-pill.loading { background:rgba(245,158,11,.08); color:var(--warn); border-color:rgba(245,158,11,.3); }
+    .status-pill.error   { background:rgba(239,68,68,.08); color:var(--danger); border-color:rgba(239,68,68,.3); }
 
-// ── DB 경로 상수 ─────────────────────────────────────────────
-const PATHS = {
-  slots:   'ha/slots',
-  users:   'ha/users',
-  notices: 'ha/notices',
-  paid:    'ha/paid_slots',
-};
+    /* 알림 버튼 */
+    .icon-btn {
+      width:34px; height:34px; border-radius:8px; background:var(--card);
+      border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+      cursor:pointer; transition:.2s; color:var(--text2); position:relative;
+    }
+    .icon-btn:hover { background:var(--bg); color:var(--text); }
+    .notif-dot {
+      position:absolute; top:-3px; right:-3px;
+      width:16px; height:16px; border-radius:50%;
+      background:var(--danger); color:#fff;
+      font-size:9px; font-weight:700;
+      display:none; align-items:center; justify-content:center;
+      border:2px solid var(--bg);
+    }
+    .notif-dot.show { display:flex; }
 
-// ── 텔레그램 알림 설정 ────────────────────────────────────────
-const TELEGRAM = {
-  token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
-  chatIds: [
-    '-5092397591',   // 관리자1
-    // '여기에추가',   // 관리자2
-    // '여기에추가',   // 관리자3
-  ],
-};
+    /* 알림 드롭다운 */
+    .notif-panel {
+      position:absolute; top:calc(100% + 8px); right:0;
+      width:320px; background:#fff; border:1px solid var(--border);
+      border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.12);
+      z-index:200; display:none;
+    }
+    .notif-panel.show { display:block; }
+    .notif-header { padding:14px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+    .notif-clear { font-size:11px; color:var(--accent); cursor:pointer; font-weight:600; }
+    .notif-list { max-height:280px; overflow-y:auto; }
+    .notif-item { padding:12px 16px; border-bottom:1px solid #f8fafc; cursor:pointer; transition:.15s; }
+    .notif-item:hover { background:#f8fafc; }
+    .notif-item:last-child { border-bottom:none; }
+    .notif-item-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:3px; }
+    .notif-item-desc  { font-size:11px; color:var(--text2); }
+    .notif-empty { padding:28px 16px; text-align:center; color:var(--muted); font-size:12px; }
+    .notif-wrap { position:relative; }
 
-async function sendTelegram(message) {
-  try {
-    await Promise.all(
-      TELEGRAM.chatIds.map(chatId =>
-        fetch(`https://api.telegram.org/bot${TELEGRAM.token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'HTML',
-          }),
-        })
-      )
-    );
-  } catch (e) {
-    console.warn('텔레그램 알림 실패:', e);
+    .stat-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; }
+    .stat-card { background:var(--card); border-radius:14px; padding:20px; border:1px solid var(--border); position:relative; overflow:hidden; transition:.2s; }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.06); }
+    .stat-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; }
+    .stat-card.c-green::after { background:var(--accent); }
+    .stat-card.c-warn::after  { background:var(--warn); }
+    .stat-card.c-danger::after{ background:var(--danger); }
+    .stat-card.c-info::after  { background:var(--info); }
+    .stat-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:10px; text-transform:uppercase; letter-spacing:.5px; }
+    .stat-value { font-size:28px; font-weight:800; color:var(--text); line-height:1; }
+    .stat-unit  { font-size:13px; color:var(--muted); font-weight:400; margin-left:2px; }
+    .stat-card.c-warn  .stat-value { color:var(--warn); }
+    .stat-card.c-danger .stat-value{ color:var(--danger); }
+
+    .bottom-grid { display:grid; grid-template-columns:2fr 1.1fr; gap:20px; }
+    .ha-box { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; }
+    .box-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    .box-title { font-size:15px; font-weight:700; }
+    .box-more { font-size:12px; color:var(--accent); cursor:pointer; font-weight:600; background:none; border:none; }
+    .notice-list { list-style:none; margin:0; padding:0; }
+    .notice-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px dashed var(--border); }
+    .notice-item:last-child { border:none; padding-bottom:0; }
+    .notice-tag { flex-shrink:0; font-size:10px; padding:2px 7px; border-radius:4px; font-weight:700; }
+    .tag-urgent  { background:rgba(239,68,68,.1); color:var(--danger); }
+    .tag-general { background:var(--bg); color:var(--text2); }
+    .notice-title { flex:1; font-size:13px; color:var(--text); cursor:pointer; }
+    .notice-title:hover { color:var(--accent); }
+    .notice-date { font-size:11px; color:var(--muted); flex-shrink:0; }
+    .quick-box { background:var(--sidebar); border-radius:16px; padding:24px; }
+    .quick-title { font-size:15px; font-weight:700; color:#fff; margin-bottom:18px; }
+    .quick-btn { display:block; width:100%; text-align:left; padding:14px 16px; border-radius:10px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:10px; transition:.2s; }
+    .quick-btn:last-child { margin-bottom:0; }
+    .quick-btn.ghost   { background:rgba(255,255,255,.07); color:#fff; }
+    .quick-btn.ghost:hover { background:rgba(255,255,255,.12); }
+    .quick-btn.primary { background:var(--accent); color:#fff; }
+    .quick-btn.primary:hover { background:var(--accent2); }
+
+    .loading-wrap { display:flex; align-items:center; justify-content:center; height:200px; color:var(--muted); font-size:14px; gap:10px; }
+    .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    /* ── 햄버거 버튼 ── */
+    .hamburger {
+      display:none; flex-direction:column; justify-content:center; gap:5px;
+      width:36px; height:36px; cursor:pointer; padding:6px;
+      border-radius:8px; border:1px solid var(--border); background:var(--card);
+    }
+    .hamburger span { display:block; height:2px; background:var(--text); border-radius:2px; transition:.3s; }
+
+    /* ── 사이드바 오버레이 (모바일) ── */
+    .sidebar-overlay {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99;
+    }
+    .sidebar-overlay.show { display:block; }
+
+    /* ── 반응형 ── */
+    @media (max-width:768px) {
+      aside {
+        transform:translateX(-100%);
+        transition:transform .3s ease;
+        z-index:200;
+      }
+      aside.open { transform:translateX(0); }
+
+      main { margin-left:0; padding:16px; }
+
+      .top-bar { margin-bottom:16px; }
+      .page-heading { font-size:17px; }
+      .status-pill { display:none; }
+
+      .hamburger { display:flex; }
+
+      /* 카드 그리드 — 2열 */
+      .stat-grid { grid-template-columns:repeat(2,1fr) !important; gap:10px; }
+      .stat-card { padding:14px; }
+      .stat-value { font-size:22px; }
+
+      /* 하단 그리드 — 1열 */
+      .bottom-grid { grid-template-columns:1fr; }
+
+      /* 테이블 — 가로 스크롤 */
+      .tbl-wrap, #receipt-page .tbl-wrap, #slots-page .tbl-wrap,
+      #settle-page .tbl-wrap, #expire-page .tbl-wrap {
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+      }
+
+      /* 필터바 — 줄바꿈 */
+      .filter-bar, #receipt-page .filter-bar, #slots-page .filter-bar,
+      #settle-page .filter-bar, #expire-page .filter-bar {
+        flex-wrap:wrap;
+        gap:6px;
+      }
+
+      /* 현황 카드 (접수관리, 전체슬롯) */
+      .stat-bar { grid-template-columns:1fr 1fr !important; gap:8px; }
+      .sb-val { font-size:18px !important; }
+
+      /* 알림 패널 */
+      .notif-panel { width:280px; right:-60px; }
+    }
+  </style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div class="brand" onclick="loadDashboard()">
+    <div class="brand-name">HIGHER <span>AD</span></div>
+    <div class="brand-sub">Admin Portal</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Management</div>
+    <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
+    <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
+    <div class="nav-item" id="nav-expire"  onclick="loadPage('만료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 만료 예정</div>
+    <div class="nav-label">Finance & Users</div>
+    <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리</div>
+    <div class="nav-item" id="nav-users"   onclick="loadPage('회원관리.html',this)"><i data-lucide="users" size="16"></i> 회원 관리</div>
+    <div class="nav-item" id="nav-notice"  onclick="loadPage('공지사항.html',this)"><i data-lucide="megaphone" size="16"></i> 공지사항</div>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="admin-info">
+      <div class="admin-avatar">A</div>
+      <div><div class="admin-name">관리자</div><div class="admin-role">Super Admin</div></div>
+    </div>
+    <div class="btn-logout" onclick="doLogout()">
+      <i data-lucide="log-out" size="15"></i> 로그아웃
+    </div>
+  </div>
+</aside>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<main>
+  <div class="top-bar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="hamburger" id="hamburger" onclick="toggleSidebar()">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="page-heading" id="page-heading">운영 현황 대시보드</div>
+    </div>
+    <div class="top-right">
+      <!-- Firebase 연결 상태 -->
+      <div class="status-pill loading" id="status-pill">● 연결 중...</div>
+
+      <!-- 알림 버튼 -->
+      <div class="notif-wrap">
+        <div class="icon-btn" onclick="toggleNotif()">
+          <i data-lucide="bell" size="16"></i>
+          <div class="notif-dot" id="notif-dot"></div>
+        </div>
+        <div class="notif-panel" id="notif-panel">
+          <div class="notif-header">
+            알림
+            <span class="notif-clear" onclick="clearNotifs()">모두 지우기</span>
+          </div>
+          <div class="notif-list" id="notif-list">
+            <div class="notif-empty">새 알림이 없습니다.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="content-area">
+    <div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>
+  </div>
+</main>
+
+<script type="module">
+  import HA from './ha-store.js';
+
+  window.HA = HA;
+
+  // ── 로그아웃 ──────────────────────────────────────────────
+  window.doLogout = () => {
+    HA.logout();
+    sessionStorage.removeItem('ha_admin_auth');
+    location.href = 'admin-login.html';
+  };
+
+  // ── 알림 관련 ─────────────────────────────────────────────
+  let notifications = JSON.parse(sessionStorage.getItem('ha_notifs') || '[]');
+  let prevPending   = null;
+  let notifOpen     = false;
+
+  function saveNotifs() {
+    sessionStorage.setItem('ha_notifs', JSON.stringify(notifications.slice(0, 20)));
   }
-}
 
-// ── 텔레그램 배치 큐 ─────────────────────────────────────────
-const _telegramBatch = {
-  queue: [],
-  timer: null,
-  DELAY: 5000,  // 5초 묶음 대기 (ms)
-};
-
-// ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
-function snapToArray(snapshot) {
-  if (!snapshot.exists()) return [];
-  const val = snapshot.val();
-  return Object.entries(val).map(([key, data]) => ({ ...data, _key: key }));
-}
-
-// ── 내부 이벤트 버스 ─────────────────────────────────────────
-function dispatch(event) {
-  window.dispatchEvent(new CustomEvent(event));
-}
-
-// ════════════════════════════════════════════════════════════
-const HA = {
-
-  SLOT_TYPES: ['리워드'],
-
-  // ── 현재 로그인 유저 ───────────────────────────────────────
-  getCurrentUser() {
-    return JSON.parse(sessionStorage.getItem('ha_current_user') || 'null');
-  },
-
-  // ── 로그인 ────────────────────────────────────────────────
-  async login(username, password) {
-    // 어드민 계정
-    if (username === 'admin' && password === 'admin1234') {
-      const user = { id: 'admin', username: 'admin', role: 'admin', agency: '-' };
-      sessionStorage.setItem('ha_current_user', JSON.stringify(user));
-      return { ok: true, user };
+  function renderNotifPanel() {
+    const dot  = document.getElementById('notif-dot');
+    const list = document.getElementById('notif-list');
+    if (!notifications.length) {
+      dot.classList.remove('show');
+      list.innerHTML = '<div class="notif-empty">새 알림이 없습니다.</div>';
+      return;
     }
-    // 일반 회원 — Firebase에서 조회
+    dot.textContent = notifications.length > 9 ? '9+' : notifications.length;
+    dot.classList.add('show');
+    list.innerHTML = notifications.map((n, i) => `
+      <div class="notif-item" onclick="handleNotif(${i})">
+        <div class="notif-item-title">${n.title}</div>
+        <div class="notif-item-desc">${n.desc}</div>
+      </div>`).join('');
+  }
+
+  window.toggleNotif = function() {
+    const panel = document.getElementById('notif-panel');
+    notifOpen = !notifOpen;
+    panel.classList.toggle('show', notifOpen);
+  };
+
+  window.clearNotifs = function() {
+    notifications = [];
+    saveNotifs();
+    renderNotifPanel();
+  };
+
+  window.handleNotif = function(i) {
+    document.getElementById('notif-panel').classList.remove('show');
+    notifOpen = false;
+    loadPage('접수관리.html', document.getElementById('nav-pending'));
+  };
+
+  // 패널 외부 클릭 시 닫기
+  document.addEventListener('click', e => {
+    if (notifOpen && !e.target.closest('.notif-wrap')) {
+      document.getElementById('notif-panel').classList.remove('show');
+      notifOpen = false;
+    }
+  });
+
+  // ── 대시보드 렌더 ─────────────────────────────────────────
+  window.renderDashboard = async function() {
+    const area = document.getElementById('content-area');
+    area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div>';
+
+    const [s, allNotices, allUsers, allSlots] = await Promise.all([
+      HA.getDashboardStats(),
+      HA.getNotices(),
+      HA.getUsers(),
+      HA.getSlots(),
+    ]);
+    const notices = allNotices.slice(0, 4);
+
+    const agencies       = allUsers.filter(u => u.approved !== false).length;
+    const activeSlots    = allSlots.filter(sl => sl.status === 'active');
+    const activeAgencies = new Set(activeSlots.map(sl => sl.agencyId)).size;
+    const totalTarget    = activeSlots.reduce((a, sl) => a + (sl.dailyTarget||0), 0);
+
+    area.innerHTML = `
+      <div class="stat-grid" style="grid-template-columns:repeat(7,1fr)">
+        <div class="stat-card c-info"><div class="stat-label">영업점</div><div class="stat-value">${agencies}<span class="stat-unit">곳</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">진행중 영업점</div><div class="stat-value">${activeAgencies}<span class="stat-unit">곳</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">진행중 슬롯</div><div class="stat-value">${s.activeSlots}<span class="stat-unit">개</span></div></div>
+        <div class="stat-card c-green"><div class="stat-label">전체 목표</div><div class="stat-value">${totalTarget.toLocaleString()}<span class="stat-unit">개</span></div></div>
+        <div class="stat-card c-warn"><div class="stat-label">만료 예정(3일)</div><div class="stat-value">${s.expiringSoon}<span class="stat-unit">건</span></div></div>
+        <div class="stat-card c-info"><div class="stat-label">승인 대기</div><div class="stat-value">${s.pending}<span class="stat-unit">건</span></div></div>
+        <div class="stat-card c-danger"><div class="stat-label">반려</div><div class="stat-value">${s.rejected}<span class="stat-unit">건</span></div></div>
+      </div>
+      <div class="bottom-grid">
+        <div class="ha-box">
+          <div class="box-header">
+            <span class="box-title">공지사항</span>
+            <button class="box-more" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">더보기</button>
+          </div>
+          <ul class="notice-list">
+            ${notices.length ? notices.map(n => `
+              <li class="notice-item">
+                ${n.pinned ? '<span class="notice-tag tag-urgent">필독</span>' : '<span class="notice-tag tag-general">일반</span>'}
+                <span class="notice-title" onclick="loadPage('공지사항.html',document.getElementById('nav-notice'))">${n.title}</span>
+                <span class="notice-date">${(n.date||'').slice(5,10)}</span>
+              </li>`).join('') : '<li style="color:var(--muted);font-size:13px;padding:12px 0">공지사항이 없습니다.</li>'}
+          </ul>
+        </div>
+        <div class="quick-box">
+          <div class="quick-title">Quick Action</div>
+          <button class="quick-btn ghost"   onclick="loadPage('접수관리.html',document.getElementById('nav-pending'))">📥 &nbsp;신규 접수 확인하기</button>
+          <button class="quick-btn primary" onclick="loadPage('정산관리.html',document.getElementById('nav-settle'))">💰 &nbsp;미정산 내역 확인</button>
+          <button class="quick-btn ghost"   onclick="loadPage('만료예정.html',document.getElementById('nav-expire'))">⏰ &nbsp;만료 예정 슬롯 보기</button>
+          <button class="quick-btn ghost"   onclick="loadPage('회원관리.html',document.getElementById('nav-users'))">👤 &nbsp;신규 회원 승인하기</button>
+        </div>
+      </div>`;
+
+    lucide.createIcons();
+  };
+
+  window.loadDashboard = function() {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('page-heading').textContent = '운영 현황 대시보드';
+    renderDashboard();
+    window.scrollTo(0, 0);
+  };
+
+  window.loadPage = async function(page, navEl) {
+    if (navEl) {
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+      navEl.classList.add('active');
+    }
+    const titles = {
+      '진행현황.html':'진행 현황', '접수관리.html':'접수 관리',
+      '만료예정.html':'만료 예정 현황', '정산관리.html':'정산 관리',
+      '회원관리.html':'회원 관리',      '공지사항.html':'공지사항',
+    };
+    document.getElementById('page-heading').textContent = titles[page] || page;
+
+    const area = document.getElementById('content-area');
+    area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
+
     try {
-      const snapshot = await get(ref(db, PATHS.users));
-      const users = snapToArray(snapshot);
-      const found = users.find(u => u.username === username && u.password === password);
-      if (found) {
-        // 승인 대기 중인 계정 로그인 차단
-        if (found.approved === false) {
-          return { ok: false, reason: 'pending' };
+      const res = await fetch(page + '?v=' + Date.now());
+      if (!res.ok) throw new Error();
+      const html = await res.text();
+
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      area.innerHTML = '';
+
+      doc.body.childNodes.forEach(node => {
+        if (node.nodeName !== 'SCRIPT') {
+          area.appendChild(document.importNode(node, true));
         }
-        const user = { ...found };
-        sessionStorage.setItem('ha_current_user', JSON.stringify(user));
-        return { ok: true, user };
-      }
-      return { ok: false };
-    } catch (e) {
-      console.error('login error', e);
-      return { ok: false };
+      });
+
+      doc.body.querySelectorAll('script').forEach(old => {
+        const blob = new Blob([old.textContent], { type: 'application/javascript' });
+        const url  = URL.createObjectURL(blob);
+        const s    = document.createElement('script');
+        s.src      = url;
+        document.body.appendChild(s);
+        s.onload = () => URL.revokeObjectURL(url);
+      });
+
+      lucide.createIcons();
+      window.scrollTo(0, 0);
+    } catch(err) {
+      console.error('loadPage error:', err);
+      area.innerHTML = `<div style="padding:80px;text-align:center;background:#fff;border-radius:16px;border:1px solid var(--border)">
+        <p style="color:var(--text2);font-size:14px">${page} 파일을 찾을 수 없습니다.</p></div>`;
     }
-  },
+  };
 
-  logout() {
-    sessionStorage.removeItem('ha_current_user');
-  },
+  // ── Firebase 실시간 리스너 ────────────────────────────────
+  // ── 알림 디바운스 ─────────────────────────────────────────
+  let notifTimer = null;
+  let pendingDiff = 0;
 
-  // ════════════════════════════════════════════════════════
-  // 슬롯 CRUD
-  // ════════════════════════════════════════════════════════
+  HA.onSlotsChange(slots => {
+    const n = slots.filter(s => s.status === 'pending').length;
 
-  async getSlots() {
-    const snapshot = await get(ref(db, PATHS.slots));
-    return snapToArray(snapshot).sort((a, b) =>
-      new Date(b.createdAt) - new Date(a.createdAt)
-    );
-  },
+    // 배지 업데이트
+    const el = document.getElementById('pending-badge');
+    if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
 
-  async addSlot(data) {
-    const newSlot = {
-      status:       'pending',
-      createdAt:    new Date().toISOString(),
-      agencyId:     data.agencyId     || '',
-      userId:       data.userId       || '',
-      slotType:     data.slotType     || '',
-      startDate:    data.startDate    || '',
-      endDate:      data.endDate      || '',
-      storeName:    data.storeName    || '',
-      rankKeyword:  data.rankKeyword  || '',
-      url:          data.url          || '',
-      mid:          data.mid          || '',
-      compareUrl:   data.compareUrl   || '',
-      compareMid:   data.compareMid   || '',
-      workKeyword:  data.workKeyword  || '',
-      sellerControl:data.sellerControl|| '',
-      memo:         data.memo         || '',
-      days:         Number(data.days)        || 0,
-      dailyTarget:  Number(data.dailyTarget) || 0,
-      rank:         null,
-      inflow:       0,
-    };
-    const newRef = await push(ref(db, PATHS.slots), newSlot);
-    const result = { ...newSlot, _key: newRef.key };
-    dispatch('ha:slots:updated');
-
-    // ── 텔레그램 배치 알림 ──────────────────────────────────
-    _telegramBatch.queue.push(newSlot);
-
-    if (_telegramBatch.timer) clearTimeout(_telegramBatch.timer);
-
-    _telegramBatch.timer = setTimeout(async () => {
-      const batch = [..._telegramBatch.queue];
-      _telegramBatch.queue = [];
-      _telegramBatch.timer = null;
-
-      const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-
-      // 대행사 + 슬롯타입 조합별 집계
-      const grouped = {};
-      for (const s of batch) {
-        const key = `${s.agencyId}||${s.slotType}`;
-        grouped[key] = (grouped[key] || 0) + 1;
-      }
-
-      const lines = Object.entries(grouped)
-        .map(([key, cnt]) => {
-          const [agency, type] = key.split('||');
-          return `  • ${agency} / ${type} / ${cnt}개`;
-        })
-        .join('\n');
-
-      await sendTelegram(
-`📥 <b>새 슬롯 접수 (총 ${batch.length}개)</b>
-━━━━━━━━━━━━━━━━
-${lines}
-⏰ 접수시간: ${now}
-━━━━━━━━━━━━━━━━
-👉 <a href="https://higherad.kro.kr/index.html">어드민에서 확인하세요</a>`
-      );
-    }, _telegramBatch.DELAY);
-
-    return result;
-  },
-
-  async updateSlot(key, patch) {
-    await update(ref(db, `${PATHS.slots}/${key}`), patch);
-    dispatch('ha:slots:updated');
-  },
-
-  async deleteSlot(key) {
-    await remove(ref(db, `${PATHS.slots}/${key}`));
-    dispatch('ha:slots:updated');
-  },
-
-  async approveSlot(key) {
-    await this.updateSlot(key, { status: 'active' });
-  },
-
-  async rejectSlot(key, reason = '') {
-    await this.updateSlot(key, { status: 'rejected', rejectReason: reason });
-  },
-
-  // ════════════════════════════════════════════════════════
-  // 회원 CRUD
-  // ════════════════════════════════════════════════════════
-
-  async getUsers() {
-    const snapshot = await get(ref(db, PATHS.users));
-    if (!snapshot.exists()) return getDefaultUsers();
-    return snapToArray(snapshot);
-  },
-
-  async addUser(data) {
-    const agencyName = data.agency || '';
-    const newUser = {
-      username:   data.username   || '',
-      password:   data.password   || '',
-      agency:     agencyName,       // 회원 테이블의 업체명
-      agencyId:   agencyName,       // 슬롯에서 참조하는 대행사 ID와 동일한 값
-      role:       'member',
-      unitPrice:  Number(data.unitPrice) || 0,
-      memo:       data.memo       || '',
-      createdAt:  new Date().toISOString().slice(0, 10),
-      approved:   data.approved !== undefined ? data.approved : false,
-    };
-    const newRef = await push(ref(db, PATHS.users), newUser);
-    dispatch('ha:users:updated');
-    return { ...newUser, _key: newRef.key };
-  },
-
-  async updateUser(key, patch) {
-    await update(ref(db, `${PATHS.users}/${key}`), patch);
-    dispatch('ha:users:updated');
-  },
-
-  async deleteUser(key) {
-    await remove(ref(db, `${PATHS.users}/${key}`));
-    dispatch('ha:users:updated');
-  },
-
-  // ════════════════════════════════════════════════════════
-  // 공지사항 CRUD
-  // ════════════════════════════════════════════════════════
-
-  async getNotices() {
-    const snapshot = await get(ref(db, PATHS.notices));
-    if (!snapshot.exists()) return getDefaultNotices();
-    return snapToArray(snapshot).sort((a, b) =>
-      new Date(b.date) - new Date(a.date)
-    );
-  },
-
-  async addNotice(data) {
-    const n = {
-      title:   data.title   || '',
-      content: data.content || '',
-      author:  '관리자',
-      date:    new Date().toISOString().replace('T', ' ').slice(0, 19),
-      views:   0,
-      pinned:  !!data.pinned,
-    };
-    const newRef = await push(ref(db, PATHS.notices), n);
-    dispatch('ha:notices:updated');
-    return { ...n, _key: newRef.key };
-  },
-
-  async updateNotice(key, patch) {
-    await update(ref(db, `${PATHS.notices}/${key}`), patch);
-    dispatch('ha:notices:updated');
-  },
-
-  async deleteNotice(key) {
-    await remove(ref(db, `${PATHS.notices}/${key}`));
-    dispatch('ha:notices:updated');
-  },
-
-  // ════════════════════════════════════════════════════════
-  // 정산 상태
-  // ════════════════════════════════════════════════════════
-
-  async getPaidSet() {
-    const snapshot = await get(ref(db, PATHS.paid));
-    if (!snapshot.exists()) return new Set();
-    return new Set(Object.keys(snapshot.val()));
-  },
-
-  async setPaid(key, val) {
-    if (val) {
-      await set(ref(db, `${PATHS.paid}/${key}`), true);
-    } else {
-      await remove(ref(db, `${PATHS.paid}/${key}`));
+    // Firebase 연결 성공 표시
+    const pill = document.getElementById('status-pill');
+    if (pill) {
+      pill.textContent = '● 연결됨';
+      pill.className = 'status-pill ok';
     }
-  },
 
-  // ════════════════════════════════════════════════════════
-  // 대시보드 집계
-  // ════════════════════════════════════════════════════════
-
-  async getDashboardStats() {
-    const slots = await this.getSlots();
-    const today  = new Date(); today.setHours(0,0,0,0);
-    const in3    = new Date(today); in3.setDate(today.getDate() + 3);
-
-    const active   = slots.filter(s => s.status === 'active');
-    const pending  = slots.filter(s => s.status === 'pending');
-    const rejected = slots.filter(s => s.status === 'rejected');
-    const expiring = active.filter(s => {
-      const d = new Date(s.endDate);
-      return d <= in3 && d >= today;
-    });
-    const agencySet = new Set(active.map(s => s.agencyId));
-
-    return {
-      activeAgencies: agencySet.size,
-      activeSlots:    active.length,
-      expiringSoon:   expiring.length,
-      pending:        pending.length,
-      rejected:       rejected.length,
-    };
-  },
-
-  // ════════════════════════════════════════════════════════
-  // 실시간 리스너 (어드민 접수관리 배지 등에 사용)
-  // ════════════════════════════════════════════════════════
-
-  onSlotsChange(callback) {
-    return onValue(ref(db, PATHS.slots), snapshot => {
-      const slots = snapToArray(snapshot).sort((a, b) =>
-        new Date(b.createdAt) - new Date(a.createdAt)
-      );
-      callback(slots);
-    });
-  },
-
-  // ════════════════════════════════════════════════════════
-  // 초기 데이터 시드 (Firebase가 비어있을 때 한 번만 실행)
-  // ════════════════════════════════════════════════════════
-
-  async seedIfEmpty() {
-    const noticeSnap = await get(ref(db, PATHS.notices));
-    if (!noticeSnap.exists()) {
-      const defaults = getDefaultNotices();
-      for (const n of defaults) {
-        await push(ref(db, PATHS.notices), n);
-      }
+    // 새 접수 알림 — 디바운스로 묶어서 한 번만 생성
+    if (prevPending !== null && n > prevPending) {
+      pendingDiff += n - prevPending;
+      if (notifTimer) clearTimeout(notifTimer);
+      notifTimer = setTimeout(() => {
+        notifications.unshift({
+          title: `📥 새 슬롯 접수 ${pendingDiff}건`,
+          desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+        });
+        pendingDiff = 0;
+        notifTimer = null;
+        saveNotifs();
+        renderNotifPanel();
+      }, 1500);
     }
-    const userSnap = await get(ref(db, PATHS.users));
-    if (!userSnap.exists()) {
-      const defaults = getDefaultUsers();
-      for (const u of defaults) {
-        await push(ref(db, PATHS.users), u);
-      }
+    prevPending = n;
+    renderNotifPanel();
+  });
+
+  // ── 앱 시작 ───────────────────────────────────────────────
+  async function init() {
+    if (sessionStorage.getItem('ha_admin_auth') !== '1') {
+      location.href = 'admin-login.html';
+      return;
     }
-  },
-};
+    document.body.style.display = 'flex';
+    await HA.seedIfEmpty();
+    await renderDashboard();
+    lucide.createIcons();
+  }
 
-// ── 기본 데이터 ───────────────────────────────────────────────
-function getDefaultNotices() {
-  return [
-    { title:'3월 결산 정산 일정 확인 바랍니다.', author:'관리자', date:'2026-03-18 11:27:28', views:13, pinned:true,  content:'3월 결산 정산은 3/31까지 완료 예정입니다.' },
-    { title:'신규 서버 증설 작업 안내 (03/20)',  author:'관리자', date:'2026-03-17 13:36:34', views:73, pinned:false, content:'03/20 새벽 2~4시 서버 점검이 있습니다.' },
-    { title:'회원사 등급 산정 기준 변경 공지',    author:'관리자', date:'2026-03-15 11:42:51', views:32, pinned:false, content:'2026년 2분기부터 등급 기준이 변경됩니다.' },
-    { title:'슬롯 대량 신청 시 가이드 준수 요청', author:'관리자', date:'2026-03-12 18:38:13', views:44, pinned:false, content:'슬롯 10개 이상 신청 시 가이드를 준수해주세요.' },
-    { title:'☆ 필독 공지사항 ☆',               author:'관리자', date:'2026-01-08 17:42:55', views:50, pinned:true,  content:'반드시 읽어주세요.' },
-  ];
-}
+  // ── 사이드바 토글 (모바일) ──────────────────────────────────
+  window.toggleSidebar = function() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('show');
+  };
+  window.closeSidebar = function() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('show');
+  };
 
-function getDefaultUsers() {
-  return [
-    { username:'higher', password:'test1234', agency:'had1104', role:'member', unitPrice:50000, memo:'테스트 계정', createdAt:'2026-01-08' },
-  ];
-}
+  // 메뉴 클릭 시 모바일에서 자동으로 사이드바 닫기
+  const origLoadPage = window.loadPage;
+  window.loadPage = function(page, el) {
+    closeSidebar();
+    origLoadPage(page, el);
+  };
 
-// 전역 노출
-window.HA = HA;
-
-// 앱 시작 시 빈 DB면 기본 데이터 삽입
-HA.seedIfEmpty();
-
-export default HA;
+  init();
+</script>
+</body>
+</html>
