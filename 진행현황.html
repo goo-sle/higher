@@ -136,7 +136,7 @@
     document.getElementById('slots-body').innerHTML =
       '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-    allSlots = await HA.getSlots();
+    allSlots = (await HA.getSlots()).reverse();
     renderSummary();
 
     const all   = getFiltered();
