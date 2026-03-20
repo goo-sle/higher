@@ -321,7 +321,7 @@
           <dt>대행사</dt><dd>${s.agencyId} / ${s.userId}</dd>
           <dt>스토어명</dt><dd>${s.storeName}</dd>
           <dt>순위키워드</dt><dd>${s.rankKeyword}</dd>
-          <dt>URL</dt><dd><a href="${s.url}" target="_blank" style="color:var(--accent)">${s.url}</a></dd>
+          <dt>URL</dt><dd style="word-break:break-all;font-size:12px;color:var(--text2)">${s.url||'-'}</dd>
           <dt>MID</dt><dd>${s.mid||'-'}</dd>
           <dt>일 목표</dt><dd>${s.dailyTarget||'-'}</dd>
           <dt>일 수</dt><dd>${s.days||'-'}</dd>
@@ -411,8 +411,9 @@
       const wb = XLSX.utils.book_new();
 
       // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일 수/시작일/일 목표/키워드
-      const header = ['업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','키워드'];
+      const header = ['대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','키워드'];
       const rows = filtered.map(s => [
+        s.agencyId||'',
         s.storeName||'',
         s.url||'',
         s.mid||'',
@@ -426,7 +427,7 @@
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
 
       ws['!cols'] = [
-        {wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
+        {wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, '접수');
