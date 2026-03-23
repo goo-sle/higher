@@ -375,8 +375,8 @@
     }
 
     const exportBtn=isMonthly
-      ?`<button class="ac-export-btn" onclick="acExportMonthly()">⬇ CSV 다운로드</button>`
-      :`<button class="ac-export-btn" onclick="acExport()">⬇ CSV 다운로드</button>`;
+      ?`<button class="ac-export-btn" onclick="acExportMonthly()">⬇ CSV</button>`
+      :`<button class="ac-export-btn" onclick="acExport()">⬇ CSV</button>`;
 
     return `
       <div class="ac-result-hdr">
@@ -384,9 +384,12 @@
           <div class="ac-result-title">${isMonthly?'월별 합산':'분류 결과'}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
           <div class="ac-result-meta">${ts}${kw?` &nbsp;·&nbsp; ${visible}개 업체 표시`:''}</div>
         </div>
-        ${exportBtn}
+        <div style="display:flex;gap:8px;align-items:center">
+          ${exportBtn}
+          <button class="ac-capture-btn" id="ac-cap-btn" onclick="acCapture()">📷 이미지 저장</button>
+        </div>
       </div>
-      <div class="ac-tbl-wrap">
+      <div class="ac-tbl-wrap" id="ac-tbl-target">
         <table class="ac-tbl">
           <thead><tr>
             <th>구분</th><th>업체명</th>
@@ -425,6 +428,88 @@
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
     a.download=prefix+new Date().toISOString().slice(0,10)+'.csv'; a.click();
   }
+
+  /* ── 이미지 캡처 ── */
+  window.acCapture = async function(){
+    const target = document.getElementById('ac-tbl-target');
+    const btn    = document.getElementById('ac-cap-btn');
+    if(!target) return;
+
+    // html2canvas 보장 로드
+    async function ensureH2C(){
+      if(window.html2canvas) return;
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload=res; s.onerror=rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    try{
+      btn.disabled=true; btn.textContent='📷 캡처 중...';
+      await ensureH2C();
+
+      // sticky thead 임시 해제 (캡처 시 잘림 방지)
+      const ths=target.querySelectorAll('thead th');
+      ths.forEach(th=>th.style.position='');
+
+      const canvas = await html2canvas(target, {
+        scale: 2,                    // 레티나 대응 — 2배 해상도
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollY: 0,
+        windowWidth: target.scrollWidth,
+        width: target.scrollWidth,
+        height: target.scrollHeight,
+      });
+
+      // sticky 복원
+      ths.forEach(th=>th.style.position='sticky');
+
+      // 타이틀 + 날짜 워터마크 추가
+      const result = window._acLastResult;
+      const label  = result ? result.ts : new Date().toLocaleString('ko-KR');
+      const title  = document.querySelector('.ac-result-title');
+      const titleTxt = title ? title.innerText.replace(/\s+/g,' ').trim() : '광고 분류 결과';
+
+      const pad=24, headerH=56;
+      const out = document.createElement('canvas');
+      out.width  = canvas.width;
+      out.height = canvas.height + headerH;
+      const ctx  = out.getContext('2d');
+
+      // 헤더 배경
+      ctx.fillStyle='#0f172a';
+      ctx.fillRect(0,0,out.width,headerH);
+
+      // 타이틀 텍스트
+      ctx.fillStyle='#ffffff';
+      ctx.font=`bold ${28}px Pretendard, sans-serif`;
+      ctx.textBaseline='middle';
+      ctx.fillText(titleTxt, pad, headerH*0.45);
+
+      // 날짜 텍스트
+      ctx.fillStyle='#94a3b8';
+      ctx.font=`${22}px Pretendard, sans-serif`;
+      ctx.fillText(label, pad, headerH*0.78);
+
+      // 테이블 이미지 붙이기
+      ctx.drawImage(canvas, 0, headerH);
+
+      // 다운로드
+      const a=document.createElement('a');
+      a.href=out.toDataURL('image/png');
+      a.download='광고분류_'+new Date().toISOString().slice(0,10)+'.png';
+      a.click();
+
+      btn.textContent='✅ 저장 완료';
+      setTimeout(()=>{btn.disabled=false;btn.textContent='📷 이미지 저장';},2000);
+    }catch(e){
+      btn.disabled=false; btn.textContent='📷 이미지 저장';
+      toast('캡처 실패: '+e.message,'err');
+    }
+  };
 
   /* ── 초기화 ── */
   async function init(){
