@@ -61,11 +61,11 @@
       <tr>
         <th>번호</th><th>대행사</th><th>유저ID</th><th>슬롯타입</th>
         <th>스토어명</th><th>순위키워드</th><th>시작일</th><th>종료일</th>
-        <th>D-Day</th><th>순위</th><th>유입수</th><th>관리</th>
+        <th>D-Day</th><th>유입수</th><th>관리</th>
       </tr>
     </thead>
     <tbody id="expire-body">
-      <tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      <tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
     </tbody>
   </table>
 </div>
@@ -113,7 +113,7 @@
 
   window.renderExpire = async function() {
     document.getElementById('expire-body').innerHTML =
-      '<tr><td colspan="12"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+      '<tr><td colspan="11"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
 
@@ -122,14 +122,17 @@
     const kw    = (document.getElementById('ef-kw').value||'').toLowerCase();
     const today = new Date(); today.setHours(0,0,0,0);
 
-    let slots = allSlots.filter(s => s.status === 'active');
+    let slots = allSlots.filter(s => s.status === 'active').filter(s => {
+      const d = new Date(s.endDate); d.setHours(0,0,0,0);
+      return d >= today;
+    });
 
     if(range !== 'all') {
       const limit = new Date(today);
       limit.setDate(today.getDate()+Number(range));
       slots = slots.filter(s => {
         const d = new Date(s.endDate);
-        return d >= today && d <= limit;
+        return d <= limit;
       });
     }
     if(type) slots = slots.filter(s => s.slotType === type);
@@ -140,7 +143,7 @@
 
     const body = document.getElementById('expire-body');
     if(!slots.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="12">만료 예정 슬롯이 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="11">만료 예정 슬롯이 없습니다.</td></tr>';
       return;
     }
     body.innerHTML = slots.map((s,i) => `
@@ -154,7 +157,6 @@
         <td style="color:var(--text2)">${s.startDate}</td>
         <td style="color:var(--text2);font-weight:600">${s.endDate}</td>
         <td>${ddayBadge(getDday(s.endDate))}</td>
-        <td>${s.rank?`<span class="rank-badge">${s.rank}위</span>`:'<span style="color:var(--muted)">-</span>'}</td>
         <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
         <td><button class="action-btn btn-extend" onclick="extendFromExpire('${s._key}')">연장</button></td>
       </tr>`).join('');
