@@ -87,10 +87,10 @@
 
   function renderSummary(slots, range) {
     const allSlotsCnt = slots.length;
-    const t3  = slots.filter(s => getDday(s.endDate) <= 3).length;
-    const t7  = slots.filter(s => getDday(s.endDate) <= 7).length;
-    const t14 = slots.filter(s => getDday(s.endDate) <= 14).length;
-    const t30 = slots.filter(s => getDday(s.endDate) <= 30).length;
+    const t3  = slots.filter(s => { const d=getDday(s.endDate); return d <= 3; }).length;
+    const t7  = slots.filter(s => { const d=getDday(s.endDate); return d >= 4  && d <= 7; }).length;
+    const t14 = slots.filter(s => { const d=getDday(s.endDate); return d >= 8  && d <= 14; }).length;
+    const t30 = slots.filter(s => { const d=getDday(s.endDate); return d >= 15 && d <= 30; }).length;
     const totalTarget = slots.reduce((a,s) => a+(s.dailyTarget||0), 0);
     const el = document.getElementById('expire-summary');
     if(!el) return;
