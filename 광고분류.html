@@ -219,17 +219,25 @@
       const stores=kw?g.stores.filter(r=>r.name.toLowerCase().includes(kw)||r.raw.toLowerCase().includes(kw)):g.stores;
       if(!stores.length)return;
       visible+=stores.length;
+      const last=stores.length-1;
       stores.forEach((r,i)=>{
         const hl=txt=>kw&&txt.toLowerCase().includes(kw)
           ?txt.replace(new RegExp(esc(kw),'gi'),m=>`<mark class="ac-highlight">${m}</mark>`)
           :txt;
+        // 그룹 첫 행: 위 border 굵게 / 마지막 행: 아래 border 굵게
+        const topBorder   = i===0    ? `border-top:2px solid rgba(0,0,0,.08);` : '';
+        const bottomBorder= i===last ? `border-bottom:2px solid rgba(0,0,0,.08);` : '';
+        const tdBase      = `style="${topBorder}${bottomBorder}"`;
         tbody+=`<tr class="ac-bg-${cls}">
-          ${i===0?`<td rowspan="${stores.length}" style="font-weight:700;vertical-align:middle">${g.name}</td>`:''}
-          <td>${hl(r.name)}</td>
-          <td>${fmt(r.ns)}</td><td>${fmt(r.np)}</td><td>${fmt(r.nps)}</td>
-          <td>${fmt(r.na)}</td><td>${fmt(r.vm)}</td>
-          <td style="font-weight:700">${fmt(r.sum)}</td>
-          ${i===0?`<td rowspan="${stores.length}" style="font-weight:800;vertical-align:middle;white-space:nowrap">${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span></td>`:''}
+          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:700">${i===0?g.name:''}</td>
+          <td ${tdBase}>${hl(r.name)}</td>
+          <td ${tdBase}>${fmt(r.ns)}</td>
+          <td ${tdBase}>${fmt(r.np)}</td>
+          <td ${tdBase}>${fmt(r.nps)}</td>
+          <td ${tdBase}>${fmt(r.na)}</td>
+          <td ${tdBase}>${fmt(r.vm)}</td>
+          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:700">${fmt(r.sum)}</td>
+          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:800;white-space:nowrap">${i===0?`${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span>`:''}</td>
         </tr>`;
       });
     });
