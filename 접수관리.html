@@ -110,10 +110,12 @@
     <option value="active">승인</option>
     <option value="rejected">반려</option>
   </select>
-  <div style="display:flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;gap:4px;">
-    <span style="font-size:11px;color:var(--text2);white-space:nowrap;">접수일</span>
-    <input type="date" id="filter-date-from" style="border:none;outline:none;font-size:12px;width:130px;font-family:inherit;color:var(--text);" onchange="renderReceipts()">
-    <button onclick="clearDateFilter()" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0 2px;line-height:1;" title="날짜 초기화">✕</button>
+  <div style="position:relative;display:flex;align-items:center;">
+    <button id="date-pick-btn" onclick="document.getElementById('filter-date-from').showPicker?document.getElementById('filter-date-from').showPicker():document.getElementById('filter-date-from').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
+      📅 <span id="date-label">접수일 선택</span>
+    </button>
+    <input type="date" id="filter-date-from" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="onDateChange()">
+    <button id="date-clear-btn" onclick="clearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
   </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="receipt-search" placeholder="업체/아이디/스토어명 검색" style="width:220px;">
@@ -166,6 +168,18 @@
 
   window.clearDateFilter = function() {
     document.getElementById('filter-date-from').value = '';
+    document.getElementById('date-label').textContent = '접수일 선택';
+    document.getElementById('date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('date-clear-btn').style.display = 'none';
+    renderReceipts();
+  };
+  window.onDateChange = function() {
+    const val = document.getElementById('filter-date-from').value;
+    if (val) {
+      document.getElementById('date-label').textContent = val;
+      document.getElementById('date-pick-btn').style.color = 'var(--text)';
+      document.getElementById('date-clear-btn').style.display = 'inline';
+    }
     renderReceipts();
   };
 
