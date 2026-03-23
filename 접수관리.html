@@ -455,8 +455,9 @@
       const wb = XLSX.utils.book_new();
 
       // ── 접수 시트: 업체명/URL/PID번호/순위키워드/일 수/시작일/일 목표/키워드
-      const header = ['대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','키워드'];
+      const header = ['접수일시','대행사','업체명','업체URL','업체PID번호','순위키워드','일 수','시작일','일 목표','키워드'];
       const rows = filtered.map(s => [
+        (s.createdAt||'').slice(0,10),
         s.agencyId||'',
         s.storeName||'',
         s.url||'',
@@ -471,7 +472,7 @@
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
 
       ws['!cols'] = [
-        {wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
+        {wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20}
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, '접수');
