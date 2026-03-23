@@ -137,6 +137,17 @@
       '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
     allSlots = await HA.getSlots();
+
+    // ── 종료일 지난 active 슬롯 자동 만료 처리 ──────────────
+    const todayStr = new Date().toISOString().slice(0,10);
+    const toExpire = allSlots.filter(s =>
+      s.status === 'active' && s.endDate && s.endDate < todayStr
+    );
+    if (toExpire.length) {
+      await Promise.all(toExpire.map(s => HA.updateSlot(s._key, { status: 'expired' })));
+      toExpire.forEach(s => { s.status = 'expired'; });
+    }
+
     renderSummary();
 
     const all   = getFiltered();
