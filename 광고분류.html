@@ -347,13 +347,13 @@
 
         tbody+=`<tr style="background:${bgLight}">
           ${groupCell}
-          <td style="${topB}${botB}">${hl(r.name)}</td>
+          <td style="${topB}${botB}text-align:left;font-weight:500">${hl(r.name)}</td>
           <td style="${topB}${botB}">${fmt(r.ns)}</td>
           <td style="${topB}${botB}">${fmt(r.np)}</td>
           <td style="${topB}${botB}">${fmt(r.nps)}</td>
           <td style="${topB}${botB}">${fmt(r.na)}</td>
           <td style="${topB}${botB}">${fmt(r.vm)}</td>
-          <td style="${topB}${botB};font-weight:700">${fmt(r.sum)}</td>
+          <td style="${topB}${botB}font-weight:700">${fmt(r.sum)}</td>
           ${totalCell}
         </tr>`;
       });
@@ -362,11 +362,15 @@
     if(kw&&!visible) return `<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
 
     if(!kw){
-      tbody+=`<tr class="ac-total-row">
-        <td colspan="2" style="font-weight:800">총합</td>
-        <td>${fmt(total.ns)}</td><td>${fmt(total.np)}</td><td>${fmt(total.nps)}</td>
-        <td>${fmt(total.na)}</td><td>${fmt(total.vm)}</td>
-        <td style="font-weight:800">${fmt(total.sum)}</td><td></td>
+      tbody+=`<tr>
+        <td colspan="2" style="background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">총합</td>
+        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.ns)}</td>
+        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.np)}</td>
+        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.nps)}</td>
+        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.na)}</td>
+        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.vm)}</td>
+        <td style="background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.sum)}</td>
+        <td style="background:#1e293b;color:#fff;padding:11px 13px;border-top:2px solid #0f172a"></td>
       </tr>`;
     }
 
