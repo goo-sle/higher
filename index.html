@@ -64,6 +64,18 @@
     #ac-toast{position:fixed;bottom:24px;right:24px;z-index:9999;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;color:#fff;opacity:0;transform:translateY(6px);transition:all .3s;pointer-events:none}
     #ac-toast.show{opacity:1;transform:translateY(0)}
     #ac-toast.ok{background:var(--accent)}#ac-toast.err{background:var(--danger)}
+    /* 탭 */
+    .ac-tabs{display:flex;gap:8px;margin-bottom:20px}
+    .ac-tab{padding:8px 20px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s}
+    .ac-tab:hover{background:var(--bg)}
+    .ac-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.25)}
+    /* 월별 선택 */
+    .ac-month-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+    .ac-month-btn{padding:8px 16px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:.2s;display:flex;align-items:center;gap:6px}
+    .ac-month-btn:hover{background:var(--bg)}
+    .ac-month-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 12px rgba(16,185,129,.2)}
+    .ac-month-cnt{font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.25)}
+    .ac-month-btn:not(.active) .ac-month-cnt{background:var(--bg);color:var(--text2)}
   </style>
   <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"/>
   <style>
