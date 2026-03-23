@@ -111,7 +111,7 @@
   const todayStr=new Date().toISOString().slice(0,10);
   const monthStr=todayStr.slice(0,7);
 
-  function refundKey(date,agencyId,userId){return `${date}__${agencyId}__${userId}`;}
+  function refundKey(date,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${date}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(date,agencyId,userId){return refundMap[refundKey(date,agencyId,userId)]||0;}
 
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
