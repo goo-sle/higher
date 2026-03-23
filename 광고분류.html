@@ -2,6 +2,12 @@
 <body>
 <div id="ac-wrap">
 
+  <!-- 탭 -->
+  <div class="ac-tabs" id="ac-tabs">
+    <button class="ac-tab active" onclick="acSwitchTab('daily',this)">📅 일별</button>
+    <button class="ac-tab" onclick="acSwitchTab('monthly',this)">📆 월별</button>
+  </div>
+
   <!-- 검색 -->
   <div class="ac-search-bar">
     <input class="ac-search-input" id="ac-search" placeholder="🔍  업체명 검색..." oninput="acSearch(this.value)">
@@ -40,15 +46,12 @@
 <script>
 (function(){
 
-  /* ── XLSX 보장 로드
-       index.html 경유 시: window.XLSX 이미 존재 → 즉시 cb()
-       직접 열기 시: CDN에서 동적 로드                         */
+  /* ── XLSX 보장 로드 ── */
   function ensureXLSX(cb){
-    if(window.XLSX){ cb(); return; }
+    if(window.XLSX){cb();return;}
     const s=document.createElement('script');
     s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=cb;
-    s.onerror=()=>toast('XLSX 라이브러리 로드 실패. 인터넷 연결을 확인해주세요.','err');
+    s.onload=cb; s.onerror=()=>toast('XLSX 로드 실패','err');
     document.head.appendChild(s);
   }
 
@@ -58,53 +61,68 @@
   const normT=s=>String(s||'').toLowerCase().replace(/\s+/g,'').trim();
   const fmt  =n=>n?Number(n).toLocaleString():'';
   const gcls =n=>n==='대행사'?'agency':n==='직광고주'?'direct':'solo';
+  const esc  =s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
   function toast(msg,type='ok'){
     const el=document.getElementById('ac-toast');
     el.textContent=msg; el.className='show '+type;
     clearTimeout(el._t); el._t=setTimeout(()=>el.className='',2800);
   }
-  function setStatus(msg){ document.getElementById('ac-save-status').textContent=msg; }
+  function setStatus(msg){document.getElementById('ac-save-status').textContent=msg;}
 
-  /* ── Firebase 저장/불러오기 (window.HA 사용) ── */
-  async function fbSaveGroups(groups){
-    if(window.HA && window.HA.saveAdClassifyGroups)
-      await window.HA.saveAdClassifyGroups(groups);
+  /* ── 탭 상태 ── */
+  let _activeTab='daily';
+  window.acSwitchTab=function(tab,btn){
+    _activeTab=tab;
+    document.querySelectorAll('.ac-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    // 업로드/실행 버튼 토글
+    const isDaily=tab==='daily';
+    document.getElementById('ac-zone').style.display=isDaily?'':'none';
+    document.getElementById('ac-run-btn').style.display=isDaily?'':'none';
+    document.querySelectorAll('.ac-sec')[1].style.display=isDaily?'':'none'; // 업로드 타이틀
+    if(tab==='daily'){
+      const r=window._acDailyResult;
+      r?renderResult(r,''):showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');
+    } else {
+      loadMonthly();
+    }
+  };
+
+  /* ── Firebase ── */
+  async function fbSaveGroups(g){
+    if(window.HA&&window.HA.saveAdClassifyGroups) await window.HA.saveAdClassifyGroups(g);
   }
   async function fbSaveResult(result){
     setStatus('저장 중...');
     try{
-      if(window.HA && window.HA.saveAdClassifyResult){
+      if(window.HA&&window.HA.saveAdClassifyResult){
         await window.HA.saveAdClassifyResult(result);
         setStatus('✅ 서버에 저장됨 · '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
-      } else {
-        setStatus('⚠️ ha-store 미연결 (서버 저장 불가)');
-      }
-    }catch(e){
-      setStatus('❌ 저장 실패: '+e.message);
-    }
+      } else { setStatus('⚠️ ha-store 미연결'); }
+    }catch(e){ setStatus('❌ 저장 실패: '+e.message); }
   }
   async function fbLoad(){
-    if(window.HA && window.HA.getAdClassify){
-      const data=await window.HA.getAdClassify();
-      return data||{groups:null,result:null};
-    }
-    return {groups:null,result:null};
+    if(window.HA&&window.HA.getAdClassify) return await window.HA.getAdClassify()||{};
+    return {};
+  }
+  async function fbLoadDaily(){
+    if(window.HA&&window.HA.getAdClassifyDaily) return await window.HA.getAdClassifyDaily()||{};
+    return {};
   }
 
   /* ── 구분 편집기 ── */
   let _groups=DEFAULTS;
-
   function renderEditor(){
     document.getElementById('ac-editor').innerHTML=_groups.map((g,gi)=>{
       const cls=gcls(g.name);
       const tags=(g.stores||[]).length
-        ?(g.stores).map((s,si)=>`<span class="ac-tag">${s}<span class="ac-x" onclick="acRemove(${gi},${si})">×</span></span>`).join('')
+        ?g.stores.map((s,si)=>`<span class="ac-tag">${s}<span class="ac-x" onclick="acRemove(${gi},${si})">×</span></span>`).join('')
         :'<span style="font-size:11px;color:var(--muted,#94a3b8)">업체 없음</span>';
       return `<div class="ac-editor-row">
         <div class="ac-editor-label ${cls}">${g.name}</div>
         <div class="ac-editor-body">
-          <div class="ac-tags" id="ac-tags-${gi}">${tags}</div>
+          <div class="ac-tags">${tags}</div>
           <div class="ac-hint">쉼표(,)로 여러 업체를 한 번에 추가할 수 있습니다</div>
           <div class="ac-add-row">
             <input class="ac-inp" id="ac-inp-${gi}" placeholder="예) 업체A, 업체B, 업체C"
@@ -115,26 +133,18 @@
       </div>`;
     }).join('');
   }
-
-  window.acRemove=function(gi,si){
-    _groups[gi].stores.splice(si,1);
-    renderEditor();
-    fbSaveGroups(_groups);
-  };
+  window.acRemove=function(gi,si){_groups[gi].stores.splice(si,1);renderEditor();fbSaveGroups(_groups);};
   window.acAdd=function(gi){
     const inp=document.getElementById('ac-inp-'+gi);
     const vals=inp.value.split(',').map(v=>v.trim()).filter(Boolean);
-    if(!vals.length) return;
+    if(!vals.length)return;
     vals.forEach(v=>{if(!_groups[gi].stores.includes(v))_groups[gi].stores.push(v);});
-    inp.value='';
-    renderEditor();
-    fbSaveGroups(_groups);
+    inp.value=''; renderEditor(); fbSaveGroups(_groups);
     toast(`✅ ${vals.length}개 업체 추가됨`);
   };
 
   /* ── 파일 업로드 ── */
   window._acData=null;
-
   function setupUpload(){
     const zone=document.getElementById('ac-zone');
     zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
@@ -142,11 +152,9 @@
     zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
     document.getElementById('ac-file-input').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
   }
-
   function handleFile(file){
-    const fn=document.getElementById('ac-fname');
-    fn.textContent='📎 '+file.name; fn.style.display='block';
-
+    document.getElementById('ac-fname').textContent='📎 '+file.name;
+    document.getElementById('ac-fname').style.display='block';
     ensureXLSX(()=>{
       const reader=new FileReader();
       reader.onload=ev=>{
@@ -156,14 +164,11 @@
           const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
           window._acData=rows.slice(1).map(r=>({
             storeN:norm(String(r[2]||'').split(',').pop()),
-            typeN: normT(r[9]),
-            goal:  Number(r[15])||0
+            typeN:normT(r[9]),goal:Number(r[15])||0
           })).filter(r=>r.storeN);
           document.getElementById('ac-run-btn').disabled=false;
           toast('✅ '+file.name+' 로드 완료 ('+window._acData.length+'행)');
-        }catch(err){
-          toast('파일 파싱 실패: '+err.message,'err');
-        }
+        }catch(err){toast('파일 파싱 실패: '+err.message,'err');}
       };
       reader.readAsArrayBuffer(file);
     });
@@ -172,7 +177,6 @@
   /* ── 분류 실행 ── */
   window.acRun=async function(){
     if(!window._acData){toast('먼저 파일을 업로드해주세요','err');return;}
-
     const groupSums=_groups.map(g=>({
       name:g.name,
       stores:(g.stores||[]).map(sName=>{
@@ -181,71 +185,182 @@
         window._acData.forEach(r=>{
           if(r.storeN!==key)return;
           const t=r.typeN;
-          if(t.startsWith('ns트래픽'))       ns +=r.goal;
-          else if(t.startsWith('np트래픽'))  np +=r.goal;
-          else if(t.startsWith('np저장'))    nps+=r.goal;
-          else if(t.startsWith('n자동완성')) na +=r.goal;
-          else if(t.startsWith('방문미션'))  vm +=r.goal;
+          if(t.startsWith('ns트래픽'))ns+=r.goal;
+          else if(t.startsWith('np트래픽'))np+=r.goal;
+          else if(t.startsWith('np저장'))nps+=r.goal;
+          else if(t.startsWith('n자동완성'))na+=r.goal;
+          else if(t.startsWith('방문미션'))vm+=r.goal;
         });
         return{name:sName.replace(/주식회사|\(주\)/g,'').trim(),raw:sName,ns,np,nps,na,vm,sum:ns+np+nps+na+vm};
       }),
     })).map(g=>({...g,gSum:g.stores.reduce((a,r)=>a+r.sum,0)}));
-
     const total={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
-    groupSums.forEach(g=>g.stores.forEach(r=>{
-      total.ns+=r.ns;total.np+=r.np;total.nps+=r.nps;total.na+=r.na;total.vm+=r.vm;total.sum+=r.sum;
-    }));
-
+    groupSums.forEach(g=>g.stores.forEach(r=>{total.ns+=r.ns;total.np+=r.np;total.nps+=r.nps;total.na+=r.na;total.vm+=r.vm;total.sum+=r.sum;}));
     const result={groupSums,total,ts:new Date().toLocaleString('ko-KR')};
+    window._acDailyResult=result;
     await fbSaveResult(result);
     renderResult(result,'');
     toast('✅ 분류 완료');
   };
 
-  /* ── 결과 렌더 ── */
-  function renderResult(result,keyword){
-    if(!result){
-      document.getElementById('ac-result-area').innerHTML='<div class="ac-no-result">📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.</div>';
+  /* ── 월별 합산 ── */
+  async function loadMonthly(){
+    showEmpty('📆 월별 데이터를 불러오는 중...');
+    setStatus('');
+    try{
+      const daily=await fbLoadDaily();
+      const keys=Object.keys(daily).sort(); // ["260301","260302",...]
+      if(!keys.length){showEmpty('📆 저장된 일별 데이터가 없습니다.');return;}
+
+      // 현재 달 (yyMM) 기준으로 필터
+      const now=new Date();
+      const curYYMM=(String(now.getFullYear()).slice(2)+String(now.getMonth()+1).padStart(2,'0'));
+      const thisMonthKeys=keys.filter(k=>k.startsWith(curYYMM));
+      const allKeys=keys; // 드롭다운용
+
+      // 월 목록 추출
+      const months=[...new Set(keys.map(k=>k.slice(0,4)))].sort().reverse();
+
+      renderMonthSelector(months, curYYMM, daily);
+    }catch(e){
+      showEmpty('❌ 월별 데이터 로드 실패: '+e.message);
+    }
+  }
+
+  function renderMonthSelector(months, selectedYYMM, daily){
+    // 월 선택 버튼 + 합산 결과
+    const btnHtml=months.map(ym=>{
+      const y='20'+ym.slice(0,2), m=Number(ym.slice(2));
+      const label=`${y}년 ${m}월`;
+      const cnt=Object.keys(daily).filter(k=>k.startsWith(ym)).length;
+      return `<button class="ac-month-btn${ym===selectedYYMM?' active':''}" onclick="acSelectMonth('${ym}')">${label} <span class="ac-month-cnt">${cnt}일</span></button>`;
+    }).join('');
+
+    document.getElementById('ac-result-area').innerHTML=`
+      <div class="ac-month-bar">${btnHtml}</div>
+      <div id="ac-monthly-result"></div>`;
+
+    window._acDailyAll=daily;
+    acSelectMonth(selectedYYMM);
+  }
+
+  window.acSelectMonth=function(yyMM){
+    document.querySelectorAll('.ac-month-btn').forEach(b=>{
+      b.classList.toggle('active', b.textContent.includes('년')&&b.onclick.toString().includes(yyMM));
+    });
+    // 더 정확하게: data attribute로
+    document.querySelectorAll('.ac-month-btn').forEach(b=>{
+      const match=b.getAttribute('onclick')||'';
+      b.classList.toggle('active', match.includes(`'${yyMM}'`));
+    });
+
+    const daily=window._acDailyAll||{};
+    const monthKeys=Object.keys(daily).filter(k=>k.startsWith(yyMM)).sort();
+    if(!monthKeys.length){
+      document.getElementById('ac-monthly-result').innerHTML='<div class="ac-no-result">해당 월의 데이터가 없습니다.</div>';
       return;
     }
+
+    // 합산: 각 업체별로 수치 누적
+    // 기준 구조는 첫 번째 result의 groupSums에서 가져옴
+    const base=JSON.parse(JSON.stringify(daily[monthKeys[0]]));
+    // 수치 초기화 후 합산
+    base.groupSums.forEach(g=>g.stores.forEach(r=>{r.ns=0;r.np=0;r.nps=0;r.na=0;r.vm=0;r.sum=0;}));
+    base.total={ns:0,np:0,nps:0,na:0,vm:0,sum:0};
+
+    monthKeys.forEach(k=>{
+      const day=daily[k];
+      day.groupSums.forEach(dg=>{
+        const bg=base.groupSums.find(g=>g.name===dg.name);
+        if(!bg)return;
+        dg.stores.forEach(dr=>{
+          const bs=bg.stores.find(s=>s.raw===dr.raw||s.name===dr.name);
+          if(!bs)return;
+          bs.ns+=dr.ns||0; bs.np+=dr.np||0; bs.nps+=dr.nps||0;
+          bs.na+=dr.na||0; bs.vm+=dr.vm||0; bs.sum+=dr.sum||0;
+        });
+      });
+    });
+    // gSum, total 재계산
+    base.groupSums.forEach(g=>{g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);});
+    base.groupSums.forEach(g=>g.stores.forEach(r=>{
+      base.total.ns+=r.ns;base.total.np+=r.np;base.total.nps+=r.nps;
+      base.total.na+=r.na;base.total.vm+=r.vm;base.total.sum+=r.sum;
+    }));
+
+    const y='20'+yyMM.slice(0,2), m=Number(yyMM.slice(2));
+    base.ts=`${y}년 ${m}월 합산 (${monthKeys.length}일 / ${monthKeys[0]}~${monthKeys[monthKeys.length-1]})`;
+    window._acMonthResult=base;
+
+    const kw=(document.getElementById('ac-search').value||'').trim().toLowerCase();
+    renderMonthlyTable(base, kw);
+  };
+
+  function renderMonthlyTable(result, keyword){
+    document.getElementById('ac-monthly-result').innerHTML=buildTable(result, keyword, true);
+    window._acLastResult=result;
+  }
+
+  /* ── 결과 렌더 (일별) ── */
+  function showEmpty(msg){
+    document.getElementById('ac-result-area').innerHTML=`<div class="ac-no-result">${msg}</div>`;
+  }
+  function renderResult(result, keyword){
+    if(!result){showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');return;}
+    window._acLastResult=result;
+    document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, false);
+  }
+
+  /* ── 공통 테이블 빌더 ── */
+  function buildTable(result, keyword, isMonthly){
     const{groupSums,total,ts}=result;
     const kw=(keyword||'').trim().toLowerCase();
-    const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
-    let tbody='',visible=0;
+    let tbody='', visible=0;
     groupSums.forEach(g=>{
       if(!(g.stores||[]).length)return;
       const cls=gcls(g.name);
-      const stores=kw?g.stores.filter(r=>r.name.toLowerCase().includes(kw)||r.raw.toLowerCase().includes(kw)):g.stores;
+      const stores=kw?g.stores.filter(r=>r.name.toLowerCase().includes(kw)||(r.raw||'').toLowerCase().includes(kw)):g.stores;
       if(!stores.length)return;
       visible+=stores.length;
-      const last=stores.length-1;
+
+      const bgDeep = cls==='agency'?'rgba(34,197,94,.13)':cls==='direct'?'rgba(245,158,11,.13)':'rgba(59,130,246,.13)';
+      const bgLight= cls==='agency'?'rgba(34,197,94,.05)':cls==='direct'?'rgba(245,158,11,.05)':'rgba(59,130,246,.05)';
+      const border = cls==='agency'?'rgba(34,197,94,.3)' :cls==='direct'?'rgba(245,158,11,.3)' :'rgba(59,130,246,.3)';
+
       stores.forEach((r,i)=>{
         const hl=txt=>kw&&txt.toLowerCase().includes(kw)
           ?txt.replace(new RegExp(esc(kw),'gi'),m=>`<mark class="ac-highlight">${m}</mark>`)
           :txt;
-        // 그룹 첫 행: 위 border 굵게 / 마지막 행: 아래 border 굵게
-        const topBorder   = i===0    ? `border-top:2px solid rgba(0,0,0,.08);` : '';
-        const bottomBorder= i===last ? `border-bottom:2px solid rgba(0,0,0,.08);` : '';
-        const tdBase      = `style="${topBorder}${bottomBorder}"`;
-        tbody+=`<tr class="ac-bg-${cls}">
-          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:700">${i===0?g.name:''}</td>
-          <td ${tdBase}>${hl(r.name)}</td>
-          <td ${tdBase}>${fmt(r.ns)}</td>
-          <td ${tdBase}>${fmt(r.np)}</td>
-          <td ${tdBase}>${fmt(r.nps)}</td>
-          <td ${tdBase}>${fmt(r.na)}</td>
-          <td ${tdBase}>${fmt(r.vm)}</td>
-          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:700">${fmt(r.sum)}</td>
-          <td ${tdBase} style="${topBorder}${bottomBorder}font-weight:800;white-space:nowrap">${i===0?`${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span>`:''}</td>
+        const isFirst=i===0, isLast=i===stores.length-1;
+        const topB   =isFirst?`border-top:2px solid ${border};`:'';
+        const botB   =isLast ?`border-bottom:2px solid ${border};`:'';
+
+        // 구분 셀 (rowspan 복원)
+        const groupCell=isFirst
+          ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;color:var(--text,#1e293b)">${g.name}</td>`
+          :'';
+        // 총합계 셀 (rowspan 복원)
+        const totalCell=isFirst
+          ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;white-space:nowrap">${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span></td>`
+          :'';
+
+        tbody+=`<tr style="background:${bgLight}">
+          ${groupCell}
+          <td style="${topB}${botB}">${hl(r.name)}</td>
+          <td style="${topB}${botB}">${fmt(r.ns)}</td>
+          <td style="${topB}${botB}">${fmt(r.np)}</td>
+          <td style="${topB}${botB}">${fmt(r.nps)}</td>
+          <td style="${topB}${botB}">${fmt(r.na)}</td>
+          <td style="${topB}${botB}">${fmt(r.vm)}</td>
+          <td style="${topB}${botB};font-weight:700">${fmt(r.sum)}</td>
+          ${totalCell}
         </tr>`;
       });
     });
 
-    if(kw&&!visible){
-      document.getElementById('ac-result-area').innerHTML=`<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
-      return;
-    }
+    if(kw&&!visible) return `<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
+
     if(!kw){
       tbody+=`<tr class="ac-total-row">
         <td colspan="2" style="font-weight:800">총합</td>
@@ -255,13 +370,17 @@
       </tr>`;
     }
 
-    document.getElementById('ac-result-area').innerHTML=`
+    const exportBtn=isMonthly
+      ?`<button class="ac-export-btn" onclick="acExportMonthly()">⬇ CSV 다운로드</button>`
+      :`<button class="ac-export-btn" onclick="acExport()">⬇ CSV 다운로드</button>`;
+
+    return `
       <div class="ac-result-hdr">
         <div>
-          <div class="ac-result-title">분류 결과${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
-          <div class="ac-result-meta">생성: ${ts}${kw?` &nbsp;·&nbsp; ${visible}개 업체 표시`:''}</div>
+          <div class="ac-result-title">${isMonthly?'월별 합산':'분류 결과'}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
+          <div class="ac-result-meta">${ts}${kw?` &nbsp;·&nbsp; ${visible}개 업체 표시`:''}</div>
         </div>
-        <button class="ac-export-btn" onclick="acExport()">⬇ CSV 다운로드</button>
+        ${exportBtn}
       </div>
       <div class="ac-tbl-wrap">
         <table class="ac-tbl">
@@ -273,61 +392,54 @@
           <tbody>${tbody}</tbody>
         </table>
       </div>`;
-
-    // 현재 결과 메모리에 보관 (검색 재렌더용)
-    window._acLastResult=result;
   }
 
   /* ── 검색 ── */
-  window.acSearch=function(val){ if(window._acLastResult)renderResult(window._acLastResult,val); };
+  window.acSearch=function(val){
+    if(_activeTab==='daily'){ if(window._acDailyResult)renderResult(window._acDailyResult,val); }
+    else { if(window._acMonthResult)renderMonthlyTable(window._acMonthResult,val); }
+  };
   window.acClearSearch=function(){
     document.getElementById('ac-search').value='';
-    if(window._acLastResult)renderResult(window._acLastResult,'');
+    acSearch('');
   };
 
   /* ── CSV 내보내기 ── */
-  window.acExport=function(){
-    const r=window._acLastResult; if(!r)return;
+  function makeCSV(r){
     const{groupSums,total}=r;
     let csv='\uFEFF구분,업체명,NS트래픽,NP트래픽,NP저장,N자동완성,방문미션,합계,총합계\n';
     groupSums.forEach(g=>(g.stores||[]).forEach((s,i)=>{
       csv+=`${i===0?g.name:''},${s.name},${s.ns||''},${s.np||''},${s.nps||''},${s.na||''},${s.vm||''},${s.sum||''},${i===0?g.gSum:''}\n`;
     }));
     csv+=`,총합,${total.ns||''},${total.np||''},${total.nps||''},${total.na||''},${total.vm||''},${total.sum||''}\n`;
+    return csv;
+  }
+  window.acExport=function(){ dlCSV(makeCSV(window._acDailyResult),'광고분류_일별_'); };
+  window.acExportMonthly=function(){ dlCSV(makeCSV(window._acMonthResult),'광고분류_월별_'); };
+  function dlCSV(csv,prefix){
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-    a.download='광고분류_'+new Date().toISOString().slice(0,10)+'.csv';
-    a.click();
-  };
+    a.download=prefix+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  }
 
-  /* ── 초기화: Firebase에서 groups + result 불러오기 ── */
+  /* ── 초기화 ── */
   async function init(){
     setupUpload();
     try{
       const data=await fbLoad();
-
-      // 구분 설정 복원
-      if(data.groups && Array.isArray(data.groups) && data.groups.length){
-        _groups=data.groups;
-      }
+      if(data.groups&&Array.isArray(data.groups)&&data.groups.length) _groups=data.groups;
       renderEditor();
-
-      // 이전 결과 복원
       if(data.result){
-        window._acLastResult=data.result;
+        window._acDailyResult=data.result;
         renderResult(data.result,'');
         setStatus('✅ 서버에서 불러옴 · '+data.result.ts);
-        // 결과가 있으면 실행 버튼도 활성화
         document.getElementById('ac-run-btn').disabled=false;
-      } else {
-        renderEditor();
       }
     }catch(e){
       renderEditor();
-      setStatus('⚠️ 서버 불러오기 실패: '+e.message);
+      setStatus('⚠️ 불러오기 실패: '+e.message);
     }
   }
-
   init();
 })();
 </script>
