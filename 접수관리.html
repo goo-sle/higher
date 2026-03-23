@@ -110,6 +110,11 @@
     <option value="active">승인</option>
     <option value="rejected">반려</option>
   </select>
+  <div style="display:flex;align-items:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 10px;gap:4px;">
+    <span style="font-size:11px;color:var(--text2);white-space:nowrap;">접수일</span>
+    <input type="date" id="filter-date-from" style="border:none;outline:none;font-size:12px;width:130px;font-family:inherit;color:var(--text);" onchange="renderReceipts()">
+    <button onclick="clearDateFilter()" style="border:none;background:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0 2px;line-height:1;" title="날짜 초기화">✕</button>
+  </div>
   <div style="margin-left:auto;display:flex;gap:6px;">
     <input type="text" id="receipt-search" placeholder="업체/아이디/스토어명 검색" style="width:220px;">
     <button class="action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="renderReceipts()">검색</button>
@@ -147,14 +152,22 @@
   };
 
   function getFiltered() {
-    const status = document.getElementById('filter-status').value;
-    const kw     = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
+    const status   = document.getElementById('filter-status').value;
+    const kw       = (document.getElementById('receipt-search').value||'').trim().toLowerCase();
+    const dateFrom = document.getElementById('filter-date-from').value;
     return allSlots.filter(s => {
       if (status && s.status !== status) return false;
       if (kw && ![s.agencyId,s.userId,s.storeName].some(v=>(v||'').toLowerCase().includes(kw))) return false;
+      const slotDate = (s.createdAt||'').slice(0,10);
+      if (dateFrom && slotDate !== dateFrom) return false;
       return true;
     });
   }
+
+  window.clearDateFilter = function() {
+    document.getElementById('filter-date-from').value = '';
+    renderReceipts();
+  };
 
   window.renderReceipts = async function() {
     document.getElementById('receipt-body').innerHTML =
@@ -403,7 +416,10 @@
 
   // ── 엑셀 다운로드 (접수 시트 형식 - 이미지 기준) ────────────
   window.downloadExcel = function() {
-    const filtered = getFiltered();
+    const checkedKeys = [...document.querySelectorAll('.row-check:checked')].map(c => c.dataset.key);
+    const filtered = checkedKeys.length
+      ? allSlots.filter(s => checkedKeys.includes(s._key))
+      : getFiltered();
     if (!filtered.length) return alert('다운로드할 데이터가 없습니다.');
 
     function buildAndDownload() {
