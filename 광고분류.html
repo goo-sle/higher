@@ -392,12 +392,12 @@
         // 월별 합계 셀 (업체별)
         const mSum=md?(md.storeMap[r.raw]||md.storeMap[r.name]||0):null;
         const mStoreCell=md
-          ?`<td style="background:${mBgL};${topB}${botB}font-weight:600">${mSum?fmt(mSum):''}</td>`
+          ?`<td style="background:#f1f5f9;border-left:3px solid #334155;${topB}${botB}font-weight:600;color:#1e293b">${mSum?fmt(mSum):''}</td>`
           :'';
         // 월별 총합계 셀 (그룹별 rowspan)
         const mGSum=md?(md.groupMap[g.name]||0):null;
         const mGroupCell=md&&isFirst
-          ?`<td rowspan="${stores.length}" style="background:${mBgD};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle">${fmt(mGSum)}</td>`
+          ?`<td rowspan="${stores.length}" style="background:#e2e8f0;${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;color:#0f172a">${fmt(mGSum)}</td>`
           :'';
 
         tbody+=`<tr style="background:${bgLight}">
@@ -430,14 +430,14 @@
         <td style="${td1}">${fmt(total.vm)}</td>
         <td style="${td0}">${fmt(total.sum)}</td>
         <td style="${td1}"></td>
-        ${md?`<td style="${td0}">${fmt(mTotal)}</td><td style="${td1}"></td>`:''}
+        ${md?`<td style="background:#0f172a;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a;border-left:3px solid #475569">${fmt(mTotal)}</td><td style="background:#0f172a;color:#fff;padding:11px 13px;border-top:2px solid #0f172a"></td>`:''}
       </tr>`;
     }
 
     // 월별 컬럼 헤더
     const mLabel=md?md.monthLabel:'';
     const mColHeaders=md
-      ?`<th>${mLabel} 합계</th><th>${mLabel} 총합계</th>`
+      ?`<th style="border-left:3px solid #334155;background:#1e293b;color:#94a3b8">${mLabel} 합계</th><th style="background:#1e293b;color:#94a3b8">${mLabel} 총합계</th>`
       :'';
 
     const exportBtn=isMonthly
