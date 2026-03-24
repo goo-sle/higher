@@ -199,6 +199,10 @@
     const result={groupSums,total,ts:new Date().toLocaleString('ko-KR')};
     window._acDailyResult=result;
     await fbSaveResult(result);
+    // 저장 후 월별 데이터 갱신
+    const daily=await fbLoadDaily();
+    window._acDailyAll=daily;
+    window._acMonthData=buildMonthData(daily);
     renderResult(result,'');
     toast('✅ 분류 완료');
   };
@@ -308,13 +312,51 @@
   function renderResult(result, keyword){
     if(!result){showEmpty('📂 하단에서 파일을 업로드하고 분류 실행 버튼을 눌러주세요.');return;}
     window._acLastResult=result;
-    document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, false);
+    document.getElementById('ac-result-area').innerHTML=buildTable(result, keyword, false, window._acMonthData||null);
+  }
+
+  /* ── 이번 달 합산 데이터 빌드 (일별 raw → {storeName: {sum,gSum by group}} 형태) ── */
+  function buildMonthData(daily){
+    if(!daily||!Object.keys(daily).length) return null;
+    const now=new Date();
+    const yy=String(now.getFullYear()).slice(2);
+    const mm=String(now.getMonth()+1).padStart(2,'0');
+    const curYYMM=yy+mm;
+    const monthKeys=Object.keys(daily).filter(k=>k.startsWith(curYYMM)).sort();
+    if(!monthKeys.length) return null;
+
+    // 업체별 합산 맵 { storeName → monthSum }
+    // 그룹별 합산 맵 { groupName → monthGSum }
+    const storeMap={}, groupMap={};
+    monthKeys.forEach(k=>{
+      const day=daily[k];
+      if(!day||!day.groupSums) return;
+      day.groupSums.forEach(g=>{
+        (g.stores||[]).forEach(s=>{
+          const key=s.raw||s.name;
+          storeMap[key]=(storeMap[key]||0)+(s.sum||0);
+        });
+        groupMap[g.name]=(groupMap[g.name]||0)+(g.gSum||0);
+      });
+    });
+
+    const monthLabel=(()=>{
+      const y='20'+curYYMM.slice(0,2), m=Number(curYYMM.slice(2));
+      return `${y}년 ${m}월`;
+    })();
+
+    return {storeMap, groupMap, monthLabel, days:monthKeys.length};
   }
 
   /* ── 공통 테이블 빌더 ── */
-  function buildTable(result, keyword, isMonthly){
+  function buildTable(result, keyword, isMonthly, monthData){
     const{groupSums,total,ts}=result;
     const kw=(keyword||'').trim().toLowerCase();
+    const md=(!isMonthly&&monthData)?monthData:null; // 일별 탭에서만 월별 컬럼 표시
+
+    // 월별 전체 합산
+    let mTotal=0;
+    if(md) Object.values(md.storeMap).forEach(v=>mTotal+=v);
 
     let tbody='', visible=0;
     groupSums.forEach(g=>{
@@ -327,22 +369,35 @@
       const bgDeep = cls==='agency'?'rgba(34,197,94,.13)':cls==='direct'?'rgba(245,158,11,.13)':'rgba(59,130,246,.13)';
       const bgLight= cls==='agency'?'rgba(34,197,94,.05)':cls==='direct'?'rgba(245,158,11,.05)':'rgba(59,130,246,.05)';
       const border = cls==='agency'?'rgba(34,197,94,.3)' :cls==='direct'?'rgba(245,158,11,.3)' :'rgba(59,130,246,.3)';
+      const mBgD  = cls==='agency'?'rgba(34,197,94,.18)':cls==='direct'?'rgba(245,158,11,.18)':'rgba(59,130,246,.18)';
+      const mBgL  = cls==='agency'?'rgba(34,197,94,.08)':cls==='direct'?'rgba(245,158,11,.08)':'rgba(59,130,246,.08)';
 
       stores.forEach((r,i)=>{
         const hl=txt=>kw&&txt.toLowerCase().includes(kw)
           ?txt.replace(new RegExp(esc(kw),'gi'),m=>`<mark class="ac-highlight">${m}</mark>`)
           :txt;
         const isFirst=i===0, isLast=i===stores.length-1;
-        const topB   =isFirst?`border-top:2px solid ${border};`:'';
-        const botB   =isLast ?`border-bottom:2px solid ${border};`:'';
+        const topB=isFirst?`border-top:2px solid ${border};`:'';
+        const botB=isLast ?`border-bottom:2px solid ${border};`:'';
 
-        // 구분 셀 (rowspan 복원)
+        // 구분 셀
         const groupCell=isFirst
           ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;color:var(--text,#1e293b)">${g.name}</td>`
           :'';
-        // 총합계 셀 (rowspan 복원)
+        // 총합계 셀
         const totalCell=isFirst
           ?`<td rowspan="${stores.length}" style="background:${bgDeep};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle;white-space:nowrap">${fmt(g.gSum)}<span class="ac-badge ac-badge-${cls}">${g.name}</span></td>`
+          :'';
+
+        // 월별 합계 셀 (업체별)
+        const mSum=md?(md.storeMap[r.raw]||md.storeMap[r.name]||0):null;
+        const mStoreCell=md
+          ?`<td style="background:${mBgL};${topB}${botB}font-weight:600">${mSum?fmt(mSum):''}</td>`
+          :'';
+        // 월별 총합계 셀 (그룹별 rowspan)
+        const mGSum=md?(md.groupMap[g.name]||0):null;
+        const mGroupCell=md&&isFirst
+          ?`<td rowspan="${stores.length}" style="background:${mBgD};${topB}border-bottom:2px solid ${border};font-weight:800;text-align:center;vertical-align:middle">${fmt(mGSum)}</td>`
           :'';
 
         tbody+=`<tr style="background:${bgLight}">
@@ -355,24 +410,35 @@
           <td style="${topB}${botB}">${fmt(r.vm)}</td>
           <td style="${topB}${botB}font-weight:700">${fmt(r.sum)}</td>
           ${totalCell}
+          ${mStoreCell}
+          ${mGroupCell}
         </tr>`;
       });
     });
 
     if(kw&&!visible) return `<div class="ac-no-result">🔍 "<b>${keyword}</b>" 검색 결과가 없습니다.</div>`;
 
+    const td0=`background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
+    const td1=`background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a`;
     if(!kw){
       tbody+=`<tr>
-        <td colspan="2" style="background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">총합</td>
-        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.ns)}</td>
-        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.np)}</td>
-        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.nps)}</td>
-        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.na)}</td>
-        <td style="background:#1e293b;color:#fff;font-weight:700;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.vm)}</td>
-        <td style="background:#1e293b;color:#fff;font-weight:800;text-align:center;padding:11px 13px;border-top:2px solid #0f172a">${fmt(total.sum)}</td>
-        <td style="background:#1e293b;color:#fff;padding:11px 13px;border-top:2px solid #0f172a"></td>
+        <td colspan="2" style="${td0}">총합</td>
+        <td style="${td1}">${fmt(total.ns)}</td>
+        <td style="${td1}">${fmt(total.np)}</td>
+        <td style="${td1}">${fmt(total.nps)}</td>
+        <td style="${td1}">${fmt(total.na)}</td>
+        <td style="${td1}">${fmt(total.vm)}</td>
+        <td style="${td0}">${fmt(total.sum)}</td>
+        <td style="${td1}"></td>
+        ${md?`<td style="${td0}">${fmt(mTotal)}</td><td style="${td1}"></td>`:''}
       </tr>`;
     }
+
+    // 월별 컬럼 헤더
+    const mLabel=md?md.monthLabel:'';
+    const mColHeaders=md
+      ?`<th>${mLabel} 합계</th><th>${mLabel} 총합계</th>`
+      :'';
 
     const exportBtn=isMonthly
       ?`<button class="ac-export-btn" onclick="acExportMonthly()">⬇ CSV</button>`
@@ -382,7 +448,7 @@
       <div class="ac-result-hdr">
         <div>
           <div class="ac-result-title">${isMonthly?'월별 합산':'분류 결과'}${kw?` &nbsp;<span style="font-size:13px;font-weight:500;color:var(--text2,#64748b)">"${keyword}" 검색 중</span>`:''}</div>
-          <div class="ac-result-meta">${ts}${kw?` &nbsp;·&nbsp; ${visible}개 업체 표시`:''}</div>
+          <div class="ac-result-meta">${ts}${md?` &nbsp;·&nbsp; ${mLabel} 합산 포함 (${md.days}일)`:''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${exportBtn}
@@ -396,6 +462,7 @@
             <th>구분</th><th>업체명</th>
             <th>NS트래픽</th><th>NP트래픽</th><th>NP저장</th>
             <th>N자동완성</th><th>방문미션</th><th>합계</th><th>총합계</th>
+            ${mColHeaders}
           </tr></thead>
           <tbody>${tbody}</tbody>
         </table>
@@ -522,6 +589,10 @@
       renderEditor();
       if(data.result){
         window._acDailyResult=data.result;
+        // 월별 데이터도 함께 로드해서 일별 탭에 표시
+        const daily=await fbLoadDaily();
+        window._acDailyAll=daily;
+        window._acMonthData=buildMonthData(daily);
         renderResult(data.result,'');
         setStatus('✅ 서버에서 불러옴 · '+data.result.ts);
         document.getElementById('ac-run-btn').disabled=false;
