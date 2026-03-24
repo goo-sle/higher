@@ -316,7 +316,7 @@
     const days  = Number(document.getElementById('m-days')?.value);
     if (start && days > 0) {
       const d = new Date(start);
-      d.setDate(d.getDate() + days);
+      d.setDate(d.getDate() + days - 1);
       document.getElementById('m-endDate').value = d.toISOString().slice(0,10);
     }
   };
