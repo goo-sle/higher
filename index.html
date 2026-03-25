@@ -574,8 +574,7 @@
   let unsettledTimer = null;
   let pendingSettleDiff = 0;
 
-  HA.onSettlementsChange(unpaidSlots => {
-    const n = unpaidSlots.length;
+  HA.onSettlementsChange(n => {
     _updateSettleBadge(n);
   });
 
