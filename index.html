@@ -382,7 +382,10 @@
   window.handleNotif = function(i) {
     document.getElementById('notif-panel').classList.remove('show');
     notifOpen = false;
-    loadPage('접수관리.html', document.getElementById('nav-pending'));
+    const n = notifications[i];
+    const page = n?.page || '접수관리.html';
+    const navId = n?.navId || 'nav-pending';
+    loadPage(page, document.getElementById(navId));
   };
 
   // 패널 외부 클릭 시 닫기
@@ -530,6 +533,8 @@
         notifications.unshift({
           title: `📥 새 슬롯 접수 ${pendingDiff}건`,
           desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+          page:  '접수관리.html',
+          navId: 'nav-pending',
         });
         pendingDiff = 0;
         notifTimer = null;
@@ -559,6 +564,8 @@
         notifications.unshift({
           title: `👤 신규 회원 가입 ${pendingUserDiff}건`,
           desc:  `승인 대기 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
+          page:  '회원관리.html',
+          navId: 'nav-users',
         });
         pendingUserDiff = 0;
         newUserTimer = null;
@@ -570,34 +577,10 @@
   });
 
   // ── 정산관리 배지 (미정산 건) ──────────────────────────────
-  let prevUnsettled = null;
-  let unsettledTimer = null;
-  let pendingSettleDiff = 0;
-
   HA.onSettlementsChange(n => {
-    _updateSettleBadge(n);
-  });
-
-  function _updateSettleBadge(n) {
     const el = document.getElementById('settle-badge');
     if (el) { el.textContent = n; el.style.display = n > 0 ? '' : 'none'; }
-
-    if (prevUnsettled !== null && n > prevUnsettled) {
-      pendingSettleDiff += n - prevUnsettled;
-      if (unsettledTimer) clearTimeout(unsettledTimer);
-      unsettledTimer = setTimeout(() => {
-        notifications.unshift({
-          title: `💰 미정산 슬롯 ${pendingSettleDiff}건 추가`,
-          desc:  `미정산 총 ${n}건 · ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})}`,
-        });
-        pendingSettleDiff = 0;
-        unsettledTimer = null;
-        saveNotifs();
-        renderNotifPanel();
-      }, 1500);
-    }
-    prevUnsettled = n;
-  }
+  });
 
   // ── 앱 시작 ───────────────────────────────────────────────
   async function init() {
