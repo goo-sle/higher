@@ -509,12 +509,11 @@
   };
 
   // ── Firebase 실시간 리스너 ────────────────────────────────
-  // ── 알림 디바운스 ─────────────────────────────────────────
-  // ※ _key 집합으로 추적: 관리자가 상태값을 바꿔도 key는 그대로이므로
-  //   진짜 '신규 접수/신규 가입'이 생겼을 때만 알림이 발생합니다.
-  let notifTimer   = null;
-  let newSlotKeys  = null;   // 초기화 전: null (첫 스냅샷은 알림 없이 기준값만 저장)
-  let pendingDiff  = 0;
+  // ※ 전체 슬롯 _key를 seenSlotKeys로 누적 관리.
+  //   한 번도 본 적 없는 key가 생겼을 때만 알림 → 상태 변경은 key가 그대로라 무시됨.
+  let notifTimer    = null;
+  let seenSlotKeys  = null;  // null = 첫 스냅샷 수신 전
+  let pendingDiff   = 0;
 
   HA.onSlotsChange(slots => {
     const pendingSlots = slots.filter(s => s.status === 'pending');
@@ -528,21 +527,30 @@
     const pill = document.getElementById('status-pill');
     if (pill) { pill.textContent = '● 연결됨'; pill.className = 'status-pill ok'; }
 
-    const currentKeys = new Set(pendingSlots.map(s => s._key));
+    // 전체 슬롯 key 집합 (status 무관)
+    const allKeys = new Set(slots.map(s => s._key));
 
-    if (newSlotKeys === null) {
-      // 첫 스냅샷: 기준값만 저장하고 알림은 띄우지 않음
-      newSlotKeys = currentKeys;
+    if (seenSlotKeys === null) {
+      // 첫 스냅샷: 현재 존재하는 모든 key를 기준으로 저장, 알림 없음
+      seenSlotKeys = allKeys;
       renderNotifPanel();
       return;
     }
 
-    // 이전에 없던 _key 가 새로 생긴 경우만 → 진짜 신규 접수
-    const addedCount = [...currentKeys].filter(k => !newSlotKeys.has(k)).length;
-    newSlotKeys = currentKeys;
+    // 지금까지 한 번도 본 적 없는 key = 진짜 신규 접수
+    const brandNewKeys = [...allKeys].filter(k => !seenSlotKeys.has(k));
 
-    if (addedCount > 0) {
-      pendingDiff += addedCount;
+    // 새로 본 key는 누적 등록 (삭제하지 않음 — 승인해도 key 기억 유지)
+    brandNewKeys.forEach(k => seenSlotKeys.add(k));
+
+    // 신규 key 중 pending 상태인 것만 알림 대상
+    const newPendingCount = brandNewKeys.filter(k => {
+      const s = slots.find(sl => sl._key === k);
+      return s && s.status === 'pending';
+    }).length;
+
+    if (newPendingCount > 0) {
+      pendingDiff += newPendingCount;
       if (notifTimer) clearTimeout(notifTimer);
       notifTimer = setTimeout(() => {
         notifications.unshift({
