@@ -404,7 +404,7 @@
             <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
           </div>
           <button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet('${slotKey}')">
-            🔄 업데이트
+            🔄
           </button>
         </div>
         <div id="rank-table-area">
@@ -530,7 +530,7 @@
       }
 
       if (!Object.keys(updates).length) {
-        if (btn) { btn.textContent = '🔄 업데이트'; btn.disabled = false; }
+        if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
         alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');
         return;
       }
@@ -545,7 +545,7 @@
 
     } catch(e) {
       console.error(e);
-      if (btn) { btn.textContent = '🔄 업데이트'; btn.disabled = false; }
+      if (btn) { btn.textContent = '🔄'; btn.disabled = false; }
       alert('시트 데이터 가져오기 실패: ' + e.message);
     }
   };
