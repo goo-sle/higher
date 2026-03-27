@@ -391,51 +391,18 @@
     document.body.appendChild(overlay);
   };
 
-  // ── 구글 시트 Dashboard에서 MID로 키워드 조회 ───────────────
-  // ※ 아래 SHEET_CSV_URL을 실제 시트의 CSV 내보내기 URL로 교체하세요.
-  //   방법: 시트 공유(링크 있는 모든 사용자 뷰어) 후
-  //   https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard
-  const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8/gviz/tq?tqx=out:csv&sheet=Dashboard';
-
-  // CSV 파싱 유틸 (따옴표 포함 셀 처리)
-  function parseCsvLine(line) {
-    const result = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (c === ',' && !inQ) {
-        result.push(cur.trim()); cur = '';
-      } else {
-        cur += c;
-      }
-    }
-    result.push(cur.trim());
-    return result;
-  }
-
+  // ── Firebase에서 MID로 현재 키워드 조회 (오늘 값 단순 덮어쓰기) ──
   async function fetchSheetKeywordByMid(mid) {
     try {
-      const res = await fetch(SHEET_CSV_URL);
-      if (!res.ok) throw new Error('fetch 실패');
-      const text = await res.text();
-      const lines = text.split('\n').filter(l => l.trim());
-
-      // 헤더 제외, G열=index 6(MID), I열=index 8(키워드)
-      const matched = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCsvLine(lines[i]);
-        const sheetMid = (cols[6] || '').replace(/"/g, '').trim();
-        const keyword  = (cols[8] || '').replace(/"/g, '').trim();
-        if (sheetMid === String(mid).trim() && keyword) {
-          matched.push(keyword);
-        }
-      }
-      return matched;
+      const safeMid = mid.replace(/[.#$[\]/]/g, '_');
+      const { getDatabase, ref, get } = await import(
+        'https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js'
+      );
+      const snap = await get(ref(getDatabase(), `ha/keywords/${safeMid}`));
+      if (!snap.exists()) return [];
+      return [snap.val()]; // 문자열 하나를 배열로 감싸서 반환
     } catch (e) {
-      console.error('시트 조회 오류:', e);
+      console.error('Firebase 키워드 조회 오류:', e);
       return null; // null = 오류, [] = 결과없음
     }
   }
