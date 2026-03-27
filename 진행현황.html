@@ -395,6 +395,11 @@
     // 모달 생성
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        overlay.remove();
+      }
+    };
     overlay.innerHTML = `
       <div class="rank-modal-box">
         <div style="margin-bottom:4px;">
