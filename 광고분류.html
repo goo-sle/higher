@@ -295,12 +295,10 @@
         });
       });
     });
-    // 합계가 0인 업체 제거 후 gSum, total 재계산
+    // 월별: 합계 0인 업체도 모두 표시 (필터 없이 gSum, total 재계산)
     base.groupSums.forEach(g=>{
-      g.stores=g.stores.filter(r=>r.sum>0);
       g.gSum=g.stores.reduce((a,r)=>a+r.sum,0);
     });
-    base.groupSums=base.groupSums.filter(g=>g.stores.length>0);
     base.groupSums.forEach(g=>g.stores.forEach(r=>{
       base.total.ns+=r.ns;base.total.np+=r.np;base.total.nps+=r.nps;
       base.total.na+=r.na;base.total.vm+=r.vm;base.total.sum+=r.sum;
