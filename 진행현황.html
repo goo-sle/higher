@@ -377,7 +377,7 @@
       .rank-top3 { background:#eff6ff; color:#1d4ed8; }
       .rank-top10 { background:#f0fdf4; color:#15803d; }
       .rank-other { background:#f1f5f9; color:#475569; }
-      .rank-sync-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text2); }
+      .rank-sync-btn { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:14px; font-family:inherit; color:var(--text2); padding:0; line-height:1; flex-shrink:0; }
       .rank-sync-btn:hover { background:#f8fafc; }
       .rank-empty { text-align:center; padding:40px 0; color:var(--muted); font-size:13px; }
     `;
@@ -398,14 +398,12 @@
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="rank-modal-box">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
-          <div>
-            <div class="rank-modal-title">📊 일자별 순위</div>
-            <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
+        <div style="margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <div class="rank-modal-title" style="margin-bottom:0;">📊 일자별 순위</div>
+            <button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet('${slotKey}')" title="시트에서 업데이트">🔄</button>
           </div>
-          <button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet('${slotKey}')">
-            🔄
-          </button>
+          <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
         </div>
         <div id="rank-table-area">
           <div class="loading-wrap"><div class="spinner"></div> 순위 데이터 불러오는 중...</div>
@@ -475,7 +473,7 @@
     if (!s || !s.mid) return;
 
     const btn = document.getElementById('rank-sync-btn');
-    if (btn) { btn.textContent = '⏳ 가져오는 중...'; btn.disabled = true; }
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
 
     const SHEET_ID  = '14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8';
     const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard`;
@@ -540,7 +538,7 @@
       const dbInst = getDatabase();
       await fbUpdate(ref(dbInst, RANK_PATH), updates);
 
-      if (btn) { btn.textContent = `✅ ${Object.keys(updates).length}건 업데이트 완료`; btn.disabled = false; }
+      if (btn) { btn.textContent = '✅'; btn.disabled = false; }
       await renderRankTable(s.mid, RANK_PATH);
 
     } catch(e) {
