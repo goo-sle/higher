@@ -388,8 +388,57 @@
     document.body.appendChild(overlay);
   };
 
+  // ── 구글 시트 Dashboard에서 MID로 키워드 조회 ───────────────
+  // ※ 아래 SHEET_CSV_URL을 실제 시트의 CSV 내보내기 URL로 교체하세요.
+  //   방법: 시트 공유(링크 있는 모든 사용자 뷰어) 후
+  //   https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard
+  const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8/gviz/tq?tqx=out:csv&sheet=Dashboard';
+
+  // CSV 파싱 유틸 (따옴표 포함 셀 처리)
+  function parseCsvLine(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === ',' && !inQ) {
+        result.push(cur.trim()); cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  }
+
+  async function fetchSheetKeywordByMid(mid) {
+    try {
+      const res = await fetch(SHEET_CSV_URL);
+      if (!res.ok) throw new Error('fetch 실패');
+      const text = await res.text();
+      const lines = text.split('\n').filter(l => l.trim());
+
+      // 헤더 제외, G열=index 6(MID), I열=index 8(키워드)
+      const matched = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const sheetMid = (cols[6] || '').replace(/"/g, '').trim();
+        const keyword  = (cols[8] || '').replace(/"/g, '').trim();
+        if (sheetMid === String(mid).trim() && keyword) {
+          matched.push(keyword);
+        }
+      }
+      return matched;
+    } catch (e) {
+      console.error('시트 조회 오류:', e);
+      return null; // null = 오류, [] = 결과없음
+    }
+  }
+
   // ── MID 이전 키워드 히스토리 ──────────────────────────────
-  window.toggleMidHistory = function(mid, currentKey) {
+  window.toggleMidHistory = async function(mid, currentKey) {
     const area = document.getElementById('mid-history-area');
     const btn  = document.getElementById('mid-hist-btn');
     if (!area) return;
@@ -400,30 +449,72 @@
       return;
     }
 
-    // 동일 MID 슬롯 중 현재 슬롯 제외, searchKeyword 있는 것만, 최신순
+    // 로딩 표시
+    area.style.display = 'block';
+    btn.textContent = '닫기';
+    area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);"><div class="spinner"></div> 시트에서 키워드 불러오는 중...</div>';
+
+    // ① 자체 DB 히스토리 (기존 로직 유지)
     const history = allSlots
       .filter(s => s.mid === mid && s._key !== currentKey && s.searchKeyword)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    if (!history.length) {
-      area.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px 0;">이전 키워드 내역이 없습니다.</div>';
+    // ② 구글 시트 Dashboard에서 실제 키워드 조회
+    const sheetKeywords = await fetchSheetKeywordByMid(mid);
+
+    let html = '';
+
+    // ── 섹션 ①: 구글 시트 현재 키워드 ──
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
+      스프레드시트 현재 키워드
+    </div>`;
+
+    if (sheetKeywords === null) {
+      html += `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;margin-bottom:10px;">
+        ⚠️ 시트 데이터를 불러올 수 없습니다.<br>
+        <span style="color:var(--muted)">SHEET_CSV_URL이 올바른지 확인하거나, 시트가 공개 공유 상태인지 확인해주세요.</span>
+      </div>`;
+    } else if (!sheetKeywords.length) {
+      html += `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:11px;color:var(--muted);margin-bottom:10px;">
+        해당 MID(${mid})로 등록된 키워드가 없습니다.
+      </div>`;
     } else {
-      area.innerHTML = `
-        <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;border:1px solid var(--border);">
-          ${history.map(s => `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
-              <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${(s.createdAt||'').slice(0,10)}</span>
-              <span style="font-size:12px;font-weight:600;color:var(--text);flex:1;text-align:left;padding-left:8px;">${s.searchKeyword}</span>
-              <button onclick="document.getElementById('detail-keyword-input').value='${s.searchKeyword.replace(/'/g,"\'")}'"
-                style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
-                적용
-              </button>
-            </div>`).join('')}
-        </div>`;
+      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;margin-bottom:10px;">
+        ${sheetKeywords.map(kw => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #dbeafe;gap:8px;">
+            <span style="font-size:13px;font-weight:600;color:#1d4ed8;flex:1;">${kw}</span>
+            <button onclick="document.getElementById('detail-keyword-input').value='${kw.replace(/'/g,"\\'")}'"
+              style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">
+              적용
+            </button>
+          </div>`).join('')}
+      </div>`;
     }
 
-    area.style.display = 'block';
-    btn.textContent = '닫기';
+    // ── 섹션 ②: 자체 DB 이전 히스토리 ──
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#94a3b8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">히스토리</span>
+      접수 이력 키워드
+    </div>`;
+
+    if (!history.length) {
+      html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 접수 키워드 내역이 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#f8fafc;border-radius:7px;padding:10px 12px;border:1px solid var(--border);">
+        ${history.map(s => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:8px;">
+            <span style="font-size:11px;color:var(--text2);white-space:nowrap;">${(s.createdAt||'').slice(0,10)}</span>
+            <span style="font-size:12px;font-weight:500;color:var(--text);flex:1;text-align:left;padding-left:8px;">${s.searchKeyword}</span>
+            <button onclick="document.getElementById('detail-keyword-input').value='${s.searchKeyword.replace(/'/g,"\\'")}'"
+              style="font-size:10px;padding:2px 7px;border:1px solid var(--accent);border-radius:4px;background:#fff;color:var(--accent);cursor:pointer;font-family:inherit;white-space:nowrap;">
+              적용
+            </button>
+          </div>`).join('')}
+      </div>`;
+    }
+
+    area.innerHTML = html;
   };
 
   // 닫기 시 키워드 자동저장
