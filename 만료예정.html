@@ -17,6 +17,7 @@
   .dday-normal { background:#f0fdf4; color:#15803d; font-weight:600; padding:2px 8px; border-radius:4px; font-size:11px; }
   .action-btn  { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
   .btn-extend  { background:#f0fdf4; color:#15803d; }
+  .btn-cancel  { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
   .empty-row td { height:200px; text-align:center; color:var(--muted); font-size:13px; }
   .loading-wrap { display:flex;align-items:center;justify-content:center;height:200px;color:var(--muted);font-size:13px;gap:8px; }
   .spinner { width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite; }
@@ -95,7 +96,6 @@
     const el = document.getElementById('expire-summary');
     if(!el) return;
 
-    // 필터에 따라 표시할 카운트 항목 결정
     let countItems = '';
     if(range === '3' || range === '7' || range === '14' || range === 'all') {
       countItems += `<div class="sum-item"><div class="sum-label">3일 이내 만료</div><div class="sum-val" style="color:var(--danger)">${t3} <small style="font-size:12px;color:var(--muted);font-weight:400">건</small></div></div>`;
@@ -124,6 +124,7 @@
 
     const range = document.getElementById('ef-range').value;
     const kw    = (document.getElementById('ef-kw').value||'').toLowerCase();
+
     const today = new Date(); today.setHours(0,0,0,0);
 
     let slots = allSlots.filter(s => s.status === 'active').filter(s => {
@@ -180,81 +181,170 @@
     alert(`${days}일 연장되었습니다.`);
   };
 
-  renderExpire();
+  // ── 순위 팝업 공통 스타일 (최초 1회 삽입) ─────────────────
+  if (!document.getElementById('rank-popup-style')) {
+    const st = document.createElement('style');
+    st.id = 'rank-popup-style';
+    st.textContent = `
+      .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; display:flex; align-items:center; justify-content:center; }
+      .rank-modal-box { background:#fff; border-radius:16px; width:480px; max-height:80vh; overflow-y:auto; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+      .rank-modal-title { font-size:16px; font-weight:700; margin-bottom:6px; }
+      .rank-modal-sub { font-size:12px; color:var(--text2); margin-bottom:16px; }
+      .rank-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+      .rank-tbl thead th { background:#1e293b; color:#fff; padding:9px 10px; text-align:center; font-weight:500; }
+      .rank-tbl tbody td { padding:9px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+      .rank-tbl tbody tr:last-child td { border-bottom:none; }
+      .rank-tbl tbody tr:hover { background:#f8fafc; }
+      .rank-num { display:inline-block; font-weight:700; font-size:13px; padding:2px 10px; border-radius:5px; }
+      .rank-1 { background:#fef9c3; color:#92400e; }
+      .rank-top3 { background:#eff6ff; color:#1d4ed8; }
+      .rank-top10 { background:#f0fdf4; color:#15803d; }
+      .rank-other { background:#f1f5f9; color:#475569; }
+      .rank-sync-btn { display:flex; align-items:center; gap:6px; padding:6px 14px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:12px; font-family:inherit; color:var(--text2); }
+      .rank-sync-btn:hover { background:#f8fafc; }
+      .rank-empty { text-align:center; padding:40px 0; color:var(--muted); font-size:13px; }
+    `;
+    document.head.appendChild(st);
+  }
 
   // ── 순위 팝업 (만료예정) ─────────────────────────────────
   window.openRankPopup_e = async function(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
     if (!s || !s.mid) return alert('MID 정보가 없습니다.');
     const RANK_PATH = 'ha/ranks/' + s.mid.replace(/[.#$[\]/]/g, '_');
-    if (!document.getElementById('rank-popup-style')) {
-      const st = document.createElement('style');
-      st.id = 'rank-popup-style';
-      st.textContent = '.rank-modal-box{background:#fff;border-radius:16px;width:480px;max-height:80vh;overflow-y:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.25)}.rank-modal-title{font-size:16px;font-weight:700;margin-bottom:6px}.rank-modal-sub{font-size:12px;color:var(--text2);margin-bottom:16px}.rank-tbl{width:100%;border-collapse:collapse;font-size:12px}.rank-tbl thead th{background:#1e293b;color:#fff;padding:9px 10px;text-align:center;font-weight:500}.rank-tbl tbody td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:center;vertical-align:middle}.rank-tbl tbody tr:last-child td{border-bottom:none}.rank-tbl tbody tr:hover{background:#f8fafc}.rank-num{display:inline-block;font-weight:700;font-size:13px;padding:2px 10px;border-radius:5px}.rank-1{background:#fef9c3;color:#92400e}.rank-top3{background:#eff6ff;color:#1d4ed8}.rank-top10{background:#f0fdf4;color:#15803d}.rank-other{background:#f1f5f9;color:#475569}.rank-sync-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2)}.rank-sync-btn:hover{background:#f8fafc}.rank-empty{text-align:center;padding:40px 0;color:var(--muted);font-size:13px}';
-      document.head.appendChild(st);
-    }
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    overlay.innerHTML = '<div class="rank-modal-box"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;"><div><div class="rank-modal-title">📊 일자별 순위</div><div class="rank-modal-sub">' + s.storeName + ' &nbsp;·&nbsp; MID: ' + s.mid + ' &nbsp;·&nbsp; 순위키워드: <strong>' + (s.rankKeyword||'-') + '</strong></div></div><button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet_e(\'' + slotKey + '\')">🔄 시트에서 업데이트</button></div><div id="rank-table-area"><div class="loading-wrap"><div class="spinner"></div> 순위 데이터 불러오는 중...</div></div><div style="display:flex;justify-content:flex-end;margin-top:16px;"><button style="padding:8px 20px;border:1px solid var(--border);border-radius:7px;background:#fff;cursor:pointer;font-size:13px;" onclick="this.closest(\'.modal-overlay\').remove()">닫기</button></div></div>';
+    overlay.innerHTML = `
+      <div class="rank-modal-box">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
+          <div>
+            <div class="rank-modal-title">📊 일자별 순위</div>
+            <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
+          </div>
+          <button class="rank-sync-btn" id="rank-sync-btn-e" onclick="syncRankFromSheet_e('${slotKey}')">
+            🔄 업데이트
+          </button>
+        </div>
+        <div id="rank-table-area-e">
+          <div class="loading-wrap"><div class="spinner"></div> 순위 데이터 불러오는 중...</div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="btn-cancel" onclick="this.closest('.modal-overlay').remove()">닫기</button>
+        </div>
+      </div>`;
     document.body.appendChild(overlay);
     await _renderRankTable_e(s.mid, RANK_PATH);
   };
 
   async function _renderRankTable_e(mid, rankPath) {
-    const area = document.getElementById('rank-table-area');
+    const area = document.getElementById('rank-table-area-e');
     if (!area) return;
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      const snap = await get(ref(getDatabase(), rankPath));
-      if (!snap.exists()) { area.innerHTML = '<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small>시트에서 업데이트 버튼을 눌러 데이터를 가져오세요.</small></div>'; return; }
+      const dbInst = getDatabase();
+      const snap = await get(ref(dbInst, rankPath));
+      if (!snap.exists()) {
+        area.innerHTML = '<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small style="color:var(--muted)">업데이트 버튼을 눌러 데이터를 가져오세요.</small></div>';
+        return;
+      }
       const data = snap.val();
       const seen = new Set();
-      const rows = Object.entries(data).map(([date,v]) => ({date, keyword:v.keyword||'-', rank:v.rank}))
-        .sort((a,b) => b.date.localeCompare(a.date))
-        .filter(r => { const k = r.date+'_'+r.keyword; if(seen.has(k))return false; seen.add(k); return true; });
-      area.innerHTML = '<table class="rank-tbl"><thead><tr><th>날짜</th><th>순위 키워드</th><th>순위</th></tr></thead><tbody>' +
-        rows.map(r => {
-          const rn = Number(r.rank);
-          const cls = rn===1?'rank-1':rn<=3?'rank-top3':rn<=10?'rank-top10':'rank-other';
-          const disp = (!r.rank||r.rank==='-') ? '<span style="color:var(--muted)">-</span>' : '<span class="rank-num '+cls+'">'+rn+'위</span>';
-          return '<tr><td style="color:var(--text2)">'+r.date+'</td><td style="font-weight:500">'+r.keyword+'</td><td>'+disp+'</td></tr>';
-        }).join('') + '</tbody></table>';
-    } catch(e) { area.innerHTML = '<div class="rank-empty" style="color:var(--danger)">로드 실패: '+e.message+'</div>'; }
+      const rows = Object.entries(data)
+        .map(([date, v]) => ({ date, keyword: v.keyword||'-', rank: v.rank }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .filter(r => {
+          const k = r.date + '_' + r.keyword;
+          if (seen.has(k)) return false;
+          seen.add(k); return true;
+        });
+      area.innerHTML = `
+        <table class="rank-tbl">
+          <thead><tr><th>날짜</th><th>순위 키워드</th><th>순위</th></tr></thead>
+          <tbody>
+            ${rows.map(r => {
+              const rn = Number(r.rank);
+              const cls = rn===1 ? 'rank-1' : rn<=3 ? 'rank-top3' : rn<=10 ? 'rank-top10' : 'rank-other';
+              const disp = (!r.rank || r.rank==='-')
+                ? '<span style="color:var(--muted)">-</span>'
+                : `<span class="rank-num ${cls}">${rn}위</span>`;
+              return `<tr>
+                <td style="color:var(--text2)">${r.date}</td>
+                <td style="font-weight:500">${r.keyword}</td>
+                <td>${disp}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    } catch(e) {
+      area.innerHTML = `<div class="rank-empty" style="color:var(--danger)">데이터 로드 실패: ${e.message}</div>`;
+    }
   }
 
   window.syncRankFromSheet_e = async function(slotKey) {
     const s = allSlots.find(x => x._key === slotKey);
     if (!s || !s.mid) return;
-    const btn = document.getElementById('rank-sync-btn');
-    if (btn) { btn.textContent='⏳ 가져오는 중...'; btn.disabled=true; }
+    const btn = document.getElementById('rank-sync-btn-e');
+    if (btn) { btn.textContent = '⏳ 가져오는 중...'; btn.disabled = true; }
     const SHEET_ID = '14j9wwFedE-kwAebFSnBWjgCYcoCUW2L0hDdBmtGqAf8';
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Dashboard`;
     const RANK_PATH = 'ha/ranks/' + s.mid.replace(/[.#$[\]/]/g, '_');
     try {
-      const res = await fetch('https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=Dashboard');
-      if (!res.ok) throw new Error('fetch 실패');
+      const res = await fetch(SHEET_URL);
+      if (!res.ok) throw new Error('시트 fetch 실패');
       const text = await res.text();
-      const lines = text.split('\n').filter(l=>l.trim());
-      function pcl(line){const r=[];let c='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){c+='"';i++;}else q=!q;}else if(ch===','&&!q){r.push(c.trim());c='';}else c+=ch;}r.push(c.trim());return r;}
-      const hdr=pcl(lines[0]); const yr=new Date().getFullYear();
-      const dates=[];
-      for(let ci=13;ci<hdr.length;ci++){const h=hdr[ci].replace(/"/g,'').trim();if(/^\d{2}-\d{2}$/.test(h))dates.push({ci,ds:yr+'-'+h});}
-      const updates={};
-      for(let ri=1;ri<lines.length;ri++){
-        const cols=pcl(lines[ri]);
-        if((cols[6]||'').replace(/"/g,'').trim()!==String(s.mid).trim())continue;
-        const kw=(cols[9]||'').replace(/"/g,'').trim()||s.rankKeyword||'-';
-        for(const {ci,ds} of dates){const rk=(cols[ci]||'').replace(/"/g,'').trim();if(rk&&rk!=='-')updates[ds]={keyword:kw,rank:rk};}
+      const lines = text.split('\n').filter(l => l.trim());
+
+      function parseCsvLine(line) {
+        const result = []; let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
+          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else cur += c;
+        }
+        result.push(cur.trim()); return result;
       }
-      if(!Object.keys(updates).length){if(btn){btn.textContent='🔄 시트에서 업데이트';btn.disabled=false;}alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');return;}
-      const {getDatabase,ref,update:fu}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      await fu(ref(getDatabase(),RANK_PATH),updates);
-      if(btn){btn.textContent='✅ '+Object.keys(updates).length+'건 업데이트 완료';btn.disabled=false;}
+
+      const headerCols = parseCsvLine(lines[0]);
+      const currentYear = new Date().getFullYear();
+      const dateHeaders = [];
+      for (let ci = 13; ci < headerCols.length; ci++) {
+        const h = headerCols[ci].replace(/"/g, '').trim();
+        if (/^\d{2}-\d{2}$/.test(h)) dateHeaders.push({ colIdx: ci, dateStr: `${currentYear}-${h}` });
+      }
+
+      const updates = {};
+      for (let ri = 1; ri < lines.length; ri++) {
+        const cols = parseCsvLine(lines[ri]);
+        const sheetMid = (cols[6]||'').replace(/"/g, '').trim();
+        if (sheetMid !== String(s.mid).trim()) continue;
+        const keyword = (cols[9]||'').replace(/"/g, '').trim() || s.rankKeyword || '-';
+        for (const { colIdx, dateStr } of dateHeaders) {
+          const rankRaw = (cols[colIdx]||'').replace(/"/g, '').trim();
+          if (rankRaw && rankRaw !== '-') updates[dateStr] = { keyword, rank: rankRaw };
+        }
+      }
+
+      if (!Object.keys(updates).length) {
+        if (btn) { btn.textContent = '🔄 업데이트'; btn.disabled = false; }
+        alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');
+        return;
+      }
+
+      const { getDatabase, ref, update: fbUpdate } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const dbInst = getDatabase();
+      await fbUpdate(ref(dbInst, RANK_PATH), updates);
+
+      if (btn) { btn.textContent = `✅ ${Object.keys(updates).length}건 업데이트 완료`; btn.disabled = false; }
       await _renderRankTable_e(s.mid, RANK_PATH);
     } catch(e) {
-      if(btn){btn.textContent='🔄 시트에서 업데이트';btn.disabled=false;}
-      alert('실패: '+e.message);
+      if (btn) { btn.textContent = '🔄 업데이트'; btn.disabled = false; }
+      alert('시트 데이터 가져오기 실패: ' + e.message);
     }
   };
+
+  renderExpire();
 
 })();
 </script>

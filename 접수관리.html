@@ -659,7 +659,7 @@
             <div class="rank-modal-sub">${s.storeName} &nbsp;·&nbsp; MID: ${s.mid} &nbsp;·&nbsp; 순위키워드: <strong>${s.rankKeyword||'-'}</strong></div>
           </div>
           <button class="rank-sync-btn" id="rank-sync-btn" onclick="syncRankFromSheet_r('${slotKey}')">
-            🔄 시트에서 업데이트
+            🔄 업데이트
           </button>
         </div>
         <div id="rank-table-area">
@@ -679,7 +679,7 @@
     try {
       const { getDatabase, ref, get } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       const snap = await get(ref(getDatabase(), rankPath));
-      if (!snap.exists()) { area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small>시트에서 업데이트 버튼을 눌러 데이터를 가져오세요.</small></div>`; return; }
+      if (!snap.exists()) { area.innerHTML = `<div class="rank-empty">저장된 순위 데이터가 없습니다.<br><small>업데이트 버튼을 눌러 데이터를 가져오세요.</small></div>`; return; }
       const data = snap.val();
       const seen = new Set();
       const rows = Object.entries(data).map(([date,v])=>({date,keyword:v.keyword||'-',rank:v.rank}))
@@ -715,12 +715,12 @@
         const kw=(cols[9]||'').replace(/"/g,'').trim()||s.rankKeyword||'-';
         for(const{ci,ds}of dates){const rk=(cols[ci]||'').replace(/"/g,'').trim();if(rk&&rk!=='-')updates[ds]={keyword:kw,rank:rk};}
       }
-      if(!Object.keys(updates).length){if(btn){btn.textContent='🔄 시트에서 업데이트';btn.disabled=false;}alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');return;}
+      if(!Object.keys(updates).length){if(btn){btn.textContent='🔄 업데이트';btn.disabled=false;}alert('해당 MID의 순위 데이터를 찾을 수 없습니다.');return;}
       const {getDatabase,ref,update:fu}=await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
       await fu(ref(getDatabase(),RANK_PATH),updates);
       if(btn){btn.textContent=`✅ ${Object.keys(updates).length}건 업데이트 완료`;btn.disabled=false;}
       await _renderRankTable_r(s.mid,RANK_PATH);
-    }catch(e){if(btn){btn.textContent='🔄 시트에서 업데이트';btn.disabled=false;}alert('실패: '+e.message);}
+    }catch(e){if(btn){btn.textContent='🔄 업데이트';btn.disabled=false;}alert('실패: '+e.message);}
   };
 })();
 </script>
