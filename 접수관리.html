@@ -3174,7 +3174,6 @@ window.toggleProdPanel = function(e) {
           rows.push({
             _slotKey: s._key, _rowKey: `${s._key}__${mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
             _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[mission]),
-            isRequeue: !!s.isRequeue,
             agencyId, userId: s.userId||'', unitPrice,
             storeName: s.storeName||'', rankKw: s.rankKeyword||'',
             workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
@@ -3192,7 +3191,6 @@ window.toggleProdPanel = function(e) {
           rows.push({
             _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
             _fixedSubmitted: !!s.fixedSubmitted,
-            isRequeue: !!s.isRequeue,
             agencyId, userId: s.userId||'', unitPrice,
             storeName: s.storeName||'', rankKw: s.rankKeyword||'',
             workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
@@ -3208,7 +3206,6 @@ window.toggleProdPanel = function(e) {
             rows.push({
               _slotKey: s._key, _rowKey: s._key, _prodId: 'yupfl', _prodLabel: yupfl.name, _prodColor: yupfl.color,
               _fixedSubmitted: !!s.fixedSubmitted,
-              isRequeue: !!s.isRequeue,
               agencyId, userId: s.userId||'', unitPrice,
               storeName: s.storeName||'', rankKw: s.rankKeyword||'',
               workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
@@ -3225,7 +3222,6 @@ window.toggleProdPanel = function(e) {
             rows.push({
               _slotKey: s._key, _rowKey: `${s._key}__${rule.mission}`, _prodId: 'yupfl2', _prodLabel: split.name, _prodColor: split.color,
               _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]),
-              isRequeue: !!s.isRequeue,
               agencyId, userId: s.userId||'', unitPrice,
               storeName: s.storeName||'', rankKw: s.rankKeyword||'',
               workKw, placeId: s.mid||'', target: yAmt, days: s.days||0, startDate: s.startDate||'',
@@ -3298,11 +3294,10 @@ window.toggleProdPanel = function(e) {
   }
 
   // 유입플 탭 전용 — executeYoupflSubmit 안의 검사(workKw 미입력)와 동일 조건.
-  // 재접수(isRequeue) 행은 유입플 레그가 면제(readyKeysOf와 동일 규칙)라 워크키워드 미입력이어도 실패로 안 침 — 다른 탭까지 막지 않기 위함.
   function validateYoupflRowsForSubmit(rows) {
     let anyFail = false;
     rows.forEach(r => {
-      if (r._fixedSubmitted || r.isRequeue) return;
+      if (r._fixedSubmitted) return;
       if (!r.workKw) { r._kwFail = true; anyFail = true; }
     });
     return anyFail;
