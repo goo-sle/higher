@@ -340,6 +340,7 @@
     <div class="nav-label">Management</div>
     <div class="nav-item" id="nav-slots"   onclick="loadPage('진행현황.html',this)"><i data-lucide="layers" size="16"></i> 진행 현황</div>
     <div class="nav-item" id="nav-pending" onclick="loadPage('접수관리.html',this)"><i data-lucide="inbox" size="16"></i> 접수 관리<span class="badge" id="pending-badge" style="display:none">0</span></div>
+    <div class="nav-item" id="nav-kimpro" onclick="alert('준비중입니다 — 김프로 통합 예정')" style="opacity:.6;display:none"><i data-lucide="link-2" size="16"></i> 김프로<span class="badge" style="background:var(--muted)">예정</span></div>
     <div class="nav-item" id="nav-expire"  onclick="loadPage('종료예정.html',this)"><i data-lucide="clock-alert" size="16"></i> 종료 예정</div>
     <div class="nav-label">Finance & Users</div>
     <div class="nav-item" id="nav-settle"  onclick="loadPage('정산관리.html',this)"><i data-lucide="wallet" size="16"></i> 정산 관리<span class="badge" id="settle-badge" style="display:none">0</span></div>
@@ -914,6 +915,9 @@
       if (nameEl)   nameEl.textContent   = cur.name || cur.username;
       if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : '담당자';
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
+      // 김프로 메뉴는 통합 준비 단계라 admin 계정에게만 노출(staff는 안 보임)
+      const kimproNav = document.getElementById('nav-kimpro');
+      if (kimproNav) kimproNav.style.display = cur.role === 'admin' ? '' : 'none';
     }
     document.body.style.display = 'flex';
     lucide.createIcons();
