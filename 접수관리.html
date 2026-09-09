@@ -2716,6 +2716,9 @@ window.toggleProdPanel = function(e) {
     const cutoffDayKw = ymd(new Date(Date.now() - daysKw * 24 * 3600 * 1000));
     const cutoffDayYupfl = yupflSkip ? null : ymd(new Date(Date.now() - daysYupfl * 24 * 3600 * 1000));
     const withinCutoff = (h, cutoffDay) => !!(h && h.createdAt && ymd(new Date(h.createdAt)) >= cutoffDay);
+    // 히스토리 원본(과거 수기입력·외부연동 등)엔 "1, 2, 3"처럼 콤마 뒤 공백이 섞여있을 수 있어
+    // 재접수로 새로 채우는 시점에 정규화 — "1,2,3" 형태로 고정
+    const normKw = kw => (kw || '').split(',').map(k => k.trim()).filter(Boolean).join(',');
     const rows = pending.map(s => {
       const kwTop = (histMap.get(s.mid) || [])[0];
       const yTop  = (yupflHistMap.get(s.mid) || [])[0];
@@ -2728,8 +2731,8 @@ window.toggleProdPanel = function(e) {
         slot: s,
         matched: kwMatched || yMatched, kwMatched, yMatched, bothMatched,
         newStatus: bothMatched ? 'accepted' : 'pending',
-        matchKeyword: kwMatched ? kwTop.searchKeyword : (s.searchKeyword || ''),
-        matchYupfl: yMatched ? yTop.searchKeyword : '',
+        matchKeyword: kwMatched ? normKw(kwTop.searchKeyword) : (s.searchKeyword || ''),
+        matchYupfl: yMatched ? normKw(yTop.searchKeyword) : '',
       };
     });
     const matched = rows.filter(r => r.matched);
