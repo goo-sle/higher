@@ -4,9 +4,10 @@
   #kimpro-page .kp-banner { display:flex; align-items:center; gap:10px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#9a3412; }
   #kimpro-page .kp-banner b { font-weight:700; }
   /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼 */
-  #kimpro-page .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:0; margin-bottom:22px; }
+  #kimpro-page .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; align-items:center; gap:0; margin-bottom:22px; }
   #kimpro-page .kp-header .kp-logo { font-size:15px; font-weight:900; color:#fff; letter-spacing:-.5px; padding:8px 14px 8px 10px; flex:0 0 auto; }
   #kimpro-page .kp-header .kp-logo span { color:var(--kp-accent); }
+  #kimpro-page .kp-nav { display:flex; align-items:center; justify-content:center; flex:1 1 auto; flex-wrap:wrap; row-gap:2px; }
   #kimpro-page .kp-btn { display:flex; align-items:center; gap:5px; padding:9px 14px; background:transparent; border:none; border-left:1px solid rgba(255,255,255,.15); color:#fff; font-size:12px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
   #kimpro-page .kp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
   #kimpro-page .kp-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
@@ -19,21 +20,23 @@
   @media (max-width:1100px) { #kimpro-page .kp-grid { grid-template-columns:repeat(2,1fr); } }
 </style>
 
+  <div class="kp-header">
+    <div class="kp-logo">KIM <span>PRO</span></div>
+    <div class="kp-nav">
+      <button class="kp-btn">📊 엑셀 접수</button>
+      <button class="kp-btn">🛑 강제종료</button>
+      <button class="kp-btn">🔤 키워드 변경</button>
+      <button class="kp-btn">💰 캐시복구</button>
+      <button class="kp-btn">⚡ 충전하기</button>
+      <button class="kp-btn">💳 유입플 정산</button>
+      <button class="kp-btn">🔗 백링크 순위</button>
+      <button class="kp-btn">📈 순위표</button>
+    </div>
+  </div>
+
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
     <span><b>디자인 틀만 적용된 화면입니다.</b> 위 헤더바와 아래 카드는 아직 동작하지 않으며, 실제 연결 작업은 <code>어드민 통합.md</code> 기획에 따라 순차 진행됩니다.</span>
-  </div>
-
-  <div class="kp-header">
-    <div class="kp-logo">HIGHER <span>AD</span></div>
-    <button class="kp-btn">📊 엑셀 접수</button>
-    <button class="kp-btn">🛑 강제종료</button>
-    <button class="kp-btn">🔤 키워드 변경</button>
-    <button class="kp-btn">💰 캐시복구</button>
-    <button class="kp-btn">⚡ 충전하기</button>
-    <button class="kp-btn">💳 유입플 정산</button>
-    <button class="kp-btn">🔗 백링크 순위</button>
-    <button class="kp-btn">📈 순위표</button>
   </div>
 
   <div class="kp-section-title">이식 예정 기능</div>
