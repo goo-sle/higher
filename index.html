@@ -129,7 +129,8 @@
 
     :root { --sidebar-w:208px; --sidebar-w-collapsed:64px; }
     aside { width:var(--sidebar-w); background:var(--sidebar); color:#fff; display:flex; flex-direction:column; position:fixed; height:100vh; z-index:100; transition:width .2s ease; overflow-x:hidden; }
-    .brand { padding:28px 20px 22px; cursor:pointer; white-space:nowrap; }
+    .brand { padding:28px 16px 22px 20px; display:flex; align-items:center; justify-content:space-between; gap:8px; white-space:nowrap; }
+    .brand-logo { cursor:pointer; min-width:0; overflow:hidden; }
     .brand-name { font-size:19px; font-weight:900; letter-spacing:-0.5px; }
     .brand-name span { color:var(--accent); }
     .brand-sub { font-size:10px; color:var(--muted); margin-top:3px; letter-spacing:2px; text-transform:uppercase; }
@@ -151,13 +152,14 @@
 
     /* ── 사이드바 접기(데스크톱) ── */
     aside.collapsed { width:var(--sidebar-w-collapsed); }
-    aside.collapsed .brand-sub, aside.collapsed .nav-label,
+    aside.collapsed .brand-logo,
     aside.collapsed .nav-item .nav-text, aside.collapsed .nav-item .badge,
     aside.collapsed .admin-info { display:none; }
-    aside.collapsed .brand { padding:28px 0 22px; text-align:center; }
-    aside.collapsed .brand-name { font-size:14px; }
+    aside.collapsed .brand { padding:20px 0; justify-content:center; }
+    /* 라벨 텍스트 대신 섹션 구분선만 남김(글자는 숨기고 위쪽 테두리만 남김) */
+    aside.collapsed .nav-label { font-size:0; height:0; padding:8px 0 0; margin:8px 14px 0; border-top:1px solid rgba(255,255,255,.1); }
     aside.collapsed .nav-item { justify-content:center; padding:10px; }
-    aside.collapsed .sidebar-bottom { flex-direction:column-reverse; gap:10px; }
+    aside.collapsed .sidebar-bottom { justify-content:center; }
     aside.collapsed ~ main { margin-left:var(--sidebar-w-collapsed); }
     .btn-collapse i { transition:transform .2s ease; }
     aside.collapsed .btn-collapse i { transform:rotate(180deg); }
@@ -301,13 +303,13 @@
       aside.open { transform:translateX(0); }
       /* 모바일은 접기 기능 대상 아님 — 항상 원래 너비로, 접기 버튼도 숨김 */
       aside.collapsed, aside.collapsed.open { width:var(--sidebar-w); }
-      aside.collapsed .brand-sub, aside.collapsed .nav-label,
+      aside.collapsed .brand-logo,
       aside.collapsed .nav-item .nav-text, aside.collapsed .nav-item .badge,
       aside.collapsed .admin-info { display:revert; }
-      aside.collapsed .brand { padding:28px 20px 22px; text-align:left; }
-      aside.collapsed .brand-name { font-size:19px; }
+      aside.collapsed .brand { padding:28px 20px 22px; justify-content:space-between; }
+      aside.collapsed .nav-label { font-size:10px; height:auto; padding:16px 10px 6px; margin:0; border-top:none; }
       aside.collapsed .nav-item { justify-content:flex-start; padding:10px 11px; }
-      aside.collapsed .sidebar-bottom { flex-direction:row; }
+      aside.collapsed .sidebar-bottom { justify-content:space-between; }
       .btn-collapse { display:none; }
 
       main, aside.collapsed ~ main { margin-left:0; padding:16px; }
@@ -356,9 +358,14 @@
 <body>
 
 <aside id="sidebar">
-  <div class="brand" onclick="loadDashboard()">
-    <div class="brand-name">HIGHER <span>AD</span></div>
-    <div class="brand-sub">Admin Portal</div>
+  <div class="brand">
+    <div class="brand-logo" onclick="loadDashboard()">
+      <div class="brand-name">HIGHER <span>AD</span></div>
+      <div class="brand-sub">Admin Portal</div>
+    </div>
+    <div class="btn-collapse" onclick="toggleSidebarCollapse()" title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기">
+      <i data-lucide="chevron-left" size="16"></i>
+    </div>
   </div>
   <div class="nav-section">
     <div class="nav-label">Management</div>
@@ -377,9 +384,6 @@
   <div class="sidebar-bottom">
     <div class="admin-info">
       <div><div class="admin-name" id="sidebar-name">관리자</div><div class="admin-role" id="sidebar-role">Super Admin</div></div>
-    </div>
-    <div class="btn-collapse" onclick="toggleSidebarCollapse()" title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기">
-      <i data-lucide="panel-left-close" size="15"></i>
     </div>
     <div class="btn-logout" onclick="doLogout()" title="로그아웃" aria-label="로그아웃">
       <i data-lucide="log-out" size="15"></i>
