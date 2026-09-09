@@ -261,8 +261,8 @@ const HA = {
             await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), rest);
           }
         }
-      } else if (patch.status === 'active') {
-        // 접수관리에서 승인(active) 처리된 시점에 최초로 kimpro에 전체 데이터 복사 — 접수관리에 있는 그대로 전달
+      } else if (patch.status === 'active' || patch.status === 'split') {
+        // 접수관리에서 승인(active) 또는 시간대 분할 예약(split) 처리된 시점에 최초로 kimpro에 전체 데이터 복사 — 접수관리에 있는 그대로 전달
         const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
         if (slotSnap.exists()) {
           const slot = slotSnap.val();
