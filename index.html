@@ -171,6 +171,9 @@
     .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
     .page-heading { font-size:22px; font-weight:800; color:var(--text); }
     .top-right { display:flex; align-items:center; gap:12px; }
+    /* 김프로 화면: 자체 헤더바를 쓰므로 공용 타이틀/상태pill/알림벨 숨김(햄버거는 모바일용으로 유지) */
+    body.kp-mode .top-bar { margin-bottom:0; }
+    body.kp-mode #page-heading, body.kp-mode .top-right { display:none; }
 
     /* 상태 pill */
     .status-pill { padding:5px 14px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:.5px; border:1px solid; transition:.3s; }
@@ -785,6 +788,8 @@
       navEl.classList.add('active');
     }
     document.getElementById('page-heading').textContent = PAGE_TITLES[page] || page;
+    // 김프로 화면은 자체 헤더바(kp-header)를 쓰므로 상단 공용 타이틀/상태pill/알림벨은 숨김
+    document.body.classList.toggle('kp-mode', page === '김프로.html');
 
     const area = document.getElementById('content-area');
     area.innerHTML = '<div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>';
