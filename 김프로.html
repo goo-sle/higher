@@ -1,73 +1,80 @@
 <div id="kimpro-page">
 <style>
+  #kimpro-page { --kp-navy:#0f172a; --kp-accent:#10b981; }
   #kimpro-page .kp-banner { display:flex; align-items:center; gap:10px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#9a3412; }
   #kimpro-page .kp-banner b { font-weight:700; }
+  /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼 */
+  #kimpro-page .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; flex-wrap:wrap; align-items:center; gap:0; margin-bottom:22px; }
+  #kimpro-page .kp-header .kp-logo { font-size:15px; font-weight:900; color:#fff; letter-spacing:-.5px; padding:8px 14px 8px 10px; flex:0 0 auto; }
+  #kimpro-page .kp-header .kp-logo span { color:var(--kp-accent); }
+  #kimpro-page .kp-btn { display:flex; align-items:center; gap:5px; padding:9px 14px; background:transparent; border:none; border-left:1px solid rgba(255,255,255,.15); color:#fff; font-size:12px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
   #kimpro-page .kp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
   #kimpro-page .kp-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
-  #kimpro-page .kp-icon { width:38px; height:38px; border-radius:10px; background:#f1f5f9; color:var(--text2); display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
-  #kimpro-page .kp-icon i { width:18px; height:18px; }
   #kimpro-page .kp-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
   #kimpro-page .kp-desc { font-size:11px; color:var(--text2); line-height:1.5; min-height:32px; }
   #kimpro-page .kp-status { display:inline-block; margin-top:12px; font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; }
   #kimpro-page .kp-status.todo { background:#f1f5f9; color:var(--text2); }
-  #kimpro-page .kp-status.reuse { background:rgba(16,185,129,.1); color:var(--accent); }
-  #kimpro-page .kp-section-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin:26px 0 12px; }
-  #kimpro-page .kp-section-title:first-of-type { margin-top:0; }
+  #kimpro-page .kp-status.reuse { background:rgba(16,185,129,.1); color:var(--kp-accent); }
+  #kimpro-page .kp-section-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin:0 0 12px; }
   @media (max-width:1100px) { #kimpro-page .kp-grid { grid-template-columns:repeat(2,1fr); } }
 </style>
 
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
-    <span><b>디자인 틀만 적용된 화면입니다.</b> 아래 카드들은 아직 동작하지 않으며, 실제 연결 작업은 <code>어드민 통합.md</code> 기획에 따라 순차 진행됩니다.</span>
+    <span><b>디자인 틀만 적용된 화면입니다.</b> 위 헤더바와 아래 카드는 아직 동작하지 않으며, 실제 연결 작업은 <code>어드민 통합.md</code> 기획에 따라 순차 진행됩니다.</span>
+  </div>
+
+  <div class="kp-header">
+    <div class="kp-logo">HIGHER <span>AD</span></div>
+    <button class="kp-btn">📊 엑셀 접수</button>
+    <button class="kp-btn">🛑 강제종료</button>
+    <button class="kp-btn">🔤 키워드 변경</button>
+    <button class="kp-btn">💰 캐시복구</button>
+    <button class="kp-btn">⚡ 충전하기</button>
+    <button class="kp-btn">💳 유입플 정산</button>
+    <button class="kp-btn">🔗 백링크 순위</button>
+    <button class="kp-btn">📈 순위표</button>
   </div>
 
   <div class="kp-section-title">이식 예정 기능</div>
   <div class="kp-grid">
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="octagon-x"></i></div>
-      <div class="kp-name">강제종료</div>
+      <div class="kp-name">🛑 강제종료</div>
       <div class="kp-desc">진행 중인 캠페인을 즉시 종료 처리</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="type"></i></div>
-      <div class="kp-name">키워드변경</div>
+      <div class="kp-name">🔤 키워드변경</div>
       <div class="kp-desc">Pcode 기반 검색/유입플 키워드 일괄 변경</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="rotate-ccw"></i></div>
-      <div class="kp-name">캐시복구</div>
+      <div class="kp-name">💰 캐시복구</div>
       <div class="kp-desc">비즈핏 캐시 복구 대상 조회 및 처리</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="zap"></i></div>
-      <div class="kp-name">충전하기</div>
+      <div class="kp-name">⚡ 충전하기</div>
       <div class="kp-desc">비즈핏 파트너 캐시 충전</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="link-2"></i></div>
-      <div class="kp-name">백링크 순위</div>
+      <div class="kp-name">🔗 백링크 순위</div>
       <div class="kp-desc">애드로그+유입플 순위 병합 엑셀 생성</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="trending-up"></i></div>
-      <div class="kp-name">순위표</div>
+      <div class="kp-name">📈 순위표</div>
       <div class="kp-desc">Pcode 병합 순위표 엑셀 생성</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="credit-card"></i></div>
-      <div class="kp-name">유입플 정산</div>
+      <div class="kp-name">💳 유입플 정산</div>
       <div class="kp-desc">당일 유입플 정산 현황 — 정산관리에도 추가 노출 예정</div>
       <span class="kp-status todo">이식 예정</span>
     </div>
     <div class="kp-card">
-      <div class="kp-icon"><i data-lucide="key-round"></i></div>
-      <div class="kp-name">계정설정</div>
+      <div class="kp-name">🔑 계정설정</div>
       <div class="kp-desc">회원관리 "⚡ 충전 계정 정보"로 대체 — 별도 이식 불필요</div>
       <span class="kp-status reuse">기존 기능 재사용</span>
     </div>
