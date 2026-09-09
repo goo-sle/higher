@@ -161,8 +161,9 @@
     aside.collapsed .nav-item { justify-content:center; padding:10px; }
     aside.collapsed .sidebar-bottom { justify-content:center; }
     aside.collapsed ~ main { margin-left:var(--sidebar-w-collapsed); }
-    .btn-collapse i { transition:transform .2s ease; }
-    aside.collapsed .btn-collapse i { transform:rotate(180deg); }
+    /* lucide.createIcons()가 <i data-lucide>를 <svg>로 통째로 갈아치워서 <i> 셀렉터로는 못 잡음 — 버튼 자체를 돌림 */
+    .btn-collapse { transition:transform .2s ease, color .2s, background .2s; }
+    aside.collapsed .btn-collapse { transform:rotate(180deg); }
 
     main { flex-grow:1; margin-left:var(--sidebar-w); padding:32px 36px; transition:margin-left .2s ease; }
     #content-area { animation:fadeIn .3s ease-out; }
