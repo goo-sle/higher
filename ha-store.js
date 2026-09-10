@@ -364,6 +364,16 @@ const HA = {
   // 하드 삭제(kimpro/store.js deleteSlot과 동일 — ha/slots처럼 status:'deleted' 소프트 삭제 아님, 되돌리기 없음)
   async deleteKpSlot(key) {
     await remove(ref(db, `${KP_PATHS.slots}/${key}`));
+    // ha/slots 역방향 반영 — updateSlot()의 "ha에서 deleted면 kp 미러 remove"와 대칭되는 방향.
+    // 미러된 캠페인(같은 key)이 있으면 소프트 삭제(ha 자체 삭제와 동일한 방식) 처리.
+    try {
+      const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
+      if (haSnap.exists()) {
+        await update(ref(db, `${PATHS.slots}/${key}`), {
+          status: 'deleted', deletedAt: new Date().toISOString(), originalStatus: haSnap.val().status || 'pending',
+        });
+      }
+    } catch (e) { console.error('ha/slots 역방향 삭제 동기화 오류:', e); }
   },
 
   // getKpSlots() 이후 변경분만 child 단위로 구독(subscribeSlots와 동일 패턴)
