@@ -2679,7 +2679,8 @@ document.addEventListener('keydown', function(e) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay kp-detail-overlay';
     const isSplit = s.status === 'split';
-    const dis = isSplit ? 'disabled' : '';
+    const isLocked = isSplit || s.status === 'active'; // 승인(active) 이후엔 데이터 오염 방지 위해 상세 수정 막음(접수관리와 동일)
+    const dis = isLocked ? 'disabled' : '';
     const kwCount = (s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
     const yupflKwCount = (s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
     const urlCount = (s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
@@ -2737,7 +2738,7 @@ document.addEventListener('keydown', function(e) {
         </div>
         <div class="kp-modal-footer">
           <button class="kp-btn-cancel" onclick="kpCloseDetailModal('${key}')">닫기</button>
-          ${isSplit ? '' : `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>`}
+          ${s.status==='pending' ? `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>` : ''}
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -2951,7 +2952,7 @@ document.addEventListener('keydown', function(e) {
 
   async function kpSaveDetailFields(key) {
     const s = allSlots.find(x=>x._key===key);
-    if (!s || s.status === 'split') return;
+    if (!s || s.status === 'split' || s.status === 'active') return;
     const read = (id, num) => {
       const el = document.getElementById(id);
       if (!el) return undefined;

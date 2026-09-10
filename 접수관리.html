@@ -288,11 +288,11 @@
         <th><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
         <th>번호</th><th>접수일시</th><th>대행사</th><th>유저 ID</th>
         <th>캠페인타입</th><th>플레이스명</th><th>MID</th><th>순위키워드</th>
-        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th>
+        <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
       </tr>
     </thead>
     <tbody id="receipt-body">
-      <tr><td colspan="15" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
+      <tr><td colspan="16" class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</td></tr>
     </tbody>
   </table>
 </div>
@@ -656,7 +656,7 @@ window.toggleProdPanel = function(e) {
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('receipt-body').innerHTML =
-        '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="16"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       allSlots = await HA.getSlotsLive();
       _slotsLoaded = true;
 
@@ -695,7 +695,7 @@ window.toggleProdPanel = function(e) {
     const body  = document.getElementById('receipt-body');
 
     if (!page.length) {
-      body.innerHTML = '<tr class="empty-row"><td colspan="15">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="empty-row"><td colspan="16">데이터가 없습니다.</td></tr>';
     } else {
       body.innerHTML = page.map((s,i) => `
         <tr>
@@ -732,6 +732,7 @@ window.toggleProdPanel = function(e) {
               ` : ''}
             </div>
           </td>
+          <td><button class="action-btn" style="background:rgba(239,68,68,.1);color:#dc2626;font-weight:700;" onclick="deleteSlotRow('${s._key}')">✕</button></td>
         </tr>`).join('');
     }
     renderPagination(all.length);
@@ -862,7 +863,28 @@ window.toggleProdPanel = function(e) {
   // 상세 팝업의 키워드 입력칸(검색/유입플/분할) 값이 바뀐 경우에만 저장 — acceptFromDetail/closeDetailModal 공용
   async function saveDetailFields(key) {
     const s0 = allSlots.find(x => x._key === key);
-    if (s0?.status === 'split') return; // 시간대 분할 예약 진행 중 — 모달 필드가 disabled라 값은 안 바뀌지만, 저장 자체도 막아둠
+    if (s0?.status === 'split' || s0?.status === 'active') return; // 분할 진행 중/승인 후 — 모달 필드가 disabled라 값은 안 바뀌지만, 저장 자체도 막아둠
+    // 기본 필드(대행사/플레이스명/순위키워드/URL/MID/일목표/일수/단가/기간/메모) — 김프로 상세보기와 동일하게 편집 가능
+    const readField = (id, num) => {
+      const el = document.getElementById(id);
+      if (!el) return undefined;
+      return num ? (Number(el.value)||0) : el.value.trim();
+    };
+    const baseFields = {
+      agencyId: readField('d-agencyId'), storeName: readField('d-storeName'), rankKeyword: readField('d-rankKeyword'),
+      url: readField('d-url'), mid: readField('d-mid'), dailyTarget: readField('d-dailyTarget', true), days: readField('d-days', true),
+      unitPrice: readField('d-unitPrice', true), startDate: readField('d-startDate'), endDate: readField('d-endDate'),
+      memo: document.getElementById('d-memo')?.value.trim(),
+    };
+    const baseUpdates = {};
+    for (const [k, v] of Object.entries(baseFields)) {
+      if (v === undefined) continue;
+      if (String(v) !== String(s0[k] ?? '')) baseUpdates[k] = v;
+    }
+    if (Object.keys(baseUpdates).length) {
+      await HA.updateSlot(key, baseUpdates);
+      updateLocalSlot(key, baseUpdates);
+    }
     const input = document.getElementById('detail-keyword-input');
     const kw = input ? input.value.trim() : null;
     const yupflInput = document.getElementById('detail-yupfl-keyword-input');
@@ -896,6 +918,16 @@ window.toggleProdPanel = function(e) {
     await releaseDetailLock(key);
     document.querySelector('.modal-overlay').remove();
     _detailOpen = false;
+    renderReceipts(false);
+  };
+
+  // ── 삭제(목록 열) ─────────────────────────────────────────
+  window.deleteSlotRow = async function(key) {
+    const s = allSlots.find(x => x._key === key);
+    if (s?.status === 'split') { alert('시간대 분할 예약 진행 중에는 삭제할 수 없습니다.'); return; }
+    if (!confirm('이 항목을 삭제하시겠습니까? (되돌릴 수 없습니다)')) return;
+    await HA.deleteSlot(key);
+    allSlots = allSlots.filter(x => x._key !== key);
     renderReceipts(false);
   };
 
@@ -948,23 +980,25 @@ window.toggleProdPanel = function(e) {
     const deltaShown = !!deltaProd?.active;
     const navyShown  = !!navyProd?.active;
     const isSplit = s.status === 'split';
-    const dis = isSplit ? 'disabled' : '';
+    const isLocked = isSplit || s.status === 'active'; // 승인(active) 이후엔 데이터 오염 방지 위해 상세 수정 막음
+    const dis = isLocked ? 'disabled' : '';
 
     overlay.innerHTML = `
       <div class="modal-box">
         <div class="modal-title">캠페인 상세 정보</div>
         <dl class="slot-detail">
           <dt>상품등급</dt><dd>${_renderGradeBadgesHtml(GRADE_CACHE.get(s.mid))}</dd>
-          <dt>대행사</dt><dd>${escProd(s.agencyId)} / ${escProd(s.userId)}</dd>
-          <dt>플레이스명</dt><dd>${escProd(s.storeName)}</dd>
-          <dt>순위키워드</dt><dd>${escProd(s.rankKeyword)}</dd>
-          <dt>URL</dt><dd style="word-break:break-all;font-size:12px">${escProd(s.url||'-')}</dd>
-          <dt>MID</dt><dd>${escProd(s.mid||'-')}</dd>
-          <dt>일 목표</dt><dd>${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</dd>
-          <dt>일 수</dt><dd>${s.days||'-'}</dd>
-          <dt>기간</dt><dd>${escProd(s.startDate)} ~ ${escProd(s.endDate)}</dd>
-          <dt>상태</dt><dd>${stMap[s.status]||s.status}${isSplit ? '<div style="margin-top:4px;font-size:11px;color:#b45309;">시간대 분할 예약 진행 중에는 수정할 수 없습니다. 완료될 때까지 기다려주세요.</div>' : ''}</dd>
-          <dt>메모</dt><dd>${escProd(s.memo||'-')}</dd>
+          <dt>대행사</dt><dd><input class="detail-kw-input" id="d-agencyId" value="${escProd(s.agencyId)}" ${dis}> <span style="font-size:11px;color:var(--text2);">아이디: ${escProd(s.userId)}</span></dd>
+          <dt>플레이스명</dt><dd><input class="detail-kw-input" id="d-storeName" value="${escProd(s.storeName)}" ${dis}></dd>
+          <dt>순위키워드</dt><dd><input class="detail-kw-input" id="d-rankKeyword" value="${escProd(s.rankKeyword)}" ${dis}></dd>
+          <dt>URL</dt><dd><input class="detail-kw-input" id="d-url" value="${escProd(s.url||'')}" ${dis} style="font-size:12px;"></dd>
+          <dt>MID</dt><dd><input class="detail-kw-input" id="d-mid" value="${escProd(s.mid||'')}" ${dis}></dd>
+          <dt>일 목표</dt><dd><input class="detail-kw-input" type="number" id="d-dailyTarget" value="${escProd(s.dailyTarget||0)}" ${dis}></dd>
+          <dt>일 수</dt><dd><input class="detail-kw-input" type="number" id="d-days" value="${escProd(s.days||0)}" ${dis}></dd>
+          <dt>단가(원)</dt><dd><input class="detail-kw-input" type="number" id="d-unitPrice" value="${escProd(s.unitPrice||0)}" ${dis}></dd>
+          <dt>기간</dt><dd style="display:flex;gap:6px;align-items:center;"><input class="detail-kw-input" type="date" id="d-startDate" value="${escProd(s.startDate)}" ${dis} style="flex:1;"> ~ <input class="detail-kw-input" type="date" id="d-endDate" value="${escProd(s.endDate)}" ${dis} style="flex:1;"></dd>
+          <dt>상태</dt><dd>${stMap[s.status]||s.status}${isSplit ? '<div style="margin-top:4px;font-size:11px;color:#b45309;">시간대 분할 예약 진행 중에는 수정할 수 없습니다. 완료될 때까지 기다려주세요.</div>' : (s.status==='active' ? '<div style="margin-top:4px;font-size:11px;color:#b45309;">승인된 캠페인은 상세 정보를 수정할 수 없습니다.</div>' : '')}</dd>
+          <dt>메모</dt><dd><textarea class="detail-kw-input" id="d-memo" rows="2" ${dis}>${escProd(s.memo||'')}</textarea></dd>
           <dt style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
             <span style="display:flex;align-items:center;gap:6px;">
               검색키워드
@@ -1005,7 +1039,7 @@ window.toggleProdPanel = function(e) {
         </dl>
         <div class="modal-footer">
           <button class="btn-cancel" onclick="closeDetailModal('${key}')">닫기</button>
-          ${isSplit ? '' : `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>`}
+          ${s.status==='pending' ? `<button class="btn-save" style="background:rgba(59,130,246,1);" onclick="acceptFromDetail('${key}')">접수</button>` : ''}
         </div>
       </div>`;
     document.body.appendChild(overlay);
