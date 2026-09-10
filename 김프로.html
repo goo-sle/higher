@@ -29,7 +29,7 @@
 
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
-    <span><b>연동 작업 진행 중입니다.</b> 목록·상세·승인/상태변경·엑셀 접수·배분 제출(일반/유입플/찰리/델타/네이비)까지 연동되었습니다. 등급 자동매칭·시간대 분할 예약만 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
+    <span><b>김프로 이관이 거의 완료되었습니다.</b> 목록·상세·승인·엑셀 접수·배분 제출(일반/유입플/찰리/델타/네이비)·등급 자동매칭·시간대 분할 예약(일반 탭)까지 전부 연동되었습니다 — <code>어드민 통합.md</code> 참고.</span>
   </div>
 
   <style>
@@ -3232,6 +3232,124 @@ document.addEventListener('keydown', function(e) {
     return block;
   }
 
+  // ── 시간대 분할 예약 (접수관리.html과 동일 로직 — 일반 탭만 지원, 찰리/델타/네이비/유입플은 미지원) ──
+  // 백엔드는 bizfit-direct-proxy /dispatch-scheduled가 5분마다 처리(SCHEDULE_ROOTS에 'kp' 추가, 2026-09-10).
+  // BizFit 자동 캐시차감은 접수관리와 달리 걸지 않음(§7-1-3 결정 유지) — initScheduledBatches에서 생략.
+  let kpScheduleConfig = null; // null=끔, 아니면 [{time:'10:00', pct:34}, ...]
+  let kpScheduleDraftRows = [{ time: '10:00', pct: 100 }];
+  let kpScheduleValidationRows = [];
+
+  function kpGenId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function kpScheduleParseBaseDate(baseDateStr) {
+    if (baseDateStr) {
+      const d = new Date(`${String(baseDateStr).slice(0,10)}T00:00:00`);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date();
+  }
+  function kpScheduleTimeToIso(timeStr, baseDateStr, dayOffset=0) {
+    const [h,m] = (timeStr||'00:00').split(':').map(Number);
+    const d = kpScheduleParseBaseDate(baseDateStr);
+    d.setDate(d.getDate()+dayOffset);
+    d.setHours(h||0, m||0, 0, 0);
+    return d.toISOString();
+  }
+  function kpScheduleDateForOffset(baseDateStr, dayOffset=0) {
+    const d = kpScheduleParseBaseDate(baseDateStr);
+    d.setDate(d.getDate()+dayOffset);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function kpSplitRowBySchedule(row, schedule) {
+    const portions = lrm(schedule.map((s,i)=>({id:i, ratio:s.pct})), row.일목표||0);
+    const minPortion = row._daysMultiplied ? 100 : 10;
+    const out = [];
+    schedule.forEach((s,i) => {
+      const portionTotal = portions[i]||0;
+      if (portionTotal < minPortion) return;
+      const days = Math.max(1, row._days||0);
+      for (let d=0; d<days; d++) {
+        out.push({ ...row, 일목표: portionTotal, 일수: row._daysMultiplied ? portionTotal : 1,
+          예약일: kpScheduleDateForOffset(row.예약일, d), _sendAt: kpScheduleTimeToIso(s.time, row.예약일, d) });
+      }
+    });
+    return out;
+  }
+  function kpSchedulePastViolations(rows, schedule) {
+    const now = new Date();
+    const violations = [];
+    rows.forEach(r => {
+      if (!(r.일목표 > 0)) return;
+      schedule.forEach(s => { if (new Date(kpScheduleTimeToIso(s.time, r.예약일, 0)) <= now) violations.push({ name:r.상품등급명, time:s.time, date:r.예약일||kpScheduleDateForOffset() }); });
+    });
+    return violations;
+  }
+  function kpScheduleMinViolations(rows, schedule) {
+    const violations = [];
+    rows.forEach(r => {
+      if (!(r.일목표 > 0)) return;
+      const min = r._daysMultiplied ? 100 : 10;
+      const portions = lrm(schedule.map((s,i)=>({id:i, ratio:s.pct})), r.일목표);
+      schedule.forEach((s,i) => { const p = portions[i]||0; if (p>0 && p<min) violations.push({ name:r.상품등급명, time:s.time, portion:p, min }); });
+    });
+    return violations;
+  }
+  async function kpSaveScheduledDispatch(entry) {
+    const key = kpGenId();
+    await window.HA.setKpDoc(`ha/kimproScheduledDispatch/${key}`, { ...entry, status:'pending', createdAt: new Date().toISOString() });
+  }
+  // 캐시차감 없이(§7-1-3) 카운터만 기록 + 슬롯을 'split' 상태로 전환(서버 디스패처가 완료 시 active/원상복구)
+  async function kpInitScheduledBatches(slotKeyCounts, batchGroupId) {
+    const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+    await Promise.all([...slotKeyCounts.keys()].map(async slotKey => {
+      const s = allSlots.find(x => x._key === slotKey);
+      const preStatus = s && s.status !== 'split' ? s.status : (s?.preScheduleStatus || 'pending');
+      await window.HA.setKpDoc(`ha/kimproScheduledBatches/${slotKey}`, { total: slotKeyCounts.get(slotKey), done:0, failed:0, batchGroupId, createdAt: new Date().toISOString() });
+      await window.HA.updateKpSlot(slotKey, { status:'split', preScheduleStatus: preStatus });
+      if (s) Object.assign(s, { status:'split', preScheduleStatus: preStatus });
+    }));
+  }
+  async function kpSubmitPlanRowsScheduled(plan, legKey, adrole, productVer, schedule) {
+    const batchGroupId = `sch_${kpGenId()}`;
+    let scheduledCount = 0, failTotal = 0;
+    const dispatchEntries = [];
+    const slotKeyCounts = new Map();
+    async function scheduleAgency(p) {
+      if (!p.rows.length) return;
+      const pendingRows = p.rows.filter(r => !r._normalSubmitted);
+      if (!pendingRows.length) return;
+      pendingRows.forEach(r => { if (kpTruncateAndValidateRow(r)) r._kwFail = true; });
+      const validRows = pendingRows.filter(r => !r._kwFail);
+      if (!validRows.length) { failTotal += pendingRows.length; return; }
+      const account = p.realAg ? await kpFetchBizfitAccount(p.realAg) : null;
+      if (!account) { failTotal += validRows.length; return; }
+      let gi;
+      try { gi = await kpCallBizfitProxy('/grade-info', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: KP_BIZFIT_TAB, adrole: adrole || undefined, rawData: [] }); }
+      catch(e) { gi = { success:false }; }
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) { failTotal += validRows.length; return; }
+      const expanded = validRows.flatMap(r => kpSplitRowBySchedule(r, schedule));
+      if (!expanded.length) return;
+      for (const g of gi.gradeGroups) {
+        const grpRows = expanded.filter(r => r.상품등급명 === g.gradeName);
+        grpRows.forEach(r => {
+          const { _slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,_requiresBlogUrl,_days,_daysMultiplied,_sendAt,...rowData } = r;
+          dispatchEntries.push({
+            slotKey:_slotKey, batchGroupId, sendAt:_sendAt, endpoint:'/register', agency:p.agency||'', adrole: adrole ?? null,
+            payload: { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: g.actualTab||KP_BIZFIT_TAB,
+              gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, version: productVer ?? null, rowData: [rowData] },
+          });
+          slotKeyCounts.set(_slotKey, (slotKeyCounts.get(_slotKey)||0)+1);
+          scheduledCount++;
+        });
+      }
+    }
+    await Promise.all(plan.map(p => scheduleAgency(p)));
+    if (dispatchEntries.length) {
+      await kpInitScheduledBatches(slotKeyCounts, batchGroupId);
+      await Promise.all(dispatchEntries.map(kpSaveScheduledDispatch));
+    }
+    return { scheduledCount, failTotal };
+  }
+
   function kpMakeGate(hasNormal, hasFixed, hasCharlie=false, hasDelta=false, hasNavy=false) {
     const required = [];
     if (hasNormal) required.push('normalKeys');
@@ -3460,7 +3578,26 @@ document.addEventListener('keydown', function(e) {
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </span>
           </button>
+          ${hasNormal ? `
+          <button id="kp-schedule-toggle-btn" type="button" title="일반 탭 전용 — 즉시 전송 대신 지정 시각에 나눠 접수"
+            style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+            <span style="font-size:12px;color:var(--text2);font-weight:600;">⏰ 시간대 분할 예약</span>
+            <span id="kp-schedule-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${kpScheduleConfig?'#f59e0b':'#94a3b8'};flex-shrink:0;">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+          </button>` : ''}
         </div>
+        ${hasNormal ? `
+        <div id="kp-schedule-editor" style="display:none;margin-bottom:10px;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;">
+          <div id="kp-schedule-rows"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <button type="button" onclick="kpAddScheduleRow()" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">+ 시간 추가</button>
+            <span id="kp-schedule-sum-note" style="font-size:12px;color:var(--muted);"></span>
+            <button id="kp-schedule-apply-btn" type="button" onclick="kpApplyScheduleConfig()" style="margin-left:auto;padding:5px 12px;border:none;border-radius:6px;font-size:12px;font-weight:700;font-family:inherit;background:#f59e0b;color:#fff;cursor:pointer;">적용</button>
+            <button type="button" onclick="kpClearScheduleConfig()" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;">끄기</button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">비율 합계는 100%여야 하며, 일수만큼 매일 하루 단위로 나눠 이 시각에 접수됩니다. 일반 탭에만 적용됩니다(유입플·찰리·블로그는 즉시 제출).</div>
+        </div>` : ''}
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
           <button id="kp-stab-normal" class="kp-submit-tab${defaultTab==='normal'?' active':''}" onclick="kpSwitchSubmitTab('normal')" style="${hasNormal?'':'display:none;'}">일반</button>
           <button id="kp-stab-fixed" class="kp-submit-tab${defaultTab==='fixed'?' active':''}" onclick="kpSwitchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
@@ -3524,11 +3661,19 @@ document.addEventListener('keydown', function(e) {
       overlay.remove();
       kpOpenSubmitModal(target);
     });
+    overlay.querySelector('#kp-schedule-toggle-btn')?.addEventListener('click', () => {
+      const panel = overlay.querySelector('#kp-schedule-editor');
+      if (!panel) return;
+      const show = panel.style.display === 'none';
+      panel.style.display = show ? 'block' : 'none';
+      if (show) kpRenderScheduleRows(overlay);
+    });
 
     // 찰리/델타는 버전체크 동적조회가 빈 값을 반환해 거부되는 실측 문제가 있어 상품 설정의 ver로 강제 override
     function kpProductVerFor(id) { return prods.find(p => p.id === id)?.ver; }
 
     if (hasNormal) {
+      kpScheduleValidationRows = normalPlan.flatMap(p=>p.rows);
       const bodyEl = overlay.querySelector('#kp-submit-body');
       const subEl = overlay.querySelector('#kp-submit-sub');
       const applyBtn = overlay.querySelector('#kp-submit-apply-btn');
@@ -3545,9 +3690,16 @@ document.addEventListener('keydown', function(e) {
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => {
-        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...'; window.bizfitSubmitting = true;
-        const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate, 'normalKeys');
-        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`; window.bizfitSubmitting = false;
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 처리 중...'; window.bizfitSubmitting = true;
+        if (kpScheduleConfig && kpScheduleConfig.length) {
+          const { scheduledCount, failTotal } = await kpSubmitPlanRowsScheduled(normalPlan, 'normalKeys', undefined, undefined, kpScheduleConfig);
+          applyBtn.disabled = false; applyBtn.textContent = failTotal ? `⏰ 예약 ${scheduledCount}건 (실패 ${failTotal})` : `⏰ 예약 완료 (${scheduledCount}건)`;
+          if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+        } else {
+          const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate, 'normalKeys');
+          applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+        }
+        window.bizfitSubmitting = false;
       };
     }
     if (hasFixed) {
@@ -3631,6 +3783,75 @@ document.addEventListener('keydown', function(e) {
       const panel = document.getElementById(`kp-stab-panel-${t}`);
       if (panel) panel.style.display = tab===t ? 'block' : 'none';
     });
+  };
+
+  function kpScheduleTimeSelectOptions(max, selected) {
+    return Array.from({length:max}, (_,n) => String(n).padStart(2,'0'))
+      .map(v => `<option value="${v}"${v===selected?' selected':''}>${v}</option>`).join('');
+  }
+  function kpUpdateScheduleSumNote(overlay) {
+    const sum = kpScheduleDraftRows.reduce((a,r)=>a+(Number(r.pct)||0),0);
+    const note = overlay.querySelector('#kp-schedule-sum-note');
+    if (note) { note.textContent = `합계 ${sum}%`; note.style.color = sum===100 ? 'var(--kp-accent)' : '#dc2626'; }
+    const btn = overlay.querySelector('#kp-schedule-apply-btn');
+    if (btn) { const blocked = sum!==100; btn.disabled = blocked; btn.style.background = blocked?'#94a3b8':'#f59e0b'; btn.style.cursor = blocked?'not-allowed':'pointer'; }
+  }
+  function kpRenderScheduleRows(overlay) {
+    const wrap = overlay.querySelector('#kp-schedule-rows');
+    if (!wrap) return;
+    const selStyle = 'padding:3px 4px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;';
+    wrap.innerHTML = kpScheduleDraftRows.map((r,i) => {
+      const [hh,mm] = (r.time||'10:00').split(':');
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <select id="kp-sch-hh-${i}" onchange="kpUpdateScheduleRow(${i},'time',this.value+':'+document.getElementById('kp-sch-mm-${i}').value)" style="${selStyle}">${kpScheduleTimeSelectOptions(24,hh)}</select>
+        :
+        <select id="kp-sch-mm-${i}" onchange="kpUpdateScheduleRow(${i},'time',document.getElementById('kp-sch-hh-${i}').value+':'+this.value)" style="${selStyle}">${kpScheduleTimeSelectOptions(60,mm)}</select>
+        <input type="number" min="1" max="100" value="${r.pct}" oninput="kpUpdateScheduleRow(${i},'pct',this.value)" style="width:56px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">%
+        ${kpScheduleDraftRows.length>1 ? `<button type="button" onclick="kpRemoveScheduleRow(${i})" style="border:none;background:transparent;color:#dc2626;cursor:pointer;font-size:14px;">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    kpUpdateScheduleSumNote(overlay);
+  }
+  window.kpAddScheduleRow = function() {
+    kpScheduleDraftRows.push({ time:'12:00', pct:0 });
+    kpRenderScheduleRows(document.querySelector('.modal-overlay'));
+  };
+  window.kpRemoveScheduleRow = function(i) {
+    kpScheduleDraftRows.splice(i,1);
+    kpRenderScheduleRows(document.querySelector('.modal-overlay'));
+  };
+  window.kpUpdateScheduleRow = function(i, field, value) {
+    kpScheduleDraftRows[i][field] = field==='time' ? value : (Number(value)||0);
+    if (field==='pct') kpUpdateScheduleSumNote(document.querySelector('.modal-overlay'));
+  };
+  window.kpApplyScheduleConfig = function() {
+    const sum = kpScheduleDraftRows.reduce((a,r)=>a+(Number(r.pct)||0),0);
+    if (sum !== 100) return;
+    const pastViolations = kpSchedulePastViolations(kpScheduleValidationRows, kpScheduleDraftRows);
+    if (pastViolations.length) {
+      const lines = pastViolations.slice(0,5).map(v => `- ${v.name} ${v.date} ${v.time}`);
+      if (pastViolations.length > 5) lines.push(`외 ${pastViolations.length-5}건`);
+      alert(`이미 지난 시각으로는 설정할 수 없습니다.\n${lines.join('\n')}`);
+      return;
+    }
+    const violations = kpScheduleMinViolations(kpScheduleValidationRows, kpScheduleDraftRows);
+    if (violations.length) {
+      const lines = violations.slice(0,5).map(v => `- ${v.name} ${v.time} → ${v.portion}개 (최소 ${v.min})`);
+      if (violations.length > 5) lines.push(`외 ${violations.length-5}건`);
+      alert(`최소 수량 미만으로 쪼개져 적용할 수 없습니다. 시간 개수를 줄이거나 비율을 조정해주세요.\n${lines.join('\n')}`);
+      return;
+    }
+    kpScheduleConfig = kpScheduleDraftRows.map(r => ({ time:r.time, pct:Number(r.pct)||0 }));
+    const icon = document.getElementById('kp-schedule-toggle-icon');
+    if (icon) icon.style.background = '#f59e0b';
+    alert('시간대 분할 예약이 설정되었습니다. 이제 "접수 신청" 버튼을 누르면 즉시 전송 대신 예약 저장됩니다(일수만큼 매일 이 시각에 나눠 접수).');
+  };
+  window.kpClearScheduleConfig = function() {
+    kpScheduleConfig = null;
+    const icon = document.getElementById('kp-schedule-toggle-icon');
+    if (icon) icon.style.background = '#94a3b8';
+    const panel = document.getElementById('kp-schedule-editor');
+    if (panel) panel.style.display = 'none';
   };
 
   window.kpApplyYoupflMissionBulk = function(btn) {
