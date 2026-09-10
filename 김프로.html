@@ -5052,13 +5052,16 @@ document.addEventListener('keydown', function(e) {
   };
 
   window.kpSubmitDirect = async function() {
+    // 접수관리.html submitDirect와 동일한 흐름 — 확인 팝업 없이 바로 검토 모달(kpOpenSubmitModal)을 열고,
+    // 그 안에서 내용을 확인한 뒤 "접수 신청"을 눌러야 실제 제출됨(검토 모달 자체가 확인 단계).
     const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c=>c.dataset.key);
     const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
     const keySet = new Set(checkedKeys);
     const base = checkedKeys.length ? allSlots.filter(s=>keySet.has(s._key)) : allSlots;
-    const target = base.filter(s => s.status === 'accepted');
-    if (!target.length) { alert('접수(accepted) 상태인 캠페인이 없습니다.\n(체크박스를 선택하지 않으면 목록 전체 중 접수 상태 건을 대상으로 합니다)'); return; }
-    if (!confirm(`${target.length}건을 실제 BizFit에 배분·제출합니다.\n\n진행하시겠습니까?`)) return;
+    // 체크 선택 시 active도 대상 포함(초기화 재진입용). 기본 동작은 accepted만.
+    const allowedStatuses = checkedKeys.length ? ['accepted','active'] : ['accepted'];
+    const target = base.filter(s => allowedStatuses.includes(s.status));
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.'); return; }
     await kpOpenSubmitModal(target);
   };
 
@@ -5333,6 +5336,7 @@ document.addEventListener('keydown', function(e) {
   }
   function kpBuildAdlogTable(rows) {
     const block = document.createElement('div');
+    block.style.cssText = 'margin-bottom:16px;border:1.5px solid #c7d2fe;border-radius:14px;overflow:hidden;';
     const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
     const tbl = document.createElement('table');
     tbl.style.cssText = 'table-layout:fixed;width:100%;border-collapse:collapse;font-size:12.5px;';
