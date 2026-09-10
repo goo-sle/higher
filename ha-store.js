@@ -254,6 +254,23 @@ const HA = {
     await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
   },
 
+  // 하드 삭제(kimpro/store.js deleteSlot과 동일 — ha/slots처럼 status:'deleted' 소프트 삭제 아님, 되돌리기 없음)
+  async deleteKpSlot(key) {
+    await remove(ref(db, `${KP_PATHS.slots}/${key}`));
+  },
+
+  // getKpSlots() 이후 변경분만 child 단위로 구독(subscribeSlots와 동일 패턴)
+  async subscribeKpSlots(currentSlots, { onAdded, onChanged, onRemoved } = {}) {
+    await authReady;
+    const afterKey = (currentSlots || []).reduce((m, s) => (s._key && (!m || s._key > m)) ? s._key : m, null);
+    const base = ref(db, KP_PATHS.slots);
+    const addedRef = afterKey ? query(base, orderByKey(), startAfter(afterKey)) : base;
+    const offAdded   = onChildAdded(addedRef, snap => onAdded   && onAdded({ ...snap.val(), _key: snap.key }));
+    const offChanged = onChildChanged(base,   snap => onChanged && onChanged({ ...snap.val(), _key: snap.key }));
+    const offRemoved = onChildRemoved(base,   snap => onRemoved && onRemoved(snap.key));
+    return () => { offAdded(); offChanged(); offRemoved(); };
+  },
+
   // kimpro/users가 실제로는 항상 비어있었던 것과 동일한 실사용 결과(강제종료 배치 재접수 시 단가 스냅샷 0원) — 별도 저장소 없이 고정
   async getKpUnitPriceMap() {
     return {};

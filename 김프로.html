@@ -39,8 +39,95 @@
 
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
-    <span><b>연동 작업 진행 중입니다.</b> 엑셀 접수(캠페인 신규 등록)만 <code>어드민 통합.md</code> Phase 3 데이터 마이그레이션과 함께 연결될 예정이며, 나머지 기능은 모두 실제로 동작합니다.</span>
+    <span><b>연동 작업 진행 중입니다.</b> 캠페인 목록·상세·승인/상태변경까지 연동되었고, 엑셀 접수(신규 등록·배분)만 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
   </div>
+
+  <style>
+    #kimpro-page .kp-stat-bar { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:16px; }
+    #kimpro-page .kp-stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
+    #kimpro-page .kp-sb-label { font-size:11px; color:var(--text2); font-weight:600; }
+    #kimpro-page .kp-sb-val { font-size:20px; font-weight:800; line-height:1; }
+    @media (max-width:1100px) { #kimpro-page .kp-stat-bar { grid-template-columns:repeat(4,1fr); } }
+    #kimpro-page .kp-filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+    #kimpro-page .kp-filter-bar select, #kimpro-page .kp-filter-bar input[type=text], #kimpro-page .kp-filter-bar input[type=date] {
+      padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
+    }
+    #kimpro-page .kp-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; }
+    #kimpro-page .kp-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+    #kimpro-page .kp-tbl thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; white-space:nowrap; text-align:center; }
+    #kimpro-page .kp-tbl tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+    #kimpro-page .kp-tbl tbody tr:last-child td { border-bottom:none; }
+    #kimpro-page .kp-tbl tbody tr:hover { background:#f8fafc; }
+    #kimpro-page .kp-status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
+    #kimpro-page .kp-s-pending  { background:rgba(245,158,11,.1); color:#b45309; }
+    #kimpro-page .kp-s-accepted { background:rgba(59,130,246,.1); color:#1d4ed8; }
+    #kimpro-page .kp-s-active   { background:rgba(16,185,129,.1); color:#059669; }
+    #kimpro-page .kp-s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
+    #kimpro-page .kp-s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
+    #kimpro-page .kp-s-ended    { background:#f1f5f9; color:#64748b; }
+    #kimpro-page .kp-action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+    #kimpro-page .kp-btn-approve { background:var(--kp-accent); color:#fff; }
+    #kimpro-page .kp-empty-row td { height:160px; text-align:center; color:var(--muted); font-size:13px; }
+    #kimpro-page .kp-pagination { display:flex; justify-content:center; gap:5px; margin-top:16px; }
+    #kimpro-page .kp-pg-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; justify-content:center; }
+    #kimpro-page .kp-pg-btn.active { background:var(--info,#3b82f6); color:#fff; border-color:var(--info,#3b82f6); }
+    #kimpro-page .kp-modal-box { background:#fff; border-radius:16px; width:520px; max-width:calc(100vw - 32px); max-height:80vh; overflow-y:auto; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    #kimpro-page .kp-modal-title { font-size:17px; font-weight:700; margin-bottom:20px; }
+    #kimpro-page .kp-modal-field { margin-bottom:14px; }
+    #kimpro-page .kp-modal-field label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
+    #kimpro-page .kp-modal-field input, #kimpro-page .kp-modal-field textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; }
+    #kimpro-page .kp-modal-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    #kimpro-page .kp-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+    #kimpro-page .kp-btn-cancel { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
+    #kimpro-page .kp-btn-save { padding:8px 20px; border:none; border-radius:7px; background:var(--kp-accent); color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
+  </style>
+
+  <div class="kp-stat-bar" id="kp-stat-bar">
+    <div class="kp-stat-box"><div class="kp-sb-label">대기</div><div class="kp-sb-val" id="kp-stat-pending" style="color:#b45309">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">접수</div><div class="kp-sb-val" id="kp-stat-accepted" style="color:#1d4ed8">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">승인</div><div class="kp-sb-val" id="kp-stat-active" style="color:var(--kp-accent)">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">재접수 대기</div><div class="kp-sb-val" id="kp-stat-requeue" style="color:#b45309">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">재접수 접수</div><div class="kp-sb-val" id="kp-stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">재접수 승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">임시중단</div><div class="kp-sb-val" id="kp-stat-paused" style="color:#7c3aed">-</div></div>
+    <div class="kp-stat-box"><div class="kp-sb-label">강제종료</div><div class="kp-sb-val" id="kp-stat-force" style="color:#dc2626">-</div></div>
+  </div>
+
+  <div class="kp-filter-bar">
+    <select id="kp-filter-status" onchange="kpRenderReceipts()">
+      <option value="">전체 상태</option>
+      <option value="pending">대기</option>
+      <option value="accepted">접수</option>
+      <option value="active">승인</option>
+      <option value="requeue">재접수|대기</option>
+      <option value="requeue_accepted">재접수|접수</option>
+      <option value="requeue_active">재접수|승인</option>
+      <option value="paused">임시중단</option>
+      <option value="force_stopped">강제종료</option>
+      <option value="ended">종료</option>
+    </select>
+    <input type="date" id="kp-filter-date" onchange="kpRenderReceipts()" title="접수일">
+    <div style="margin-left:auto;display:flex;gap:6px;">
+      <input type="text" id="kp-search" placeholder="대행사/플레이스명/MID (콤마 구분)" style="width:220px;" onkeydown="if(event.key==='Enter') kpRenderReceipts()">
+      <button class="kp-action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="kpRenderReceipts()">검색</button>
+      <button class="kp-action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="kpResetFilters()">초기화</button>
+    </div>
+  </div>
+
+  <div class="kp-tbl-wrap">
+    <table class="kp-tbl">
+      <thead>
+        <tr>
+          <th>번호</th><th>접수일시</th><th>대행사</th><th>플레이스명</th><th>MID</th>
+          <th>순위키워드</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="kp-receipt-body">
+        <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="kp-pagination" id="kp-pagination"></div>
 
   <div class="kp-section-title">이식 예정 기능</div>
   <div class="kp-grid">
@@ -1999,5 +2086,337 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('ys-total').textContent =
       `[환불] 유입플 세팅 금액 : ${totalAmount.toLocaleString()}원`;
   }
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     캠페인 목록/상세/승인 (kimpro/reception.html 이식 — 1단계: 조회·상세·승인/상태변경만.
+     엑셀 접수(신규 등록·배분 엔진)·상품유형설정·MID 키워드 히스토리·등급 자동매칭·애드로그·
+     시간대분할예약은 미이식(규모가 커서 별도 단계). 데이터는 ha/kimproSlots 전용.
+══════════════════════════════════════════ -->
+<script>
+(function() {
+  let currentPage  = 1;
+  const PER_PAGE   = 20;
+  let allSlots     = [];
+  let _slotsLoaded = false;
+  let _detailOpen  = false;
+  let _slotsUnsub  = null;
+
+  function kpEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function kpFmtDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  const stMap = {
+    pending:       '<span class="kp-status-badge kp-s-pending">대기</span>',
+    accepted:      '<span class="kp-status-badge kp-s-accepted">접수</span>',
+    active:        '<span class="kp-status-badge kp-s-active">승인</span>',
+    force_stopped: '<span class="kp-status-badge kp-s-force">강제종료</span>',
+    paused:        '<span class="kp-status-badge kp-s-paused">임시중단</span>',
+    requeue:       '<span class="kp-status-badge kp-s-pending">재접수 | 대기</span>',
+    ended:         '<span class="kp-status-badge kp-s-ended">종료</span>',
+    expired:       '<span class="kp-status-badge kp-s-ended">종료</span>',
+    split:         '<span class="kp-status-badge kp-s-pending" style="background:#fef3c7;color:#b45309;">분할</span>',
+  };
+  function kpStatusBadge(s) {
+    if (s.status === 'force_stopped' && s.paused) {
+      return `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">${stMap.paused}${stMap.force_stopped}</div>`;
+    }
+    if (s.isRequeue && s.status !== 'requeue') {
+      const classMap = { accepted:'kp-s-accepted', active:'kp-s-active', pending:'kp-s-pending', ended:'kp-s-ended', expired:'kp-s-ended', force_stopped:'kp-s-force', paused:'kp-s-paused' };
+      const labelMap = { accepted:'접수', active:'승인', pending:'대기', ended:'종료', expired:'종료', force_stopped:'강제종료', paused:'임시중단' };
+      const cls = classMap[s.status] || 'kp-s-pending';
+      const label = labelMap[s.status] || s.status;
+      return `<span class="kp-status-badge ${cls}">재접수 | ${label}</span>`;
+    }
+    return stMap[s.status] || s.status;
+  }
+
+  function kpGetFiltered() {
+    const status  = document.getElementById('kp-filter-status').value;
+    const kwTerms = (document.getElementById('kp-search').value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
+    const dateFrom = document.getElementById('kp-filter-date').value;
+    return allSlots.filter(s => {
+      if (s.status === 'deleted') return false;
+      if (status === 'requeue_accepted') { if (!(s.isRequeue && s.status === 'accepted')) return false; }
+      else if (status === 'requeue_active') { if (!(s.isRequeue && s.status === 'active')) return false; }
+      else if (status === 'accepted') { if (s.status !== 'accepted' || s.isRequeue) return false; }
+      else if (status === 'active') { if (s.status !== 'active' || s.isRequeue) return false; }
+      else if (status && s.status !== status) return false;
+      if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
+      const slotDate = s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '';
+      if (dateFrom && slotDate !== dateFrom) return false;
+      return true;
+    });
+  }
+
+  window.kpResetFilters = function() {
+    document.getElementById('kp-filter-status').value = '';
+    document.getElementById('kp-filter-date').value = '';
+    document.getElementById('kp-search').value = '';
+    kpRenderReceipts();
+  };
+
+  window.kpRenderReceipts = async function(resetPage = true, forceReload = false) {
+    if (resetPage) currentPage = 1;
+
+    if (!_slotsLoaded || forceReload) {
+      document.getElementById('kp-receipt-body').innerHTML =
+        '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
+      allSlots = await HA.getKpSlots();
+      _slotsLoaded = true;
+      attachKpSlotsLiveSync();
+
+      // 종료일 지난 active/requeue/paused 자동 만료 + force_stopped는 forceStoppedAt 기준 — kimpro 원본 로직과 동일
+      const todayStr = kpFmtDate(new Date());
+      const toExpire = allSlots.filter(s => {
+        if (s.status === 'force_stopped') return !!s.forceStoppedAt && s.forceStoppedAt < todayStr;
+        return (s.status === 'active' || s.status === 'requeue' || s.status === 'paused') && s.endDate && s.endDate < todayStr;
+      });
+      if (toExpire.length) {
+        await Promise.all(toExpire.map(async s => {
+          const wasForceStop = s.status === 'force_stopped';
+          const endPatch = wasForceStop ? { status:'ended', endDate:s.forceStoppedAt } : { status:'ended' };
+          await HA.updateKpSlot(s._key, endPatch);
+          s.status = 'ended';
+          if (wasForceStop && s.origEndDate && !s.requeueCreated) {
+            const origEnd = new Date(s.origEndDate);
+            const remainDays = Math.round((origEnd - new Date(todayStr)) / 86400000) + 1;
+            if (remainDays >= 1) {
+              const newSlot = await HA.addKpSlot({
+                agencyId: s.agencyId||'', userId: s.userId||'', storeName: s.storeName||'', url: s.url||'',
+                mid: s.mid||'', rankKeyword: s.rankKeyword||'', searchKeyword: s.searchKeyword||'',
+                dailyTarget: s.dailyTarget||0, days: remainDays, startDate: todayStr, endDate: s.origEndDate,
+                memo: s.memo||'', unitPrice: 0,
+              });
+              if (newSlot && newSlot._key) await HA.updateKpSlot(newSlot._key, { status:'requeue', isRequeue:true });
+            }
+          }
+        }));
+      }
+    }
+
+    const all = kpGetFiltered();
+    const pending         = allSlots.filter(s => s.status==='pending' && !s.isRequeue).length;
+    const accepted        = allSlots.filter(s => s.status==='accepted' && !s.isRequeue).length;
+    const active           = allSlots.filter(s => s.status==='active' && !s.isRequeue).length;
+    const requeue          = allSlots.filter(s => s.status==='requeue').length;
+    const requeueAccepted  = allSlots.filter(s => s.isRequeue && s.status==='accepted').length;
+    const requeueActive    = allSlots.filter(s => s.isRequeue && s.status==='active').length;
+    const paused            = allSlots.filter(s => s.status==='paused').length;
+    const forceStopped      = allSlots.filter(s => s.status==='force_stopped').length;
+    document.getElementById('kp-stat-pending').textContent = pending.toLocaleString();
+    document.getElementById('kp-stat-accepted').textContent = accepted.toLocaleString();
+    document.getElementById('kp-stat-active').textContent = active.toLocaleString();
+    document.getElementById('kp-stat-requeue').textContent = requeue.toLocaleString();
+    document.getElementById('kp-stat-requeue-accepted').textContent = requeueAccepted.toLocaleString();
+    document.getElementById('kp-stat-requeue-active').textContent = requeueActive.toLocaleString();
+    document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
+    document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
+
+    const start = (currentPage-1)*PER_PAGE;
+    const page  = all.slice(start, start+PER_PAGE);
+    const body  = document.getElementById('kp-receipt-body');
+    if (!page.length) {
+      body.innerHTML = '<tr class="kp-empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
+    } else {
+      const numMap = new Map([...all].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)).map((s,idx)=>[s._key, idx+1]));
+      body.innerHTML = page.map(s => `
+        <tr>
+          <td style="color:var(--text2)">${numMap.get(s._key)}</td>
+          <td style="color:var(--text2)">${s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '-'}</td>
+          <td style="font-weight:600">${kpEsc(s.agencyId||'-')}</td>
+          <td>${s.url ? `<a href="${kpEsc(s.url)}" target="_blank" style="color:var(--kp-accent);font-weight:500;text-decoration:none;">${kpEsc(s.storeName||'-')}</a>` : kpEsc(s.storeName||'-')}</td>
+          <td style="color:var(--text2);font-size:11px">${kpEsc(s.mid||'-')}</td>
+          <td style="color:var(--text2)">${kpEsc(s.rankKeyword||'-')}</td>
+          <td style="color:var(--text2)">${s.days||'-'}</td>
+          <td style="color:var(--text2)">${s.startDate||'-'}</td>
+          <td style="color:var(--text2)">${s.endDate||'-'}</td>
+          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
+          <td>${kpStatusBadge(s)}</td>
+          <td>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;justify-content:center;row-gap:4px;">
+              <button class="kp-action-btn" style="background:#f1f5f9;color:var(--text2);" onclick="kpViewDetail('${s._key}')">상세</button>
+              ${s.status==='pending' ? `<button class="kp-action-btn" style="background:rgba(59,130,246,.15);color:#1d4ed8;" onclick="kpAcceptOne('${s._key}')">접수</button>` : ''}
+              ${s.status==='accepted' ? `
+                <button class="kp-action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="kpChangeStatusTo('${s._key}','pending')">대기</button>
+                <button class="kp-action-btn kp-btn-approve" onclick="kpApproveOne('${s._key}')">승인</button>
+              ` : ''}
+              ${s.status==='active' ? `
+                <button class="kp-action-btn" style="background:rgba(245,158,11,.15);color:#b45309;" onclick="kpChangeStatusTo('${s._key}','pending')">대기</button>
+                <button class="kp-action-btn" style="background:rgba(59,130,246,.15);color:#1d4ed8;" onclick="kpAcceptOne('${s._key}')">접수</button>
+              ` : ''}
+              ${(s.status==='force_stopped' || s.status==='paused') ? `<button class="kp-action-btn kp-btn-approve" onclick="kpApproveOne('${s._key}')">승인</button>` : ''}
+              ${s.status==='requeue' ? `<button class="kp-action-btn" style="background:rgba(59,130,246,.15);color:#1d4ed8;" onclick="kpAcceptOne('${s._key}')">접수</button>` : ''}
+            </div>
+          </td>
+          <td><button class="kp-action-btn" style="background:rgba(239,68,68,.1);color:#dc2626;font-weight:700;" onclick="kpDeleteSlot('${s._key}')">✕</button></td>
+        </tr>`).join('');
+    }
+    kpRenderPagination(all.length);
+  };
+
+  function kpRenderPagination(total) {
+    const pages = Math.ceil(total/PER_PAGE) || 1;
+    const pg = document.getElementById('kp-pagination');
+    let html = `<button class="kp-pg-btn" onclick="kpGoPage(1)">&laquo;</button>
+                <button class="kp-pg-btn" onclick="kpGoPage(${Math.max(1,currentPage-1)})">&lsaquo;</button>`;
+    const s=Math.max(1,currentPage-2), e=Math.min(pages,currentPage+2);
+    if (s>1) { html+=`<button class="kp-pg-btn" onclick="kpGoPage(1)">1</button>`; if (s>2) html+=`<span class="kp-pg-btn" style="pointer-events:none">…</span>`; }
+    for (let i=s;i<=e;i++) html += `<button class="kp-pg-btn ${i===currentPage?'active':''}" onclick="kpGoPage(${i})">${i}</button>`;
+    if (e<pages) { if (e<pages-1) html+=`<span class="kp-pg-btn" style="pointer-events:none">…</span>`; html+=`<button class="kp-pg-btn" onclick="kpGoPage(${pages})">${pages}</button>`; }
+    html += `<button class="kp-pg-btn" onclick="kpGoPage(${Math.min(pages,currentPage+1)})">&rsaquo;</button>
+             <button class="kp-pg-btn" onclick="kpGoPage(${pages})">&raquo;</button>`;
+    pg.innerHTML = html;
+  }
+  window.kpGoPage = function(n) { currentPage=n; kpRenderReceipts(false); };
+
+  function attachKpSlotsLiveSync() {
+    if (_slotsUnsub) return;
+    let pending = false;
+    const scheduleRerender = () => {
+      if (pending) return;
+      pending = true;
+      setTimeout(() => {
+        pending = false;
+        allSlots.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        kpRenderReceipts(false);
+      }, 300);
+    };
+    HA.subscribeKpSlots(allSlots, {
+      onAdded(slot)   { if (!allSlots.some(s=>s._key===slot._key)) { allSlots.push(slot); scheduleRerender(); } },
+      onChanged(slot) { const i=allSlots.findIndex(s=>s._key===slot._key); if (i===-1) allSlots.push(slot); else allSlots[i]=slot; scheduleRerender(); },
+      onRemoved(key)  { const i=allSlots.findIndex(s=>s._key===key); if (i!==-1) allSlots.splice(i,1); scheduleRerender(); },
+    }).then(unsub => { _slotsUnsub = unsub; });
+  }
+
+  function kpCloseModalAndRefresh() {
+    const overlay = document.querySelector('.kp-detail-overlay');
+    if (overlay) overlay.remove();
+    _detailOpen = false;
+    kpRenderReceipts(false);
+  }
+
+  window.kpApproveOne = async function(key) {
+    await HA.updateKpSlot(key, { status:'active' });
+    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='active';
+    kpCloseModalAndRefresh();
+  };
+  window.kpAcceptOne = async function(key) {
+    await HA.updateKpSlot(key, { status:'accepted' });
+    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='accepted';
+    kpCloseModalAndRefresh();
+  };
+  window.kpDeleteSlot = async function(key) {
+    const s = allSlots.find(x=>x._key===key);
+    if (s?.status === 'split') { alert('시간대 분할 예약 진행 중에는 삭제할 수 없습니다.'); return; }
+    if (!confirm('이 항목을 삭제하시겠습니까? (되돌릴 수 없습니다)')) return;
+    await HA.deleteKpSlot(key);
+    allSlots = allSlots.filter(s=>s._key!==key);
+    kpRenderReceipts(false);
+  };
+  function kpResolveRequeueStatus(slot, status) {
+    return (status === 'pending' && slot?.isRequeue) ? 'requeue' : status;
+  }
+  window.kpChangeStatusTo = async function(key, newStatus) {
+    const slot = allSlots.find(x=>x._key===key);
+    newStatus = kpResolveRequeueStatus(slot, newStatus);
+    const labelMap = { pending:'대기', accepted:'접수', active:'승인', requeue:'재접수 대기' };
+    if (!confirm(`상태를 "${labelMap[newStatus]}"(으)로 변경하시겠습니까?`)) return;
+    await HA.updateKpSlot(key, { status:newStatus });
+    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status=newStatus;
+    kpCloseModalAndRefresh();
+  };
+
+  window.kpViewDetail = function(key) {
+    if (_detailOpen) return;
+    const s = allSlots.find(x=>x._key===key);
+    if (!s) return;
+    _detailOpen = true;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay kp-detail-overlay';
+    const isSplit = s.status === 'split';
+    const dis = isSplit ? 'disabled' : '';
+    overlay.innerHTML = `
+      <div class="kp-modal-box">
+        <div class="kp-modal-title">캠페인 상세</div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">상태</div>
+          <div>${kpStatusBadge(s)}</div>
+          ${isSplit ? `<div style="margin-top:6px;font-size:11px;color:#b45309;">⏰ 시간대 분할 예약 진행 중에는 수정할 수 없습니다.</div>` : ''}
+        </div>
+        <div class="kp-modal-row">
+          <div class="kp-modal-field"><label>대행사</label><input id="kd-agencyId" value="${kpEsc(s.agencyId)}" ${dis}></div>
+          <div class="kp-modal-field"><label>순위키워드</label><input id="kd-rankKeyword" value="${kpEsc(s.rankKeyword)}" ${dis}></div>
+        </div>
+        <div class="kp-modal-field"><label>플레이스명</label><input id="kd-storeName" value="${kpEsc(s.storeName)}" ${dis}></div>
+        <div class="kp-modal-row">
+          <div class="kp-modal-field"><label>URL</label><input id="kd-url" value="${kpEsc(s.url)}" ${dis}></div>
+          <div class="kp-modal-field"><label>MID</label><input id="kd-mid" value="${kpEsc(s.mid)}" ${dis}></div>
+        </div>
+        <div class="kp-modal-row">
+          <div class="kp-modal-field"><label>일 목표</label><input type="number" id="kd-dailyTarget" value="${kpEsc(s.dailyTarget)}" ${dis}></div>
+          <div class="kp-modal-field"><label>일 수</label><input type="number" id="kd-days" value="${kpEsc(s.days)}" ${dis}></div>
+        </div>
+        <div class="kp-modal-row">
+          <div class="kp-modal-field"><label>시작일</label><input type="date" id="kd-startDate" value="${kpEsc(s.startDate)}" ${dis}></div>
+          <div class="kp-modal-field"><label>종료일</label><input type="date" id="kd-endDate" value="${kpEsc(s.endDate)}" ${dis}></div>
+        </div>
+        <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="2" ${dis}>${kpEsc(s.memo)}</textarea></div>
+        <div class="kp-modal-field"><label>검색키워드</label><input type="text" id="kd-searchKeyword" value="${kpEsc(s.searchKeyword)}" placeholder="키워드를 입력해주세요" ${dis}></div>
+        <div class="kp-modal-field"><label>유입플 키워드</label><input type="text" id="kd-yupflKeyword" value="${kpEsc(s.yupflKeyword)}" placeholder="유입플 키워드를 입력해주세요" ${dis}></div>
+        <div class="kp-modal-footer">
+          <button class="kp-btn-cancel" onclick="kpCloseDetailModal('${key}')">닫기</button>
+          ${isSplit ? '' : `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>`}
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  };
+
+  async function kpSaveDetailFields(key) {
+    const s = allSlots.find(x=>x._key===key);
+    if (!s || s.status === 'split') return;
+    const read = (id, num) => {
+      const el = document.getElementById(id);
+      if (!el) return undefined;
+      return num ? (Number(el.value)||0) : el.value.trim();
+    };
+    const fields = {
+      agencyId: read('kd-agencyId'), storeName: read('kd-storeName'), rankKeyword: read('kd-rankKeyword'),
+      url: read('kd-url'), mid: read('kd-mid'), dailyTarget: read('kd-dailyTarget', true), days: read('kd-days', true),
+      startDate: read('kd-startDate'), endDate: read('kd-endDate'),
+      memo: document.getElementById('kd-memo')?.value.trim() ?? '',
+      searchKeyword: read('kd-searchKeyword'), yupflKeyword: read('kd-yupflKeyword'),
+    };
+    const updates = {};
+    for (const [k,v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      if (String(v) !== String(s[k] ?? '')) updates[k] = v;
+    }
+    if (updates.searchKeyword) {
+      updates.keywordHistory = [...(s.keywordHistory||[]), { keyword: updates.searchKeyword, date: new Date().toISOString() }].slice(-10);
+    }
+    if (updates.yupflKeyword) {
+      updates.yupflKeywordHistory = [...(s.yupflKeywordHistory||[]), { keyword: updates.yupflKeyword, date: new Date().toISOString() }].slice(-10);
+    }
+    if (Object.keys(updates).length) {
+      await HA.updateKpSlot(key, updates);
+      const idx = allSlots.findIndex(x=>x._key===key);
+      if (idx!==-1) Object.assign(allSlots[idx], updates);
+    }
+  }
+  window.kpCloseDetailModal = async function(key) {
+    await kpSaveDetailFields(key);
+    kpCloseModalAndRefresh();
+  };
+  window.kpAcceptFromDetail = async function(key) {
+    await kpSaveDetailFields(key);
+    await HA.updateKpSlot(key, { status:'accepted' });
+    const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='accepted';
+    kpCloseModalAndRefresh();
+  };
+
+  kpRenderReceipts();
 })();
 </script>
