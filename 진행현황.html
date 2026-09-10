@@ -48,6 +48,11 @@
   .s-active   { background:rgba(16,185,129,.1); color:#059669; }
   .s-reserved { background:rgba(245,158,11,.12); color:#d97706; }
   .s-expired  { background:#f1f5f9; color:#64748b; }
+  .s-split    { background:#fef3c7; color:#b45309; }
+  .s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
+  .s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
+  .s-wait     { background:rgba(59,130,246,.1); color:#1d4ed8; }
+  .kp-tag     { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:6px; background:#f1f5f9; color:#0f172a; margin-left:4px; vertical-align:1px; }
 </style>
 
 <div class="stat-bar" style="grid-template-columns:repeat(4,1fr)">
@@ -82,6 +87,9 @@
     <option value="">전체</option>
     <option value="active">진행중</option>
     <option value="reserved">예약중</option>
+    <option value="split">분할</option>
+    <option value="force_stopped">강제종료</option>
+    <option value="paused">임시중단</option>
     <option value="expired">종료</option>
   </select>
   <div style="margin-left:auto;display:flex;gap:6px;">
@@ -118,6 +126,13 @@
   const stLabel = {
     active:  '<span class="status-badge s-active">진행</span>',
     expired: '<span class="status-badge s-expired">종료</span>',
+    split:   '<span class="status-badge s-split">분할</span>',
+    ended:   '<span class="status-badge s-expired">종료</span>',
+    force_stopped: '<span class="status-badge s-force">강제종료</span>',
+    paused:  '<span class="status-badge s-paused">임시중단</span>',
+    requeue: '<span class="status-badge s-wait">재접수 대기</span>',
+    pending: '<span class="status-badge s-wait">대기</span>',
+    accepted:'<span class="status-badge s-wait">접수</span>',
   };
 
   // 시작일이 오늘 이후인 active 캠페인 = 예약중 (실제 status 값은 그대로 active 유지)
@@ -127,8 +142,9 @@
   }
   function isReserved(s, todayStr) { return s.status === 'active' && s.startDate > todayStr; }
   function statusBadge(s, todayStr) {
-    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>';
-    return stLabel[s.status] || s.status;
+    const tag = s._src === 'kp' ? '<span class="kp-tag">김프로</span>' : '';
+    if (isReserved(s, todayStr)) return '<span class="status-badge s-reserved">예약</span>' + tag;
+    return (stLabel[s.status] || s.status) + tag;
   }
 
   function getFiltered() {
@@ -139,7 +155,9 @@
       if (status === 'reserved') { if (!isReserved(s, todayStr)) return false; }
       else if (status === 'active') { if (s.status !== 'active' || isReserved(s, todayStr)) return false; }
       else if (status) { if (s.status !== status) return false; }
-      else { if (s.status !== 'active' && s.status !== 'expired') return false; }
+      // 전체: 이미 진행됐거나 끝난 캠페인만(대기/접수/재접수대기는 제외) — ha(active/split/expired)
+      // + kp 동의어(ended/force_stopped/paused)까지 전부 포함
+      else { if (!['active','split','expired','ended','force_stopped','paused'].includes(s.status)) return false; }
       if (kw && ![s.agencyId,s.userId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(kw))) return false;
       return true;
     });
@@ -166,17 +184,28 @@
       document.getElementById('slots-body').innerHTML =
         '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
 
-      allSlots = await HA.getSlotsLive();
+      const haSlots = await HA.getSlotsLive();
 
       // ── 종료일 지난 active 캠페인 자동 종료 처리 ──────────────
       // HA.expireSlots로 status만 한 번의 multi-path 쓰기 처리(슬롯별 HA.updateSlot 대신 — 접수관리.html과 동일 이유)
-      const toExpire = allSlots.filter(s =>
+      // 김프로 슬롯을 합치기 전(ha 슬롯만 있는 시점)에 처리 — 김프로 쪽 자동만료는 김프로.html 자체가 담당
+      const toExpire = haSlots.filter(s =>
         s.status === 'active' && s.endDate && s.endDate < todayStr
       );
       if (toExpire.length) {
         await HA.expireSlots(toExpire.map(s => s._key));
         toExpire.forEach(s => { s.status = 'expired'; });
       }
+
+      // 김프로 캠페인도 진행현황에 함께 표시(사용자 요청, 2026-09-10) — 읽기 전용 병합만, 상태 변경/
+      // 자동만료 등 쓰기는 여기서 하지 않음(그건 김프로.html 자체 책임). 접수관리에 미러된(같은 key)
+      // 캠페인은 한 번만 보이도록 제외.
+      let kpSlots = [];
+      try {
+        const haKeySet = new Set(haSlots.map(s => s._key));
+        kpSlots = (await HA.getKpSlotsLive()).filter(s => !haKeySet.has(s._key)).map(s => ({ ...s, _src:'kp' }));
+      } catch (e) { console.error('김프로 슬롯 로딩 실패:', e); }
+      allSlots = [...haSlots, ...kpSlots];
       _slotsCacheLoaded = true;
     }
     if (!document.getElementById('slots-page')) return; // 대기 중 다른 메뉴로 이동한 경우 렌더 중단
@@ -248,7 +277,9 @@
     const keys = [...document.querySelectorAll('.s-check:checked')].map(c => c.dataset.key);
     if(!keys.length) return alert('선택된 항목이 없습니다.');
     if(!confirm(`${keys.length}건을 삭제하시겠습니까?`)) return;
-    await Promise.all(keys.map(k => HA.deleteSlot(k)));
+    // 병합된 김프로 캠페인은 저장소가 달라 삭제 함수도 다름(같은 key로 ha/slots에 쓰면 엉뚱한 스텁이 생김)
+    const kpKeySet = new Set(allSlots.filter(s => s._src === 'kp').map(s => s._key));
+    await Promise.all(keys.map(k => kpKeySet.has(k) ? HA.deleteKpSlot(k) : HA.deleteSlot(k)));
     renderSlots(false, true);
   };
 
