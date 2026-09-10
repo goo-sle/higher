@@ -72,6 +72,12 @@ const PATHS = {
   kimproUsers:     'kimpro/users',
 };
 
+// ha/slots <-> ha/kimproSlots 양방향 동기화 시 상태값 매핑 — 두 시스템 상태값 어휘가 서로 달라서
+// (ha: pending/accepted/active/expired/split/deleted, kp: pending/accepted/active/ended/paused/
+// force_stopped/requeue/split) 글자 그대로 겹치는 값만 상태값도 같이 넘기고, 한쪽 전용 상태값은
+// 반대편에 절대 안 보냄(예: kp의 force_stopped를 ha에 그대로 쓰면 ha가 모르는 값이라 필터·배지가 깨짐)
+const HA_KP_SHARED_STATUSES = new Set(['pending', 'accepted', 'active', 'split']);
+
 // 김프로 기능 데이터 전용(접수관리 ha/slots와 분리, 2026-09-10)
 const KP_PATHS = {
   slots:           'ha/kimproSlots',
@@ -336,6 +342,23 @@ const HA = {
 
   async updateKpSlot(key, patch) {
     await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
+    // ha/slots 역방향 동기화(신규, 2026-09-10) — updateSlot()의 ha/slots -> ha/kimproSlots 미러와
+    // 반대 방향. 상태값은 HA_KP_SHARED_STATUSES(겹치는 값)만 반영, 그 외 필드는 항상 반영.
+    // 순수 김프로 네이티브 캠페인은 ha/slots에 대응 항목이 없다가 active/split 전환 시점에 처음 생성됨.
+    try {
+      const haSnap = await get(ref(db, `${PATHS.slots}/${key}`));
+      if (haSnap.exists()) {
+        const patchForHa = { ...patch };
+        if ('status' in patchForHa && !HA_KP_SHARED_STATUSES.has(patchForHa.status)) delete patchForHa.status;
+        if (Object.keys(patchForHa).length) await update(ref(db, `${PATHS.slots}/${key}`), patchForHa);
+      } else if (patch.status === 'active' || patch.status === 'split') {
+        const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
+        if (kpSnap.exists()) {
+          const slot = kpSnap.val();
+          await set(ref(db, `${PATHS.slots}/${key}`), { ...slot, searchKeyword: slot.searchKeyword || '' });
+        }
+      }
+    } catch (e) { console.error('ha/slots 역방향 동기화 오류:', e); }
   },
 
   // 하드 삭제(kimpro/store.js deleteSlot과 동일 — ha/slots처럼 status:'deleted' 소프트 삭제 아님, 되돌리기 없음)
@@ -487,10 +510,11 @@ const HA = {
         if (patch.status === 'deleted') {
           await remove(ref(db, `${KP_PATHS.slots}/${key}`));
         } else {
-          // 위 kimpro/slots 미러와 동일하게 status는 최초 반영 시점 값으로 고정, 그 외 필드만 반영
-          const { status, ...rest } = patch;
-          if (Object.keys(rest).length) {
-            await update(ref(db, `${KP_PATHS.slots}/${key}`), rest);
+          // 상태값은 ha/kp 어휘가 겹치는 것만 반영(HA_KP_SHARED_STATUSES), 그 외 필드는 항상 반영
+          const patchForKp = { ...patch };
+          if ('status' in patchForKp && !HA_KP_SHARED_STATUSES.has(patchForKp.status)) delete patchForKp.status;
+          if (Object.keys(patchForKp).length) {
+            await update(ref(db, `${KP_PATHS.slots}/${key}`), patchForKp);
           }
         }
       } else if (patch.status === 'active' || patch.status === 'split') {
