@@ -2584,14 +2584,15 @@ window.toggleProdPanel = function(e) {
     async function buildAndDownload() {
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
-      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드','유입플키워드'];
+      const statusText = { pending:'대기', accepted:'접수', active:'승인', expired:'종료', split:'분할' };
+      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','상태','검색키워드','유입플키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? ymd(new Date(s.createdAt)) : '',
         s.agencyId||'', s.storeName||'', s.url||'', s.mid||'',
-        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', s.searchKeyword||'', s.yupflKeyword||'',
+        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', statusText[s.status]||s.status||'-', s.searchKeyword||'', s.yupflKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20},{wch:20}];
+      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:8},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       // MID별 검색키워드/유입플키워드 히스토리(자체 DB + kimpro 쪽 히스토리 포함, 히스토리 모달과

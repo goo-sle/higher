@@ -3005,14 +3005,16 @@ document.addEventListener('keydown', function(e) {
     kpEnsureXLSX(() => {
       const XLSX = window.XLSX;
       const wb = XLSX.utils.book_new();
-      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드','유입플키워드'];
+      const statusText = { pending:'대기', accepted:'접수', active:'승인', force_stopped:'강제종료', paused:'임시중단', requeue:'재접수 | 대기', ended:'종료', expired:'종료', split:'분할' };
+      const kpStatusText = s => s.isRequeue && s.status !== 'requeue' ? `재접수 | ${statusText[s.status]||s.status}` : (statusText[s.status]||s.status||'-');
+      const header = ['접수일시','대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','상태','검색키워드','유입플키워드'];
       const rows = filtered.map(s => [
         s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '',
         s.agencyId||'', s.storeName||'', s.url||'', s.mid||'',
-        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', s.searchKeyword||'', s.yupflKeyword||'',
+        s.rankKeyword||'', s.days||'', s.startDate||'', s.dailyTarget||'', kpStatusText(s), s.searchKeyword||'', s.yupflKeyword||'',
       ]);
       const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:20},{wch:20}];
+      ws['!cols'] = [{wch:12},{wch:16},{wch:22},{wch:48},{wch:14},{wch:14},{wch:6},{wch:12},{wch:10},{wch:10},{wch:20},{wch:20}];
       XLSX.utils.book_append_sheet(wb, ws, '접수');
 
       const midRows = [...new Map(filtered.filter(s=>s.mid).map(s=>[s.mid,s])).values()];
