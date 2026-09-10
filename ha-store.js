@@ -74,7 +74,10 @@ const PATHS = {
 
 // 김프로 기능 데이터 전용(접수관리 ha/slots와 분리, 2026-09-10)
 const KP_PATHS = {
-  slots: 'ha/kimproSlots',
+  slots:           'ha/kimproSlots',
+  paid:            'ha/kimproPaidSlots',
+  refunds:         'ha/kimproRefunds',
+  settleSnapshots: 'ha/kimproSettleSnapshots',
 };
 
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
@@ -288,6 +291,44 @@ const HA = {
   // 멀티패스 업데이트(키에 '/' 허용, 값 null이면 그 위치 삭제) — 예약 분할 현황 취소 등 여러 경로를 한 번에 갱신할 때
   async updateKpDoc(path, patch) {
     return update(ref(db, path), patch);
+  },
+
+  // ── 김프로 정산관리(ha/kimproPaidSlots, ha/kimproRefunds, ha/kimproSettleSnapshots) ──
+  // 접수관리 정산(ha/paid_slots, ha/refunds, ha/settle_snapshots)과 완전히 분리된 별도 노드.
+  async getKpPaidSet() {
+    const snap = await get(ref(db, KP_PATHS.paid));
+    if (!snap.exists()) return new Set();
+    return new Set(Object.keys(snap.val()));
+  },
+  async setKpPaid(key, val) {
+    if (val) await set(ref(db, `${KP_PATHS.paid}/${key}`), true);
+    else await remove(ref(db, `${KP_PATHS.paid}/${key}`));
+  },
+  async getKpRefunds() {
+    const snap = await get(ref(db, KP_PATHS.refunds));
+    return snap.exists() ? snap.val() : {};
+  },
+  async setKpRefundAmount(key, amount) {
+    if (!amount || amount <= 0) await remove(ref(db, `${KP_PATHS.refunds}/${key}`));
+    else await set(ref(db, `${KP_PATHS.refunds}/${key}`), amount);
+  },
+  async saveKpSettleSnapshot(snapKey, data, force = false) {
+    const path = `${KP_PATHS.settleSnapshots}/${snapKey}`;
+    if (!force) {
+      const existing = await get(ref(db, path));
+      if (existing.exists()) return;
+    }
+    await set(ref(db, path), { ...data, savedAt: new Date().toISOString() });
+  },
+  async deleteKpSettleSnapshot(snapKey) {
+    await remove(ref(db, `${KP_PATHS.settleSnapshots}/${snapKey}`));
+  },
+  async getAllKpSettleSnapshots() {
+    const snap = await get(ref(db, KP_PATHS.settleSnapshots));
+    if (!snap.exists()) return {};
+    const result = {};
+    snap.forEach(node => { result[node.key] = node.val(); });
+    return result;
   },
 
   async addSlot(data) {
