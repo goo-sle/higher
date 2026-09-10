@@ -5690,8 +5690,9 @@ document.addEventListener('keydown', function(e) {
           .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
       )].sort();
       if (src === 'ha') {
-        // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영
-        const slotPatch = { status:'ended', days: doneDates.length };
+        // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영.
+        // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
+        const slotPatch = { status:'expired', days: doneDates.length };
         if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
         await window.HA.updateSlot(slotKey, slotPatch);
       } else {

@@ -5329,7 +5329,7 @@ window.toggleProdPanel = function(e) {
       } else {
         const slotSnap = await fbGet(`ha/slots/${slotKey}`);
         if (slotSnap.exists()) {
-          const slotPatch = { status: 'ended', days: doneDates.length };
+          const slotPatch = { status: 'expired', days: doneDates.length }; // ha 상태값 체계엔 'ended'가 없음(김프로 쪽 용어) — 접수관리는 'expired'
           if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
           await HA.updateSlot(slotKey, slotPatch);
           const s = allSlots.find(x => x._key === slotKey);
