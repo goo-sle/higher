@@ -262,6 +262,19 @@ const HA = {
     }
   },
 
+  // 구 kimpro/scheduled_dispatch(레거시) 조회 — bizfit-direct-proxy가 지금도 이 경로를 폴링해 실제로
+  // 전송 중인 예약 항목이라 김프로 예약 분할 현황 화면에서 같이 보여줘야 함(읽기 전용, kimpro-access 인증 필요).
+  async getKimproLegacyScheduledDispatch() {
+    try {
+      await ensureKimproAuth();
+      const snap = await _get(ref(kimproDb, 'kimpro/scheduled_dispatch'));
+      return snapToArray(snap);
+    } catch (e) {
+      console.error('kimpro/scheduled_dispatch 조회 오류:', e);
+      return [];
+    }
+  },
+
   // ── 김프로(kimpro.kro.kr) 기능 데이터 전용 네임스페이스 ──────
   // ha/kimproSlots 등 — 접수관리(ha/slots)와는 완전히 분리된 별도 저장소(2026-09-10 결정: 데이터를 섞지 않고
   // 김프로.html이 독자적으로 소유). kimpro/slots(5,547건)를 그대로 복사해 마이그레이션 완료, ha/slots는 미접촉.
@@ -464,6 +477,33 @@ const HA = {
         }
       }
     } catch (e) { console.error('kimpro/slots 동기화 오류:', e); }
+
+    // ha/kimproSlots 동기화(편도, 신규) — 위 kimpro/slots 미러와 동일한 목적(접수관리 승인 시 김프로
+    // 어드민 쪽에서도 리스트로 보이게)이지만 대상이 새 격리 노드(ha/kimproSlots). 같은 db/인증이라
+    // kimproDb/ensureKimproAuth 불필요. 기존 kimpro/slots 미러는 그대로 유지(제거하지 않음).
+    try {
+      const kpSnap = await get(ref(db, `${KP_PATHS.slots}/${key}`));
+      if (kpSnap.exists()) {
+        if (patch.status === 'deleted') {
+          await remove(ref(db, `${KP_PATHS.slots}/${key}`));
+        } else {
+          // 위 kimpro/slots 미러와 동일하게 status는 최초 반영 시점 값으로 고정, 그 외 필드만 반영
+          const { status, ...rest } = patch;
+          if (Object.keys(rest).length) {
+            await update(ref(db, `${KP_PATHS.slots}/${key}`), rest);
+          }
+        }
+      } else if (patch.status === 'active' || patch.status === 'split') {
+        const slotSnap = await get(ref(db, `${PATHS.slots}/${key}`));
+        if (slotSnap.exists()) {
+          const slot = slotSnap.val();
+          await set(ref(db, `${KP_PATHS.slots}/${key}`), {
+            ...slot,
+            searchKeyword: slot.searchKeyword || '',
+          });
+        }
+      }
+    } catch (e) { console.error('ha/kimproSlots 동기화 오류:', e); }
   },
 
   async deleteSlot(key) {

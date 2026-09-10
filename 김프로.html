@@ -5246,6 +5246,14 @@ document.addEventListener('keydown', function(e) {
     const val = (snap && snap.exists()) ? snap.val() : {};
     ssEntries = {};
     Object.entries(val).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k }; });
+    // 마이그레이션 이전부터 있던 구 kimpro/scheduled_dispatch(레거시) 항목도 합쳐서 보여줌 —
+    // bizfit-direct-proxy가 지금도 이 경로를 같이 폴링해 실제로 전송되는 예약이라 화면에 안 보이면
+    // "예약" 통계 카드 숫자와 목록이 어긋나 보임. 레거시 항목은 kimpro-access 인증이 따로 필요해
+    // 읽기만 가능 — 취소/재분류/등급변경/키워드 수정 버튼은 _legacy 항목에서 숨김.
+    try {
+      const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
+      legacyList.forEach(e => { ssEntries[e._key] = { ...e, _legacy: true }; });
+    } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
   }
 
   function filterScheduleEntries(entries) {
@@ -5329,6 +5337,9 @@ document.addEventListener('keydown', function(e) {
         const collapsed = ssCollapsed.has(g.gid);
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
+        // 레거시(구 kimpro/scheduled_dispatch) 항목은 kimpro-access 인증이 따로 필요해 읽기만 가능 —
+        // 취소/재분류/키워드 일괄분배 등 쓰기 액션은 신규 경로(ha/kimproScheduledDispatch) 대기건만 대상으로 함
+        const editablePendCount = g.items.filter(e => !e._legacy && !isScheduleDone(e.status)).length;
         const selCount = (kpSsResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -5340,13 +5351,13 @@ document.addEventListener('keydown', function(e) {
               <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ssEsc(g.store||'-')}</span>
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${ssEsc(g.pid||'-')}</span>
-              ${pendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="대기중 ${pendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
+              ${editablePendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-              ${pendCount
+              ${editablePendCount
                 ? `<button onclick="event.stopPropagation();kpToggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
                 : ''}
-              ${pendCount
+              ${editablePendCount
                 ? `<button onclick="event.stopPropagation();kpToggleScheduleKwSplit('${g.gid}')" style="padding:3px 9px;border:1px solid #bbf7d0;border-radius:100px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">✂️ 키워드 일괄분배</button>`
                 : ''}
               <div onclick="kpToggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
@@ -5367,7 +5378,7 @@ document.addEventListener('keydown', function(e) {
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
-                const done = isScheduleDone(e.status);
+                const done = isScheduleDone(e.status) || e._legacy;
                 const checked = (kpSsResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `<tr>
                   <td>${done ? '' : `<input type="checkbox" ${checked?'checked':''} onchange="kpOnScheduleRowCheck('${g.gid}','${e._key}',this.checked)">`}</td>
@@ -5386,7 +5397,7 @@ document.addEventListener('keydown', function(e) {
                   <td>${(row.일목표||0).toLocaleString()}</td>
                   <td>${row.일수||0}</td>
                   <td>${ssEsc(row.예약일||'-')}</td>
-                  <td>${scheduleStatusLabel(e.status)}</td>
+                  <td>${scheduleStatusLabel(e.status)}${e._legacy ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#f1f5f9;color:#64748b;">구버전</span>' : ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -5398,7 +5409,7 @@ document.addEventListener('keydown', function(e) {
   }
 
   window.kpSaveScheduleKeyword = async function(key, inputEl) {
-    if (isScheduleDone(ssEntries[key]?.status)) { inputEl.disabled = true; return; }
+    if (isScheduleDone(ssEntries[key]?.status) || ssEntries[key]?._legacy) { inputEl.disabled = true; return; }
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
@@ -5414,7 +5425,7 @@ document.addEventListener('keydown', function(e) {
   };
 
   window.kpCancelAllSchedulePending = async function(slotKey) {
-    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
     if (!targets.length) return;
     if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
     try {
@@ -5462,7 +5473,7 @@ document.addEventListener('keydown', function(e) {
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderKpSplitScheduleList();
-      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
       const allGroups = sample ? await kpFetchScheduleGradeGroups(sample) : [];
@@ -5487,7 +5498,7 @@ document.addEventListener('keydown', function(e) {
     kpUpdateScheduleResplitSum(slotKey);
   };
   function kpComputeResplitBuckets(slotKey, grades, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => { const t = e.sendAt || ''; if (!byTime.has(t)) byTime.set(t, []); byTime.get(t).push(e); });
@@ -5504,7 +5515,7 @@ document.addEventListener('keydown', function(e) {
     return { buckets, violations };
   }
   function kpScheduleResplitPartialSendAts(slotKey, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
     const bySendAt = new Map();
     allItems.forEach(e => { const t = e.sendAt || ''; if (!bySendAt.has(t)) bySendAt.set(t, []); bySendAt.get(t).push(e); });
     const partial = [];
@@ -5661,7 +5672,7 @@ document.addEventListener('keydown', function(e) {
   function kpUpdateScheduleKwSplitPreview(slotKey) {
     const st = kpSsKwSplit[slotKey]; if (!st) return;
     const groups = kpScheduleKwSplitGroups(st);
-    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status)).length;
+    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy).length;
     const previewEl = document.getElementById(`kp-ss-kwsplit-preview-${slotKey}`);
     if (previewEl) previewEl.textContent = groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : '';
     const btn = document.getElementById(`kp-ss-kwsplit-apply-${slotKey}`);
@@ -5696,7 +5707,7 @@ document.addEventListener('keydown', function(e) {
     const groups = kpScheduleKwSplitGroups(st);
     if (!groups.length) return;
     const pendingItems = Object.values(ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy)
       .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
     const targets = pendingItems.slice(0, groups.length);
     if (!targets.length) return;
@@ -5721,7 +5732,7 @@ document.addEventListener('keydown', function(e) {
   window.kpEditScheduleGrade = async function(key) {
     const e = ssEntries[key];
     const cell = document.getElementById(`kp-ss-grade-${key}`);
-    if (!e || !cell || isScheduleDone(e.status)) return;
+    if (!e || !cell || isScheduleDone(e.status) || e._legacy) return;
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
     const groups = await kpFetchScheduleGradeGroups(e);
     if (!groups.length) { cell.innerHTML = '<span style="color:#dc2626;font-size:11px;">등급 조회 실패</span>'; return; }

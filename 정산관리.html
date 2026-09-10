@@ -512,10 +512,12 @@
     if (!_settleLoaded || forceReload) {
       document.getElementById('settle-body').innerHTML='<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div></td></tr>';
       let haSlots=[], kpSlotsRaw=[], haPaidSet=new Set(), kpPaidSet=new Set(), haRefundMap={}, kpRefundMap={}, haSnapshotMap={}, kpSnapshotMap={};
-      [[haSlots,allUsers,haPaidSet],[kpSlotsRaw,kpPaidSet]] = await Promise.all([
-        Promise.all([HA.getSlotsLive(),HA.getUsers(),HA.getPaidSet()]),
-        Promise.all([HA.getKpSlotsLive(),HA.getKpPaidSet()]),
-      ]);
+      // ha(접수관리) 쪽 로딩은 항상 되게 김프로 쪽과 분리된 try/catch로 격리 — 김프로 쪽 하나가 실패해도
+      // (권한/네트워크 등) 접수관리 자체 정산 데이터까지 통째로 안 보이는 회귀는 없어야 한다.
+      [haSlots,allUsers,haPaidSet] = await Promise.all([HA.getSlotsLive(),HA.getUsers(),HA.getPaidSet()]);
+      try {
+        [kpSlotsRaw,kpPaidSet] = await Promise.all([HA.getKpSlotsLive(),HA.getKpPaidSet()]);
+      } catch(e) { console.error('김프로 정산 데이터 로딩 실패:', e); kpSlotsRaw=[]; kpPaidSet=new Set(); }
       try { haRefundMap = (await HA.getRefunds()) || {}; } catch(e) { haRefundMap={}; }
       try { kpRefundMap = (await HA.getKpRefunds()) || {}; } catch(e) { kpRefundMap={}; }
       try { haSnapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { haSnapshotMap={}; }
@@ -550,7 +552,8 @@
       // 캐시된 allSlots/refundMap은 탭을 오래 열어둔 세션에서 승인/환불 전 상태로 낡아있을 수 있어,
       // 실제로 얼리거나 재동기화할 때만 새로 조회해서 그 순간의 정확한 값을 쓴다.
       const [freshHaSlots, freshHaRefundMap, freshKpSlotsRaw, freshKpRefundMap] = await Promise.all([
-        HA.getSlots(), HA.getRefunds().catch(()=>({})), HA.getKpSlots(), HA.getKpRefunds().catch(()=>({})),
+        HA.getSlots(), HA.getRefunds().catch(()=>({})),
+        HA.getKpSlots().catch(()=>[]), HA.getKpRefunds().catch(()=>({})),
       ]);
       const freshKpSlots = freshKpSlotsRaw.map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
       const freshSlots = [...freshHaSlots, ...freshKpSlots];
