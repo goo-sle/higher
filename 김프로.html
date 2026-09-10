@@ -2687,10 +2687,18 @@ document.addEventListener('keydown', function(e) {
     overlay.innerHTML = `
       <div class="kp-modal-box">
         <div class="kp-modal-title">캠페인 상세</div>
-        <div style="margin-bottom:14px">
-          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">상태</div>
-          <div>${kpStatusBadge(s)}</div>
-          ${isSplit ? `<div style="margin-top:6px;font-size:11px;color:#b45309;">⏰ 시간대 분할 예약 진행 중에는 수정할 수 없습니다.</div>` : ''}
+        <div class="kp-modal-row" style="margin-bottom:14px;">
+          <div>
+            <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">상태</div>
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+              <span>${kpStatusBadge(s)}</span>
+              ${isSplit ? '<span style="font-size:11px;color:#b45309;">⏰ 시간대 분할 예약 진행 중에는 수정할 수 없습니다.</span>' : (s.status==='active' ? '<span style="font-size:11px;color:#b45309;">승인된 캠페인은 상세 정보를 수정할 수 없습니다.</span>' : '')}
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">등급</div>
+            <div>${window.KpGrade ? window.KpGrade.renderGradeBadgesHtml(window.KpGrade.cache.get(s.mid)) : '-'}</div>
+          </div>
         </div>
         <div class="kp-modal-row">
           <div class="kp-modal-field"><label>대행사</label><input id="kd-agencyId" value="${kpEsc(s.agencyId)}" ${dis}></div>
@@ -2712,7 +2720,7 @@ document.addEventListener('keydown', function(e) {
           <div class="kp-modal-field"><label>시작일</label><input type="date" id="kd-startDate" value="${kpEsc(s.startDate)}" ${dis}></div>
           <div class="kp-modal-field"><label>종료일</label><input type="date" id="kd-endDate" value="${kpEsc(s.endDate)}" ${dis}></div>
         </div>
-        <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="2" ${dis}>${kpEsc(s.memo)}</textarea></div>
+        <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="1" ${dis}>${kpEsc(s.memo)}</textarea></div>
         <div class="kp-modal-field">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kp-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span></span>
