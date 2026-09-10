@@ -308,22 +308,26 @@ const HA = {
 
   async addKpSlot(data) {
     // 접수 시점 단가 스냅샷 — addSlot과 동일한 패턴(ha/users, 회원관리 데이터)을 그대로 사용.
-    // 김프로 캠페인은 userId 필드를 안 쓰고 agencyId가 곧 회원관리 계정명이므로 agencyId로
-    // ha/users.username을 매칭한다(ha/bizfit_charge도 동일하게 agencyId==username 매칭).
+    // 김프로 슬롯의 agencyId는 회원관리 username이 아니라 표시명("[단독]오렌지")이므로
+    // ha/users의 agencyId/agency 필드와 매칭해야 함(예전엔 username과 잘못 비교해서 매칭이
+    // 거의 항상 실패 — 단가 0원 버그의 근본 원인, 2026-09-10 수정). userId도 같은 매칭으로
+    // 자동 채움(진행현황 등 병합 화면에서 검색·표시에 씀).
     let unitPriceSnapshot = data.unitPrice || 0;
-    if (!unitPriceSnapshot) {
+    let resolvedUserId = data.userId || '';
+    if (!unitPriceSnapshot || !resolvedUserId) {
       try {
         const uSnap = await get(ref(db, PATHS.users));
         const users = snapToArray(uSnap);
-        const u = users.find(u => u.username === (data.agencyId || ''));
-        unitPriceSnapshot = u ? (u.unitPrice || 0) : 0;
+        const u = users.find(u => u.agencyId === (data.agencyId || '') || u.agency === (data.agencyId || ''));
+        if (!unitPriceSnapshot) unitPriceSnapshot = u ? (u.unitPrice || 0) : 0;
+        if (!resolvedUserId) resolvedUserId = u ? (u.username || '') : '';
       } catch(e) {}
     }
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
       agencyId:      data.agencyId      || '',
-      userId:        data.userId        || '',
+      userId:        resolvedUserId,
       startDate:     data.startDate     || '',
       endDate:       data.endDate       || '',
       storeName:     data.storeName     || '',
