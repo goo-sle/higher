@@ -61,7 +61,7 @@
     .kp-pagination { display:flex; justify-content:center; gap:5px; margin-top:16px; }
     .kp-pg-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; justify-content:center; }
     .kp-pg-btn.active { background:var(--info,#3b82f6); color:#fff; border-color:var(--info,#3b82f6); }
-    .kp-modal-box { background:#fff; border-radius:16px; width:520px; max-width:calc(100vw - 32px); max-height:80vh; overflow-y:auto; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    .kp-modal-box { background:#fff; border-radius:16px; width:520px; max-width:calc(100vw - 32px); max-height:80vh; overflow-y:auto; overscroll-behavior:contain; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
     .kp-modal-title { font-size:17px; font-weight:700; margin-bottom:20px; }
     .kp-modal-field { margin-bottom:14px; }
     .kp-modal-field label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
@@ -495,7 +495,7 @@ async function downloadRankTable() {
 </style>
 
 <!-- 캐시복구 메인 모달 -->
-<div id="cr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="cr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:16px;width:1200px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;overflow:hidden;">
       <div style="font-size:15px;font-weight:700;white-space:nowrap;">💰 캐시복구</div>
@@ -900,7 +900,7 @@ async function downloadRankTable() {
      강제종료 모달 (kimpro/reception.html 이식 — 데이터는 ha/kimproSlots(김프로 전용, 접수관리와 분리)에
      저장, window.HA.updateKpSlot 등 Kp-전용 helper로 직접 씀)
 ══════════════════════════════════════════ -->
-<div id="stop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="stop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:16px;width:1100px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -1440,7 +1440,7 @@ window.closeStopModal = function() {
 <!-- ══════════════════════════════════════════
      키워드 변경 모달 (kimpro/reception.html 이식)
 ══════════════════════════════════════════ -->
-<div id="kw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="kw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:16px;width:1100px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -2010,7 +2010,7 @@ document.addEventListener('keydown', function(e) {
      kimpro.kro.kr 접수가 전체 잠금돼 더 이상 이 노드에 새로 쓰이지 않음 — "오늘자" 필터라
      잠금 이후로는 계속 "오늘 정산 기록 없음"으로만 보일 수 있음(사용자 확인 후 그대로 이식, 2026-09-10)
 ══════════════════════════════════════════ -->
-<div id="yupfl-settle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="yupfl-settle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:14px;width:860px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -3196,7 +3196,7 @@ document.addEventListener('keydown', function(e) {
   .kp-row-err { background:rgba(239,68,68,.1);  color:var(--danger,#ef4444); }
 </style>
 
-<div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+<div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
   <div style="background:#fff;border-radius:16px;width:860px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);">
       <div style="font-size:15px;font-weight:700;">📊 엑셀 접수</div>
