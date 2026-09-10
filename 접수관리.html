@@ -683,6 +683,14 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-split').textContent    = split.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
+    // 예약(split) 카드는 예약 분할 현황 팝업과 동일하게 접수관리+김프로 합산 건수로 표시(사용자 요청) —
+    // 미러된(같은 key) 캠페인은 한 번만 세도록 제외
+    HA.getKpSlotsLive().then(kpSlots => {
+      const haKeys = new Set(allSlots.map(s => s._key));
+      const kpSplit = kpSlots.filter(s => s.status === 'split' && !haKeys.has(s._key)).length;
+      const el = document.getElementById('stat-split');
+      if (el) el.textContent = (split + kpSplit).toLocaleString();
+    }).catch(e => console.error('김프로 예약 건수 조회 오류:', e));
 
     const start = (currentPage-1)*PER_PAGE;
     const page  = all.slice(start, start+PER_PAGE);
