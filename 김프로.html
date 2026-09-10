@@ -2697,7 +2697,7 @@ document.addEventListener('keydown', function(e) {
           </div>
           <div>
             <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px">등급</div>
-            <div>${window.KpGrade ? window.KpGrade.renderGradeBadgesHtml(window.KpGrade.cache.get(s.mid)) : '-'}</div>
+            <div>${window.KpGrade.renderGradeBadgesHtml(window.KpGrade.cache.get(s.mid))}</div>
           </div>
         </div>
         <div class="kp-modal-row">
@@ -2738,7 +2738,7 @@ document.addEventListener('keydown', function(e) {
           <div id="kp-yupfl-history-area" style="display:none;margin-top:8px;"></div>
         </div>
         <div class="kp-modal-field">
-          <label style="display:flex;align-items:center;gap:6px;">블로그 URL (델타·네이비 전용, 분할 개수만큼 콤마로 구분) <span id="kp-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${urlCount}개</span></label>
+          <label style="display:flex;align-items:center;gap:6px;">블로그 URL <span id="kp-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${urlCount}개</span></label>
           <div style="display:flex;gap:6px;align-items:center;margin-top:5px;">
             <input type="text" id="kd-deltaBlogUrl" value="${kpEsc(s.deltaBlogUrl)}" placeholder="https://blog.naver.com/...,https://blog.naver.com/..." oninput="kpUpdateKwBadge(this,'kp-url-count-badge')" style="flex:1;" ${dis}>
             <button type="button" onclick="kpApplyDeltaBlogUrls('${key}')" id="kp-delta-url-apply-btn" ${dis} style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
