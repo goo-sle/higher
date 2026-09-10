@@ -9,18 +9,8 @@
   #kimpro-page .kp-header .kp-logo span { color:var(--kp-accent); }
   #kimpro-page .kp-nav { display:flex; align-items:center; justify-content:center; flex:1 1 auto; flex-wrap:wrap; row-gap:2px; }
   #kimpro-page .kp-btn { display:flex; align-items:center; gap:5px; padding:7px 14px; background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
-  #kimpro-page .kp-btn + .kp-btn { border-left:1px solid rgba(255,255,255,.15); }
-  #kimpro-page .kp-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
-  #kimpro-page .kp-card { background:#fff; border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
-  #kimpro-page .kp-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
-  #kimpro-page .kp-desc { font-size:11px; color:var(--text2); line-height:1.5; min-height:32px; }
-  #kimpro-page .kp-status { display:inline-block; margin-top:12px; font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; }
-  #kimpro-page .kp-status.todo { background:#f1f5f9; color:var(--text2); }
-  #kimpro-page .kp-status.reuse { background:rgba(16,185,129,.1); color:var(--kp-accent); }
   #kimpro-page .kp-btn:not(:disabled) { cursor:pointer; }
   #kimpro-page .kp-btn:not(:disabled):hover { background:rgba(255,255,255,.15); }
-  #kimpro-page .kp-section-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin:0 0 12px; }
-  @media (max-width:1100px) { #kimpro-page .kp-grid { grid-template-columns:repeat(2,1fr); } }
 </style>
 
   <div class="kp-header">
@@ -106,6 +96,9 @@
       <option value="force_stopped">강제종료</option>
       <option value="ended">종료</option>
     </select>
+    <select id="kp-filter-grade" onchange="kpRenderReceipts()" disabled>
+      <option value="">⏳ 등급 로딩 중...</option>
+    </select>
     <input type="date" id="kp-filter-date" onchange="kpRenderReceipts()" title="접수일">
     <div style="margin-left:auto;display:flex;gap:6px;">
       <input type="text" id="kp-search" placeholder="대행사/플레이스명/MID (콤마 구분)" style="width:220px;" onkeydown="if(event.key==='Enter') kpRenderReceipts()">
@@ -123,25 +116,16 @@
       <thead>
         <tr>
           <th style="width:32px;"><input type="checkbox" id="kp-check-all" onchange="kpToggleAll(this)"></th>
-          <th>번호</th><th>접수일시</th><th>대행사</th><th>플레이스명</th><th>MID</th>
+          <th>번호</th><th>접수일시</th><th>대행사</th><th>캠페인타입</th><th>플레이스명</th><th>MID</th>
           <th>순위키워드</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
         </tr>
       </thead>
       <tbody id="kp-receipt-body">
-        <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+        <tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
       </tbody>
     </table>
   </div>
   <div class="kp-pagination" id="kp-pagination"></div>
-
-  <div class="kp-section-title">이식 예정 기능</div>
-  <div class="kp-grid">
-    <div class="kp-card">
-      <div class="kp-name">🔑 계정설정</div>
-      <div class="kp-desc">회원관리 "⚡ 충전 계정 정보"로 대체 — 별도 이식 불필요</div>
-      <span class="kp-status reuse">기존 기능 재사용</span>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -2095,9 +2079,118 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <!-- ══════════════════════════════════════════
-     캠페인 목록/상세/승인 (kimpro/reception.html 이식 — 1단계: 조회·상세·승인/상태변경만.
-     엑셀 접수(신규 등록·배분 엔진)·상품유형설정·MID 키워드 히스토리·등급 자동매칭·애드로그·
-     시간대분할예약은 미이식(규모가 커서 별도 단계). 데이터는 ha/kimproSlots 전용.
+     등급 자동매칭 공용 모듈 (접수관리.html과 동일 — ha/grades는 kimpro 전용이 아니라
+     higher 전체가 공유하는 노드라 별도 이관 없이 그대로 읽음). 목록/상세(뒤 스크립트)와
+     배분 엔진(더 뒤 스크립트) 양쪽에서 window.KpGrade로 공유.
+══════════════════════════════════════════ -->
+<script>
+(function() {
+  const GRADE_CACHE = new Map();
+  const GRADE_FB = 'https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades';
+  const state = { gradeMatchOn: true };
+
+  function parseGradeEntries(data) {
+    if (!data) return [];
+    if (typeof data.gradeLabel === 'string') return [data];
+    return Array.isArray(data) ? data : Object.values(data);
+  }
+  async function fetchGrade(mid) {
+    if (GRADE_CACHE.has(mid)) return GRADE_CACHE.get(mid);
+    try {
+      const res = await fetch(`${GRADE_FB}/${mid}.json`);
+      const data = res.ok ? await res.json() : null;
+      GRADE_CACHE.set(mid, data);
+      return data;
+    } catch { GRADE_CACHE.set(mid, null); return null; }
+  }
+  async function fetchGradesBatch(mids) {
+    if (!mids.length) return;
+    try {
+      const res = await fetch(`${GRADE_FB}.json`);
+      const data = res.ok ? await res.json() : null;
+      mids.forEach(mid => GRADE_CACHE.set(mid, (data && data[mid]) || null));
+    } catch { mids.forEach(mid => GRADE_CACHE.set(mid, null)); }
+  }
+  function renderGradeBadgesHtml(data) {
+    if (!data) return '-';
+    const entries = parseGradeEntries(data);
+    const gradeLabels = [...new Map(entries.map(g => [g.gradeLabel, g])).values()]
+      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
+    const missions = [...new Set(entries.flatMap(g => (g.mission || '').split(',').map(l => l.trim()).filter(l => l)))];
+    if (!gradeLabels.length && !missions.length) return '-';
+    const gradeHtml   = gradeLabels.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join('');
+    const missionHtml = missions.map(l => `<span style="display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:transparent;color:#334155;border:1px solid #e2e8f0">${l}</span>`).join('');
+    return gradeHtml + missionHtml;
+  }
+  function allFilterLabels(cached) {
+    return parseGradeEntries(cached).flatMap(g => [
+      ...(g.gradeLabel ? g.gradeLabel.split(',').map(l=>l.trim()).filter(l=>l) : []),
+      ...(g.mission ? g.mission.split(',').map(l=>l.trim()).filter(l=>l) : []),
+    ]);
+  }
+  function gradeLabelsOf(mid) {
+    const data = GRADE_CACHE.get(mid);
+    if (!data) return [];
+    return [...new Map(parseGradeEntries(data).map(g => [g.gradeLabel, g])).values()]
+      .flatMap(g => (g.gradeLabel || '').split(',').map(l => l.trim()).filter(l => l));
+  }
+  // prods(활성 상품 목록)는 배분 엔진 쪽에만 있으므로 매개변수로 받는다
+  function matchedGradeProds(mid, prods) {
+    if (!mid) return [];
+    const labels = gradeLabelsOf(mid);
+    if (!labels.length) return [];
+    const seen = new Set();
+    const result = [];
+    labels.forEach(label => {
+      if (seen.has(label)) return;
+      seen.add(label);
+      const known = prods.find(p => p.name === label && !p.fixedAlloc);
+      result.push(known
+        ? { ...known, ratio: 1, kwPct: 1 }
+        : { id: `grade_${label}`, name: label, color: '#94a3b8', ver: 'ver.5.0/3.2', ratio: 1, kwPct: 1, daysMultiplied: false });
+    });
+    return result;
+  }
+  function kwForGradeProd(keywords, prod, gradeProds, lrm) {
+    if (!keywords) return '';
+    const parts = keywords.split(',').map(k=>k.trim()).filter(k=>k);
+    if (!parts.length) return '';
+    const counts = lrm(gradeProds.map(p=>({id:p.id, ratio:1})), parts.length);
+    let offset = 0;
+    for (const p of gradeProds) { if (p.id === prod.id) return parts.slice(offset, offset+(counts[p.id]||0)).join(','); offset += counts[p.id]||0; }
+    return '';
+  }
+  function knownYupflMissionKeywords(mid) {
+    if (!mid) return null;
+    const data = GRADE_CACHE.get(mid);
+    if (!data) return null;
+    const result = {};
+    parseGradeEntries(data).forEach(g => {
+      if (g.missionKeywords && typeof g.missionKeywords === 'object') {
+        Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
+          const n = parseInt(mission, 10);
+          const trimmedKw = (kw||'').trim();
+          if (!Number.isNaN(n) && trimmedKw) result[n] = trimmedKw;
+        });
+      } else if (g.mission) {
+        const kw = (g.yupflKw||'').trim();
+        if (kw) g.mission.split(',').map(m=>m.trim()).filter(Boolean).forEach(m => { const n = parseInt(m,10); if (!Number.isNaN(n)) result[n] = kw; });
+      }
+    });
+    return Object.keys(result).length ? result : null;
+  }
+
+  window.KpGrade = {
+    cache: GRADE_CACHE, state, parseGradeEntries, fetchGrade, fetchGradesBatch,
+    renderGradeBadgesHtml, allFilterLabels, gradeLabelsOf, matchedGradeProds,
+    kwForGradeProd, knownYupflMissionKeywords,
+  };
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     캠페인 목록/상세/승인 (kimpro/reception.html 이식 — 조회·상세·승인/상태변경, 등급 배지/필터 포함.
+     MID 키워드 히스토리 병합·애드로그·시간대분할예약은 미이식. 데이터는 ha/kimproSlots 전용.
 ══════════════════════════════════════════ -->
 <script>
 (function() {
@@ -2138,8 +2231,11 @@ document.addEventListener('keydown', function(e) {
     return stMap[s.status] || s.status;
   }
 
+  const KP_GRADEABLE_STATUSES = ['pending','accepted','active','paused','force_stopped','requeue','split'];
+
   function kpGetFiltered() {
     const status  = document.getElementById('kp-filter-status').value;
+    const gradeFilter = document.getElementById('kp-filter-grade').value;
     const kwTerms = (document.getElementById('kp-search').value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
     const dateFrom = document.getElementById('kp-filter-date').value;
     return allSlots.filter(s => {
@@ -2149,6 +2245,11 @@ document.addEventListener('keydown', function(e) {
       else if (status === 'accepted') { if (s.status !== 'accepted' || s.isRequeue) return false; }
       else if (status === 'active') { if (s.status !== 'active' || s.isRequeue) return false; }
       else if (status && s.status !== status) return false;
+      if (gradeFilter) {
+        if (!KP_GRADEABLE_STATUSES.includes(s.status)) return false;
+        const cached = window.KpGrade.cache.get(s.mid);
+        if (!cached || !window.KpGrade.allFilterLabels(cached).includes(gradeFilter)) return false;
+      }
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
@@ -2156,8 +2257,42 @@ document.addEventListener('keydown', function(e) {
     });
   }
 
+  function kpBuildGradeFilter(slots) {
+    const sel = document.getElementById('kp-filter-grade');
+    if (!sel) return;
+    const currentVal = sel.value;
+    const labels = new Set();
+    slots.forEach(s => {
+      if (!s.mid) return;
+      const cached = window.KpGrade.cache.get(s.mid);
+      if (!cached) return;
+      window.KpGrade.allFilterLabels(cached).forEach(l => labels.add(l));
+    });
+    sel.innerHTML = '<option value="">전체 등급</option>';
+    [...labels].sort().forEach(label => {
+      const opt = document.createElement('option');
+      opt.value = label; opt.textContent = label;
+      sel.appendChild(opt);
+    });
+    sel.disabled = false;
+    if (labels.has(currentVal)) sel.value = currentVal;
+  }
+
+  async function kpInjectGradeBadges(slots) {
+    await Promise.all(slots.map(async s => {
+      if (!KP_GRADEABLE_STATUSES.includes(s.status) || !s.mid) return;
+      const el = document.getElementById(`kp-grade-${s._key}`);
+      if (!el) return;
+      const data = await window.KpGrade.fetchGrade(s.mid);
+      const html = window.KpGrade.renderGradeBadgesHtml(data);
+      if (html === '-') { el.textContent = '-'; return; }
+      el.outerHTML = `<div id="kp-grade-${s._key}" style="display:flex;flex-wrap:wrap;gap:3px;justify-content:center">${html}</div>`;
+    }));
+  }
+
   window.kpResetFilters = function() {
     document.getElementById('kp-filter-status').value = '';
+    document.getElementById('kp-filter-grade').value = '';
     document.getElementById('kp-filter-date').value = '';
     document.getElementById('kp-search').value = '';
     kpRenderReceipts();
@@ -2168,7 +2303,7 @@ document.addEventListener('keydown', function(e) {
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('kp-receipt-body').innerHTML =
-        '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
       allSlots = await HA.getKpSlots();
       _slotsLoaded = true;
       attachKpSlotsLiveSync();
@@ -2224,7 +2359,7 @@ document.addEventListener('keydown', function(e) {
     const page  = all.slice(start, start+PER_PAGE);
     const body  = document.getElementById('kp-receipt-body');
     if (!page.length) {
-      body.innerHTML = '<tr class="kp-empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="kp-empty-row"><td colspan="15">데이터가 없습니다.</td></tr>';
     } else {
       const numMap = new Map([...all].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)).map((s,idx)=>[s._key, idx+1]));
       body.innerHTML = page.map(s => `
@@ -2233,6 +2368,7 @@ document.addEventListener('keydown', function(e) {
           <td style="color:var(--text2)">${numMap.get(s._key)}</td>
           <td style="color:var(--text2)">${s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${kpEsc(s.agencyId||'-')}</td>
+          <td>${KP_GRADEABLE_STATUSES.includes(s.status) ? `<span id="kp-grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>` : `<span style="color:#cbd5e1">-</span>`}</td>
           <td>${s.url ? `<a href="${kpEsc(s.url)}" target="_blank" style="color:var(--kp-accent);font-weight:500;text-decoration:none;">${kpEsc(s.storeName||'-')}</a>` : kpEsc(s.storeName||'-')}</td>
           <td style="color:var(--text2);font-size:11px">${kpEsc(s.mid||'-')}</td>
           <td style="color:var(--text2)">${kpEsc(s.rankKeyword||'-')}</td>
@@ -2261,6 +2397,19 @@ document.addEventListener('keydown', function(e) {
         </tr>`).join('');
     }
     kpRenderPagination(all.length);
+    kpInjectGradeBadges(page);
+
+    // 등급 백그라운드 로드 — 미캐시 MID만 로드, 완료 시 필터 갱신(접수관리.html과 동일 패턴)
+    const uniqueMids = [...new Set(allSlots.filter(s => KP_GRADEABLE_STATUSES.includes(s.status) && s.mid).map(s => s.mid))];
+    const uncachedMids = uniqueMids.filter(mid => !window.KpGrade.cache.has(mid));
+    if (uncachedMids.length) {
+      window.KpGrade.fetchGradesBatch(uncachedMids).then(() => {
+        kpBuildGradeFilter(allSlots);
+        if (document.getElementById('kp-filter-grade').value) kpRenderReceipts(false);
+      });
+    } else {
+      kpBuildGradeFilter(allSlots);
+    }
   };
 
   function kpRenderPagination(total) {
@@ -2785,27 +2934,39 @@ document.addEventListener('keydown', function(e) {
     return '';
   }
 
-  function kpBuildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
+  // 등급 매칭 있으면 그 슬롯은 매칭 결과에서만(비활성이어도) 상품을 찾고, 없으면 기존처럼 활성 상품만 대상으로 한다.
+  // 재접수(isRequeue) 슬롯은 신규 접수가 아니라 기존 배분을 이어받는 성격이라 매칭 대상에서 제외.
+  function kpAllocRowsForSlot(r) {
     const AP = ap();
-    const deductProd = AP.find(p=>p.deductOnly);
+    const gradeProds = (window.KpGrade.state.gradeMatchOn && !r.isRequeue) ? window.KpGrade.matchedGradeProds(r.mid, prods) : [];
+    if (!gradeProds.length) {
+      return { alloc: allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: AP, gradeProds: null };
+    }
+    const asgn = [...AP.filter(p=>p.fixedAlloc), ...gradeProds];
+    return { alloc: allocate(asgn, r.dailyTarget||0, r.yupflKeyword, r.splitKeywords), prods: asgn, gradeProds };
+  }
+
+  function kpBuildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
+    const deductProd = ap().find(p=>p.deductOnly);
     const rows = [];
     let deductTarget = 0, deductAmount = 0;
     slots.forEach(r => {
-      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const { alloc, prods: slotProds, gradeProds } = kpAllocRowsForSlot(r);
       if (deductProd) {
         const dAmt = alloc[deductProd.id] || 0;
         if (dAmt > 0) { deductTarget += dAmt*(r.days||0); deductAmount += dAmt*(r.days||0)*(r.unitPrice||0); }
       }
-      AP.filter(prodFilter).forEach(prod => {
+      slotProds.filter(prodFilter).forEach(prod => {
         const pp = alloc[prod.id] ?? 0;
         if (pp <= 0) return;
         const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
+        const kw = gradeProds ? window.KpGrade.kwForGradeProd(r.searchKeyword||'', prod, gradeProds, lrm) : kwForProd(r.searchKeyword||'', prod);
         rows.push({
           _slotKey: r._key, _doneKey: prod.name,
           _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
           상품등급명: prod.name, 업체명: r.storeName||'', 업체URL: r.url||'', PID번호: r.mid||'',
           순위키워드: r.rankKeyword||'', 일목표: pp, 일수: daysVal, 예약일: r.startDate||'',
-          검색키워드: kwForProd(r.searchKeyword||'', prod),
+          검색키워드: kw,
         });
       });
     });
@@ -2824,27 +2985,53 @@ document.addEventListener('keydown', function(e) {
       const unitPrice = (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null;
       const base = s.dailyTarget||0;
       const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
-      if (yupfl) {
+      // MID가 이미 진행 중인 미션 번호를 알면 그대로 따름 — 1개면 유입플, 2개+면 분할로 강제
+      const known = (window.KpGrade.state.gradeMatchOn && !s.isRequeue) ? window.KpGrade.knownYupflMissionKeywords(s.mid) : null;
+      const knownMissions = known ? Object.keys(known).map(Number) : [];
+      if (knownMissions.length >= 2 && split) {
+        knownMissions.forEach(mission => {
+          const workKw = ((s.splitKeywords||{})[mission]||'').trim() || known[mission];
+          const yAmt = Math.min(yupflAlloc(remaining, 10), remaining);
+          if (yAmt <= 0) return;
+          rows.push({ _slotKey:s._key, _rowKey:`${s._key}__${mission}`, _prodId:'yupfl2', _prodLabel:split.name, _prodColor:split.color,
+            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[mission]), agencyId, unitPrice,
+            storeName:s.storeName||'', rankKw:s.rankKeyword||'', workKw, placeId:s.mid||'', target:yAmt, days:s.days||0,
+            startDate:s.startDate||'', autoMission: mission });
+        });
+      } else if (knownMissions.length === 1 && yupfl) {
+        const mission = knownMissions[0];
         const workKw = (s.yupflKeyword||'').trim();
-        const rule = yupflRuleFor(yupfl, workKw);
-        const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+        const rules = Array.isArray(yupfl.missionRules) ? yupfl.missionRules : [];
+        const rule = rules.find(r => r.mission === mission) || { mission, fixedPct: yupfl.fixedPct };
+        const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
         if (yAmt > 0) {
           rows.push({ _slotKey:s._key, _rowKey:s._key, _prodId:'yupfl', _prodLabel:yupfl.name, _prodColor:yupfl.color,
             _fixedSubmitted: !!s.fixedSubmitted, agencyId, unitPrice, storeName:s.storeName||'', rankKw:s.rankKeyword||'',
-            workKw, placeId:s.mid||'', target:yAmt, days:s.days||0, startDate:s.startDate||'', autoMission: rule?rule.mission:null });
+            workKw, placeId:s.mid||'', target:yAmt, days:s.days||0, startDate:s.startDate||'', autoMission: mission });
         }
-      }
-      if (split && Array.isArray(split.missionRules)) {
-        split.missionRules.forEach(rule => {
-          const workKw = ((s.splitKeywords||{})[rule.mission]||'').trim();
-          if (!workKw) return;
-          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
-          if (yAmt <= 0) return;
-          rows.push({ _slotKey:s._key, _rowKey:`${s._key}__${rule.mission}`, _prodId:'yupfl2', _prodLabel:split.name, _prodColor:split.color,
-            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]), agencyId, unitPrice,
-            storeName:s.storeName||'', rankKw:s.rankKeyword||'', workKw, placeId:s.mid||'', target:yAmt, days:s.days||0,
-            startDate:s.startDate||'', autoMission: rule.mission });
-        });
+      } else {
+        if (yupfl) {
+          const workKw = (s.yupflKeyword||'').trim();
+          const rule = yupflRuleFor(yupfl, workKw);
+          const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+          if (yAmt > 0) {
+            rows.push({ _slotKey:s._key, _rowKey:s._key, _prodId:'yupfl', _prodLabel:yupfl.name, _prodColor:yupfl.color,
+              _fixedSubmitted: !!s.fixedSubmitted, agencyId, unitPrice, storeName:s.storeName||'', rankKw:s.rankKeyword||'',
+              workKw, placeId:s.mid||'', target:yAmt, days:s.days||0, startDate:s.startDate||'', autoMission: rule?rule.mission:null });
+          }
+        }
+        if (split && Array.isArray(split.missionRules)) {
+          split.missionRules.forEach(rule => {
+            const workKw = ((s.splitKeywords||{})[rule.mission]||'').trim();
+            if (!workKw) return;
+            const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+            if (yAmt <= 0) return;
+            rows.push({ _slotKey:s._key, _rowKey:`${s._key}__${rule.mission}`, _prodId:'yupfl2', _prodLabel:split.name, _prodColor:split.color,
+              _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]), agencyId, unitPrice,
+              storeName:s.storeName||'', rankKw:s.rankKeyword||'', workKw, placeId:s.mid||'', target:yAmt, days:s.days||0,
+              startDate:s.startDate||'', autoMission: rule.mission });
+          });
+        }
       }
     });
     return rows;
@@ -2865,14 +3052,14 @@ document.addEventListener('keydown', function(e) {
     const n = Math.max(1, parseInt(baseProd.blogSplit, 10) || 1);
     const rows = [];
     slots.forEach(r => {
-      const prod = ap().find(p => p.id === prodId);
+      const { alloc, gradeProds } = kpAllocRowsForSlot(r);
+      const prod = gradeProds ? gradeProds.find(p => p.name === baseProd.name) : ap().find(p => p.id === prodId);
       if (!prod) return;
-      const alloc = allocate(ap().slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
       const pp = alloc[prod.id] ?? 0;
       if (pp <= 0) return;
       const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
       // 델타는 검색키워드를 별도로 나누지 않고 순위키워드를 그대로 쓴다 — 네이비는 일반 검색키워드 배분 그대로 사용
-      const kw = prodId === 'delta' ? (r.rankKeyword||'') : kwForProd(r.searchKeyword||'', prod);
+      const kw = prodId === 'delta' ? (r.rankKeyword||'') : (gradeProds ? window.KpGrade.kwForGradeProd(r.searchKeyword||'', prod, gradeProds, lrm) : kwForProd(r.searchKeyword||'', prod));
       splitEven(pp, n).forEach((partTarget, i) => {
         if (partTarget <= 0) return;
         const doneKey = `${prod.name}#${i+1}`;
@@ -3242,6 +3429,8 @@ document.addEventListener('keydown', function(e) {
 
   async function kpOpenSubmitModal(target) {
     await kpEnsureProds();
+    const uncachedMids = [...new Set(target.map(s=>s.mid).filter(Boolean))].filter(mid => !window.KpGrade.cache.has(mid));
+    if (uncachedMids.length) await window.KpGrade.fetchGradesBatch(uncachedMids);
     const agencies = kpGetAgencies(target);
     const normalPlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, ...kpBuildNormalRows(kpSlotsByAgency(target, ag)) }));
     // 찰리는 등급/가격 체계가 일반 상품과 다른 별도 메뉴(NP 위치저장)라 같은 grade-info 호출에 절대 안 섞이게 완전 분리
@@ -3262,8 +3451,17 @@ document.addEventListener('keydown', function(e) {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="kp-modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;">
-        <div class="kp-modal-title">배분 제출</div>
-        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:2px;">
+          <div class="kp-modal-title" style="margin-bottom:0;">배분 제출</div>
+          <button id="kp-grade-match-toggle" type="button" title="진행중인 MID가 있으면 동일한 상품으로 접수 — 끄면 상품 유형 설정 비율 그대로 배분"
+            style="display:flex;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px;">
+            <span style="font-size:12px;color:var(--text2);font-weight:600;">등급 자동매칭</span>
+            <span id="kp-grade-match-toggle-icon" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:${window.KpGrade.state.gradeMatchOn?'#16a34a':'#94a3b8'};flex-shrink:0;">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+          </button>
+        </div>
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;margin-top:10px;">
           <button id="kp-stab-normal" class="kp-submit-tab${defaultTab==='normal'?' active':''}" onclick="kpSwitchSubmitTab('normal')" style="${hasNormal?'':'display:none;'}">일반</button>
           <button id="kp-stab-fixed" class="kp-submit-tab${defaultTab==='fixed'?' active':''}" onclick="kpSwitchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
           <button id="kp-stab-charlie" class="kp-submit-tab${defaultTab==='charlie'?' active':''}" onclick="kpSwitchSubmitTab('charlie')" style="${hasCharlie?'':'display:none;'}">찰리</button>
@@ -3320,6 +3518,12 @@ document.addEventListener('keydown', function(e) {
     overlay.querySelector('#kp-youpfl-close-btn')?.addEventListener('click', () => overlay.remove());
     overlay.querySelector('#kp-csub-close-btn')?.addEventListener('click', () => overlay.remove());
     overlay.querySelector('#kp-bsub-close-btn')?.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#kp-grade-match-toggle')?.addEventListener('click', () => {
+      if (window.bizfitSubmitting) { alert('접수 진행 중에는 전환할 수 없습니다.'); return; }
+      window.KpGrade.state.gradeMatchOn = !window.KpGrade.state.gradeMatchOn;
+      overlay.remove();
+      kpOpenSubmitModal(target);
+    });
 
     // 찰리/델타는 버전체크 동적조회가 빈 값을 반환해 거부되는 실측 문제가 있어 상품 설정의 ver로 강제 override
     function kpProductVerFor(id) { return prods.find(p => p.id === id)?.ver; }
@@ -3341,9 +3545,9 @@ document.addEventListener('keydown', function(e) {
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => {
-        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...'; window.bizfitSubmitting = true;
         const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate, 'normalKeys');
-        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`; window.bizfitSubmitting = false;
       };
     }
     if (hasFixed) {
@@ -3361,7 +3565,7 @@ document.addEventListener('keydown', function(e) {
       });
       subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${byAgency.size}곳 · 유입플 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>`;
       if (yupflRows.every(r=>r._fixedSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
-      else applyBtn.onclick = () => kpExecuteYoupflSubmit(yupflRows, overlay, gate);
+      else applyBtn.onclick = async () => { window.bizfitSubmitting = true; await kpExecuteYoupflSubmit(yupflRows, overlay, gate); window.bizfitSubmitting = false; };
     }
     if (hasCharlie) {
       const bodyEl = overlay.querySelector('#kp-csub-body');
@@ -3380,9 +3584,9 @@ document.addEventListener('keydown', function(e) {
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => {
-        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...'; window.bizfitSubmitting = true;
         const { okTotal, failTotal } = await kpSubmitPlanRows(charliePlan, gate, 'charlieKeys', KP_CHARLIE_ADROLE, kpProductVerFor('charlie'));
-        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`; window.bizfitSubmitting = false;
       };
     }
     if (hasDelta || hasNavy) {
@@ -3409,14 +3613,14 @@ document.addEventListener('keydown', function(e) {
       if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => {
-        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...'; window.bizfitSubmitting = true;
         const results = await Promise.all([
           hasDelta ? kpSubmitPlanRows(deltaPlan, gate, 'deltaKeys', KP_DELTA_ADROLE, kpProductVerFor('delta')) : { okTotal:0, failTotal:0 },
           hasNavy ? kpSubmitPlanRows(navyPlan, gate, 'navyKeys', undefined, kpProductVerFor('navy')) : { okTotal:0, failTotal:0 },
         ]);
         const okTotal = results.reduce((a,r)=>a+r.okTotal,0);
         const failTotal = results.reduce((a,r)=>a+r.failTotal,0);
-        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`; window.bizfitSubmitting = false;
       };
     }
   }
