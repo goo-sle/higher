@@ -72,6 +72,11 @@ const PATHS = {
   kimproUsers:     'kimpro/users',
 };
 
+// 김프로 기능 데이터 전용(접수관리 ha/slots와 분리, 2026-09-10)
+const KP_PATHS = {
+  slots: 'ha/kimproSlots',
+};
+
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
 function snapToArray(snapshot) {
   if (!snapshot.exists()) return [];
@@ -210,11 +215,20 @@ const HA = {
     }
   },
 
-  // ── kimpro/slots 직접 쓰기(강제종료·키워드변경 이식용) ──────
-  // updateSlot()의 kimpro 미러링과 다름: 대상이 애초에 kimpro/slots에만 존재하는(마이그레이션 전) 슬롯이라
-  // ha/slots는 건드리지 않고 kimpro/slots만 직접 쓴다. kimpro/store.js의 동명 함수와 동일 동작.
-  async addKimproSlot(data) {
-    await ensureKimproAuth();
+  // ── 김프로(kimpro.kro.kr) 기능 데이터 전용 네임스페이스 ──────
+  // ha/kimproSlots 등 — 접수관리(ha/slots)와는 완전히 분리된 별도 저장소(2026-09-10 결정: 데이터를 섞지 않고
+  // 김프로.html이 독자적으로 소유). kimpro/slots(5,547건)를 그대로 복사해 마이그레이션 완료, ha/slots는 미접촉.
+  async getKpSlotsByMid(mid) {
+    const snap = await get(query(ref(db, KP_PATHS.slots), orderByChild('mid'), equalTo(mid)));
+    return snapToArray(snap);
+  },
+
+  async getKpSlots() {
+    const snap = await get(ref(db, KP_PATHS.slots));
+    return snapToArray(snap);
+  },
+
+  async addKpSlot(data) {
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
@@ -232,34 +246,25 @@ const HA = {
       searchKeyword: data.searchKeyword  || '',
       unitPrice:     data.unitPrice != null ? data.unitPrice : 0,
     };
-    const newRef = await push(ref(kimproDb, PATHS.kimproSlots), newSlot);
+    const newRef = await push(ref(db, KP_PATHS.slots), newSlot);
     return { ...newSlot, _key: newRef.key };
   },
 
-  async updateKimproSlot(key, patch) {
-    await ensureKimproAuth();
-    await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patch);
+  async updateKpSlot(key, patch) {
+    await update(ref(db, `${KP_PATHS.slots}/${key}`), patch);
   },
 
-  // username -> unitPrice 맵 (강제종료 배치 재접수 시 kimpro/users 조회용, kimpro/store.js getUnitPriceMap과 동일)
-  async getKimproUnitPriceMap() {
-    try {
-      await ensureKimproAuth();
-      const uSnap = await get(ref(kimproDb, PATHS.kimproUsers));
-      const map = {};
-      snapToArray(uSnap).forEach(u => { map[u.username] = u.unitPrice || 0; });
-      return map;
-    } catch (e) { return {}; }
+  // kimpro/users가 실제로는 항상 비어있었던 것과 동일한 실사용 결과(강제종료 배치 재접수 시 단가 스냅샷 0원) — 별도 저장소 없이 고정
+  async getKpUnitPriceMap() {
+    return {};
   },
 
-  // 강제종료/키워드변경 처리 목록 저장(kimpro/bizfit_stop, kimpro/bizfit_keyword) — kimpro/store.js의 getDoc/setDoc과 동일 형태(raw snapshot)
-  async getKimproDoc(path) {
-    await ensureKimproAuth();
-    return get(ref(kimproDb, path));
+  // 강제종료/키워드변경 처리 목록(ha/kimproBizfitStop, ha/kimproBizfitKeyword) — raw snapshot 반환
+  async getKpDoc(path) {
+    return get(ref(db, path));
   },
-  async setKimproDoc(path, val) {
-    await ensureKimproAuth();
-    return set(ref(kimproDb, path), val);
+  async setKpDoc(path, val) {
+    return set(ref(db, path), val);
   },
 
   async addSlot(data) {
