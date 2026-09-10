@@ -954,7 +954,7 @@
   // ── 앱 시작 ───────────────────────────────────────────────
   async function init() {
     if (sessionStorage.getItem('ha_admin_auth') !== '1') {
-      location.href = 'admin-login.html';
+      location.href = 'admin-login.html' + location.search;
       return;
     }
     // 사이드바 유저 정보 표시
@@ -973,7 +973,11 @@
     // seedIfEmpty를 기다리는 사이 사용자가 이미 다른 메뉴를 클릭했다면(navGen 증가)
     // 기본 랜딩 화면(대시보드/진행현황) 렌더는 건너뛴다 — 클릭 결과를 덮어쓰지 않도록.
     if (navGen === 0) {
-      await renderDashboard();
+      if (new URLSearchParams(location.search).get('page') === 'kimpro') {
+        enterKimpro(document.getElementById('nav-kimpro'));
+      } else {
+        await renderDashboard();
+      }
     }
     lucide.createIcons();
   }
