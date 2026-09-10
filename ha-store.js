@@ -350,6 +350,11 @@ const HA = {
     });
   },
 
+  // 임의 경로 조회(raw snapshot 반환) — 충전하기(ha/bizfit_charge 목록) 등 슬롯 CRUD에 안 걸리는 단순 조회용
+  async getDoc(path) {
+    return get(ref(db, path));
+  },
+
   async permanentDeleteSlot(key) {
     await Promise.all([
       remove(ref(db, `${PATHS.paid}/${key}`)),
