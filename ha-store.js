@@ -285,6 +285,10 @@ const HA = {
   async setKpDoc(path, val) {
     return set(ref(db, path), val);
   },
+  // 멀티패스 업데이트(키에 '/' 허용, 값 null이면 그 위치 삭제) — 예약 분할 현황 취소 등 여러 경로를 한 번에 갱신할 때
+  async updateKpDoc(path, patch) {
+    return update(ref(db, path), patch);
+  },
 
   async addSlot(data) {
     // 접수 시점 단가 스냅샷: userId로 현재 단가 조회 후 슬롯에 저장

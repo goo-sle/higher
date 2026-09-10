@@ -109,7 +109,7 @@
 
   <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
     <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
-    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenSplitScheduleModal()">⏰ 예약 분할 현황</button>
+    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="openKpSplitScheduleModal()">⏰ 예약 분할 현황</button>
     <button class="kp-action-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
     <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpSubmitDirect()">🚀 배분 제출 (선택 또는 전체 접수건)</button>
   </div>
@@ -4009,6 +4009,258 @@ document.addEventListener('keydown', function(e) {
     if (!target.length) { alert('접수(accepted) 상태인 캠페인이 없습니다.\n(체크박스를 선택하지 않으면 목록 전체 중 접수 상태 건을 대상으로 합니다)'); return; }
     if (!confirm(`${target.length}건을 실제 BizFit에 배분·제출합니다.\n\n진행하시겠습니까?`)) return;
     await kpOpenSubmitModal(target);
+  };
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     예약 분할 현황 (접수관리.html 이식 — 조회+검색/필터+그룹 펼치기/접기+검색키워드 인라인수정+전체취소.
+     "잔여 재분류"·"키워드 일괄분배"·"등급 변경" 세부 도구는 미이식(규모가 커서 별도, 필요시 추가 가능))
+══════════════════════════════════════════ -->
+<style>
+  #kimpro-page .kp-ss-table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+  #kimpro-page .kp-ss-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:8px 6px; text-align:center; border-bottom:1px solid var(--border); }
+  #kimpro-page .kp-ss-table tbody td { padding:7px 6px; border-bottom:1px solid var(--border); text-align:center; }
+</style>
+
+<div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
+  <div style="background:#fff;border-radius:14px;width:1100px;max-width:100%;padding:24px 28px;box-shadow:0 20px 60px rgba(0,0,0,.25);margin:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:15px;font-weight:700;">⏰ 예약 분할 현황</div>
+        <span id="kp-ss-count" style="font-size:12px;color:var(--text2);"></span>
+      </div>
+      <button onclick="closeKpSplitScheduleModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:13px;line-height:1;">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <select id="kp-ss-status-filter" onchange="kpRunScheduleSearch()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+        <option value="all" selected>전체</option>
+        <option value="done">완료</option>
+        <option value="pending">대기중</option>
+      </select>
+      <div style="position:relative;flex:1;min-width:200px;">
+        <input type="text" id="kp-ss-search" placeholder="🔍 업체명 / PID / 키워드 검색" onkeydown="if(event.key==='Enter')kpRunScheduleSearch()"
+          style="width:100%;box-sizing:border-box;padding:7px 28px 7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;">
+      </div>
+      <button onclick="kpRunScheduleSearch()" style="padding:7px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">검색</button>
+      <button onclick="kpToggleAllScheduleGroups()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;">펼치기/접기</button>
+    </div>
+    <div id="kp-ss-list"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button onclick="closeKpSplitScheduleModal()" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let ssEntries = {};
+  let ssCollapsed = new Set();
+  let ssLastGroups = [];
+
+  function ssEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtScheduleTime(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  function isScheduleDone(status) { return !!status && status !== 'pending'; }
+  function scheduleStatusLabel(status) {
+    if (status === 'cancelled') return `<span style="color:var(--muted);font-weight:600;">취소됨</span>`;
+    const done = isScheduleDone(status);
+    return `<span style="color:${done?'#ef4444':'#3b82f6'};font-weight:600;">${done?'완료':'대기중'}</span>`;
+  }
+  function ssKwCountBadge(str) {
+    const list = String(str||'').split(',').map(k=>k.trim()).filter(Boolean);
+    if (!list.length) return '<span style="color:#c0c8d4;font-size:11px;">-</span>';
+    return `<span title="${ssEsc(list.join(', '))}" style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${list.length}개</span>`;
+  }
+
+  async function reloadKpScheduleEntries() {
+    const snap = await window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null);
+    const val = (snap && snap.exists()) ? snap.val() : {};
+    ssEntries = {};
+    Object.entries(val).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k }; });
+  }
+
+  function filterScheduleEntries(entries) {
+    const q = (document.getElementById('kp-ss-search')?.value || '').trim().toLowerCase();
+    const statusFilter = document.getElementById('kp-ss-status-filter')?.value || 'all';
+    return entries.filter(e => {
+      const done = isScheduleDone(e.status);
+      if (statusFilter === 'pending' && done) return false;
+      if (statusFilter === 'done' && !done) return false;
+      if (!q) return true;
+      const row = (e.payload?.rowData || [])[0] || {};
+      return [row.업체명, row.PID번호, row.검색키워드, row.순위키워드].some(v => String(v||'').toLowerCase().includes(q));
+    });
+  }
+  function groupScheduleEntries(entries) {
+    const groups = new Map();
+    entries.forEach(e => {
+      const row = (e.payload?.rowData || [])[0] || {};
+      const gid = e.slotKey || row.PID번호 || row.업체명 || 'unknown';
+      if (!groups.has(gid)) groups.set(gid, { gid, store:row.업체명||'', pid:row.PID번호||'', agency:e.agency||'', items:[] });
+      groups.get(gid).items.push(e);
+    });
+    const list = [...groups.values()];
+    list.forEach(g => g.items.sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||'')));
+    const minSendAtByGid = new Map();
+    Object.values(ssEntries).forEach(e => {
+      const row = (e.payload?.rowData || [])[0] || {};
+      const gid = e.slotKey || row.PID번호 || row.업체명 || 'unknown';
+      const cur = minSendAtByGid.get(gid);
+      if (cur === undefined || (e.sendAt||'') < cur) minSendAtByGid.set(gid, e.sendAt||'');
+    });
+    list.sort((a,b) => (minSendAtByGid.get(a.gid)||'').localeCompare(minSendAtByGid.get(b.gid)||''));
+    return list;
+  }
+
+  window.openKpSplitScheduleModal = async function() {
+    const modal = document.getElementById('kp-ss-modal');
+    modal.style.display = 'flex';
+    document.getElementById('kp-ss-search').value = '';
+    document.getElementById('kp-ss-status-filter').value = 'all';
+    document.getElementById('kp-ss-list').innerHTML = '<div class="loading-wrap"><div class="spinner"></div>불러오는 중...</div>';
+    document.getElementById('kp-ss-count').textContent = '';
+    ssCollapsed = new Set();
+    await reloadKpScheduleEntries();
+    renderKpSplitScheduleList();
+    ssCollapsed = new Set(ssLastGroups.map(g => g.gid)); // 처음엔 전체 접힌 상태로
+    renderKpSplitScheduleList();
+  };
+  window.closeKpSplitScheduleModal = function() {
+    document.getElementById('kp-ss-modal').style.display = 'none';
+  };
+  window.kpToggleScheduleGroupAt = function(i) {
+    const g = ssLastGroups[i]; if (!g) return;
+    if (ssCollapsed.has(g.gid)) ssCollapsed.delete(g.gid); else ssCollapsed.add(g.gid);
+    renderKpSplitScheduleList();
+  };
+  window.kpToggleAllScheduleGroups = function() {
+    const allCollapsed = ssLastGroups.length > 0 && ssLastGroups.every(g => ssCollapsed.has(g.gid));
+    if (allCollapsed) ssCollapsed.clear(); else ssLastGroups.forEach(g => ssCollapsed.add(g.gid));
+    renderKpSplitScheduleList();
+  };
+  window.kpRunScheduleSearch = function() { renderKpSplitScheduleList(); };
+  window.kpUpdateScheduleKwCount = function(key, val) {
+    const el = document.getElementById(`kp-ss-kwcnt-${key}`);
+    if (el) el.innerHTML = ssKwCountBadge(val);
+  };
+
+  function renderKpSplitScheduleList() {
+    const listEl = document.getElementById('kp-ss-list');
+    const total = Object.keys(ssEntries).length;
+    const filtered = filterScheduleEntries(Object.values(ssEntries));
+    const groups = groupScheduleEntries(filtered);
+    ssLastGroups = groups;
+
+    if (!groups.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">조건에 맞는 항목이 없습니다.</div>';
+    } else {
+      listEl.innerHTML = groups.map((g,i) => {
+        const collapsed = ssCollapsed.has(g.gid);
+        const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
+        const pendCount = g.items.length - doneCount;
+        return `
+        <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;background:#f8fafc;">
+            <div onclick="kpToggleScheduleGroupAt(${i})" style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;flex:1;">
+              <span style="font-size:10px;color:var(--muted);flex-shrink:0;">${collapsed?'▶':'▼'}</span>
+              <span style="font-size:11px;color:#4338ca;font-weight:600;flex-shrink:0;">${ssEsc(g.agency||'대행사 미지정')}</span>
+              <span style="color:var(--muted);flex-shrink:0;">/</span>
+              <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ssEsc(g.store||'-')}</span>
+              <span style="color:var(--muted);flex-shrink:0;">/</span>
+              <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${ssEsc(g.pid||'-')}</span>
+              ${pendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="대기중 ${pendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
+            </div>
+            <div onclick="kpToggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;flex-shrink:0;">
+              전체 ${g.items.length}건 · <span style="color:#3b82f6;">대기중 ${pendCount}</span> · <span style="color:#ef4444;">완료 ${doneCount}</span>
+            </div>
+          </div>
+          ${collapsed ? '' : `
+          <table class="kp-ss-table">
+            <thead><tr>
+              <th style="width:11%">전송예정</th><th style="width:9%">PID</th><th style="width:8%">대행사</th>
+              <th style="width:11%">등급</th><th style="width:28%">검색키워드</th><th style="width:7%">키워드 수</th>
+              <th style="width:6%">일 목표</th><th style="width:5%">일 수</th><th style="width:8%">예약일</th><th style="width:7%">상태</th>
+            </tr></thead>
+            <tbody>
+              ${g.items.map(e => {
+                const row = (e.payload?.rowData || [])[0] || {};
+                const done = isScheduleDone(e.status);
+                return `<tr>
+                  <td style="font-size:11px;color:var(--text2);white-space:nowrap;">${fmtScheduleTime(e.sendAt)}</td>
+                  <td style="font-size:11px;color:var(--text2);">${ssEsc(row.PID번호||'-')}</td>
+                  <td style="font-size:11px;color:var(--text2);">${ssEsc(e.agency||'-')}</td>
+                  <td>${ssEsc(e.payload?.gradeName || row.상품등급명 || '-')}</td>
+                  <td><input type="text" value="${ssEsc(row.검색키워드||'')}" placeholder="검색키워드" ${done?'disabled':''}
+                    oninput="kpUpdateScheduleKwCount('${e._key}',this.value)"
+                    onblur="kpSaveScheduleKeyword('${e._key}',this)" onkeydown="if(event.key==='Enter')this.blur()"
+                    style="width:100%;font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;text-align:center;box-sizing:border-box;${done?'background:#f8fafc;color:var(--text2);':''}"></td>
+                  <td><span id="kp-ss-kwcnt-${e._key}">${ssKwCountBadge(row.검색키워드)}</span></td>
+                  <td>${(row.일목표||0).toLocaleString()}</td>
+                  <td>${row.일수||0}</td>
+                  <td>${ssEsc(row.예약일||'-')}</td>
+                  <td>${scheduleStatusLabel(e.status)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`}
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('kp-ss-count').textContent = filtered.length === total ? `전체 ${total}건` : `${filtered.length}건 표시 / 전체 ${total}건`;
+  }
+
+  window.kpSaveScheduleKeyword = async function(key, inputEl) {
+    if (isScheduleDone(ssEntries[key]?.status)) { inputEl.disabled = true; return; }
+    const val = inputEl.value.trim();
+    inputEl.disabled = true;
+    try {
+      await window.HA.updateKpDoc(`ha/kimproScheduledDispatch/${key}/payload/rowData/0`, { 검색키워드: val });
+      if (ssEntries[key]) { const row = (ssEntries[key].payload.rowData||[])[0]; if (row) row.검색키워드 = val; }
+      inputEl.style.borderColor = 'var(--kp-accent)';
+      setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 800);
+    } catch(e) {
+      alert('키워드 저장 실패: ' + (e.message||e));
+    } finally {
+      inputEl.disabled = false;
+    }
+  };
+
+  window.kpCancelAllSchedulePending = async function(slotKey) {
+    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    if (!targets.length) return;
+    if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
+    try {
+      const patch = {};
+      targets.forEach(e => { patch[`kimproScheduledDispatch/${e._key}`] = null; });
+      const batchSnap = await window.HA.getKpDoc(`ha/kimproScheduledBatches/${slotKey}`).catch(() => null);
+      if (batchSnap && batchSnap.exists()) {
+        const batch = batchSnap.val();
+        patch[`kimproScheduledBatches/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
+      }
+      await window.HA.updateKpDoc('ha', patch);
+      targets.forEach(e => { delete ssEntries[e._key]; });
+
+      const doneDates = [...new Set(
+        Object.values(ssEntries).filter(e => e.slotKey === slotKey && e.status === 'done')
+          .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
+      )].sort();
+      const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+      const s = allSlots.find(x => x._key === slotKey);
+      if (s) {
+        const slotPatch = { status:'ended', days: doneDates.length };
+        if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+        await window.HA.updateKpSlot(slotKey, slotPatch);
+        Object.assign(s, slotPatch);
+      }
+      renderKpSplitScheduleList();
+      if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+    } catch(err) {
+      alert('취소 처리 중 오류: ' + (err.message||err));
+    }
   };
 })();
 </script>
