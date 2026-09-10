@@ -5509,11 +5509,12 @@ document.addEventListener('keydown', function(e) {
   function kpIdSafe(s) { return encodeURIComponent(String(s)); }
   function kpEscJs(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
   function kpScheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
-  function kpGradeStructKey(gradeName) {
-    const p = (window.kpProdsRef ? window.kpProdsRef() : []).find(pr => pr.name === gradeName);
+  function kpGradeStructKey(gradeName, prodsList) {
+    const list = prodsList || (window.kpProdsRef ? window.kpProdsRef() : []);
+    const p = list.find(pr => pr.name === gradeName);
     return (p?.daysMultiplied ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
   }
-  async function kpFetchScheduleGradeGroups(sample) {
+  async function kpFetchScheduleGradeGroups(sample, prodsList) {
     const base = { domain: sample.payload?.domain || window.KP_BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: window.KP_BIZFIT_TAB, rawData: [] };
     const [giTraffic, giStorage] = await Promise.all([
       window.kpCallBizfitProxy('/grade-info', base).catch(() => ({ success:false })),
@@ -5521,7 +5522,7 @@ document.addEventListener('keydown', function(e) {
     ]);
     const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null, category: '트래픽' })) : [];
     const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장' })) : [];
-    return [...traffic, ...storage].map(g => ({ ...g, ckey: kpScheduleGradeCkey(g.adrole, g.gradeName), structKey: kpGradeStructKey(g.gradeName) }));
+    return [...traffic, ...storage].map(g => ({ ...g, ckey: kpScheduleGradeCkey(g.adrole, g.gradeName), structKey: kpGradeStructKey(g.gradeName, prodsList) }));
   }
 
   function ssEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -5542,18 +5543,43 @@ document.addEventListener('keydown', function(e) {
     return `<span title="${ssEsc(list.join(', '))}" style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${list.length}개</span>`;
   }
 
+  // ha 루트 밑 상대 경로 — 접수관리(ha/scheduled_dispatch)/김프로(ha/kimproScheduledDispatch) 둘 다
+  // 'ha' 밑이라 updateKpDoc('ha', patch) 하나로 같이 갱신 가능. 사용자 요청(2026-09-10)으로 예약 분할
+  // 현황을 양쪽 화면에서 합쳐 관리 — 접수관리.html과 동일한 패턴(항목별 _src로 쓰기 라우팅).
+  function kpScheduleDispatchSuffix(src) { return src === 'ha' ? 'scheduled_dispatch' : 'kimproScheduledDispatch'; }
+  function kpScheduleBatchSuffix(src)    { return src === 'ha' ? 'scheduled_batches'  : 'kimproScheduledBatches'; }
+  let _haProdsCache = null;
+  async function getHaProdsForSchedule() {
+    if (_haProdsCache) return _haProdsCache;
+    try {
+      const snap = await window.HA.getDoc('ha/prodSettings/prods');
+      const val = snap.exists() ? snap.val() : [];
+      _haProdsCache = Array.isArray(val) ? val : Object.values(val||{});
+    } catch (e) { _haProdsCache = []; }
+    return _haProdsCache;
+  }
+  async function kpProdsForScheduleSrc(src) {
+    if (src === 'ha') return await getHaProdsForSchedule();
+    return window.kpProdsRef ? window.kpProdsRef() : [];
+  }
+
   async function reloadKpScheduleEntries() {
-    const snap = await window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null);
-    const val = (snap && snap.exists()) ? snap.val() : {};
+    const [kpSnap, haSnap] = await Promise.all([
+      window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
+      window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
+    ]);
     ssEntries = {};
-    Object.entries(val).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k }; });
+    const kpVal = (kpSnap && kpSnap.exists()) ? kpSnap.val() : {};
+    Object.entries(kpVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'kp' }; });
+    const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
+    Object.entries(haVal).forEach(([k,v]) => { ssEntries[k] = { ...v, _key:k, _src:'ha' }; });
     // 마이그레이션 이전부터 있던 구 kimpro/scheduled_dispatch(레거시) 항목도 합쳐서 보여줌 —
     // bizfit-direct-proxy가 지금도 이 경로를 같이 폴링해 실제로 전송되는 예약이라 화면에 안 보이면
     // "예약" 통계 카드 숫자와 목록이 어긋나 보임. 레거시 항목은 kimpro-access 인증이 따로 필요해
-    // 읽기만 가능 — 취소/재분류/등급변경/키워드 수정 버튼은 _legacy 항목에서 숨김.
+    // 읽기만 가능 — 취소/재분류/등급변경/키워드 수정 버튼은 _src==='legacy' 항목에서 숨김.
     try {
       const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
-      legacyList.forEach(e => { ssEntries[e._key] = { ...e, _legacy: true }; });
+      legacyList.forEach(e => { ssEntries[e._key] = { ...e, _src:'legacy' }; });
     } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
   }
 
@@ -5640,7 +5666,9 @@ document.addEventListener('keydown', function(e) {
         const pendCount = g.items.length - doneCount;
         // 레거시(구 kimpro/scheduled_dispatch) 항목은 kimpro-access 인증이 따로 필요해 읽기만 가능 —
         // 취소/재분류/키워드 일괄분배 등 쓰기 액션은 신규 경로(ha/kimproScheduledDispatch) 대기건만 대상으로 함
-        const editablePendCount = g.items.filter(e => !e._legacy && !isScheduleDone(e.status)).length;
+        const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
+        const groupSrc = g.items.find(e => e._src === 'ha') ? 'ha' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'kp');
+        const srcBadge = groupSrc === 'ha' ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>' : '';
         const selCount = (kpSsResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -5652,6 +5680,7 @@ document.addEventListener('keydown', function(e) {
               <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ssEsc(g.store||'-')}</span>
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${ssEsc(g.pid||'-')}</span>
+              ${srcBadge}
               ${editablePendCount ? `<button onclick="event.stopPropagation();kpCancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:#dc2626;padding:0;flex-shrink:0;">✕</button>` : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
@@ -5679,7 +5708,7 @@ document.addEventListener('keydown', function(e) {
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
-                const done = isScheduleDone(e.status) || e._legacy;
+                const done = isScheduleDone(e.status) || e._src === 'legacy';
                 const checked = (kpSsResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `<tr>
                   <td>${done ? '' : `<input type="checkbox" ${checked?'checked':''} onchange="kpOnScheduleRowCheck('${g.gid}','${e._key}',this.checked)">`}</td>
@@ -5698,7 +5727,7 @@ document.addEventListener('keydown', function(e) {
                   <td>${(row.일목표||0).toLocaleString()}</td>
                   <td>${row.일수||0}</td>
                   <td>${ssEsc(row.예약일||'-')}</td>
-                  <td>${scheduleStatusLabel(e.status)}${e._legacy ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#f1f5f9;color:#64748b;">구버전</span>' : ''}</td>
+                  <td>${scheduleStatusLabel(e.status)}${e._src === 'legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#f1f5f9;color:#64748b;">구버전</span>' : ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -5710,11 +5739,12 @@ document.addEventListener('keydown', function(e) {
   }
 
   window.kpSaveScheduleKeyword = async function(key, inputEl) {
-    if (isScheduleDone(ssEntries[key]?.status) || ssEntries[key]?._legacy) { inputEl.disabled = true; return; }
+    const entry = ssEntries[key];
+    if (isScheduleDone(entry?.status) || entry?._src === 'legacy') { inputEl.disabled = true; return; }
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
-      await window.HA.updateKpDoc(`ha/kimproScheduledDispatch/${key}/payload/rowData/0`, { 검색키워드: val });
+      await window.HA.updateKpDoc(`ha/${kpScheduleDispatchSuffix(entry._src)}/${key}/payload/rowData/0`, { 검색키워드: val });
       if (ssEntries[key]) { const row = (ssEntries[key].payload.rowData||[])[0]; if (row) row.검색키워드 = val; }
       inputEl.style.borderColor = 'var(--kp-accent)';
       setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 800);
@@ -5726,16 +5756,19 @@ document.addEventListener('keydown', function(e) {
   };
 
   window.kpCancelAllSchedulePending = async function(slotKey) {
-    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
+    const targets = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     if (!targets.length) return;
     if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
+    const src = targets[0]._src === 'ha' ? 'ha' : 'kp';
+    const dispatchSuffix = kpScheduleDispatchSuffix(src);
+    const batchSuffix = kpScheduleBatchSuffix(src);
     try {
       const patch = {};
-      targets.forEach(e => { patch[`kimproScheduledDispatch/${e._key}`] = null; });
-      const batchSnap = await window.HA.getKpDoc(`ha/kimproScheduledBatches/${slotKey}`).catch(() => null);
+      targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
+      const batchSnap = await window.HA.getKpDoc(`ha/${batchSuffix}/${slotKey}`).catch(() => null);
       if (batchSnap && batchSnap.exists()) {
         const batch = batchSnap.val();
-        patch[`kimproScheduledBatches/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
+        patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
       }
       await window.HA.updateKpDoc('ha', patch);
       targets.forEach(e => { delete ssEntries[e._key]; });
@@ -5744,13 +5777,20 @@ document.addEventListener('keydown', function(e) {
         Object.values(ssEntries).filter(e => e.slotKey === slotKey && e.status === 'done')
           .map(e => (e.payload?.rowData||[])[0]?.예약일).filter(Boolean)
       )].sort();
-      const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
-      const s = allSlots.find(x => x._key === slotKey);
-      if (s) {
+      if (src === 'ha') {
+        // 접수관리 소유 슬롯(ha/slots) — 김프로 쪽 allSlots엔 없으므로 HA.updateSlot으로만 반영
         const slotPatch = { status:'ended', days: doneDates.length };
         if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-        await window.HA.updateKpSlot(slotKey, slotPatch);
-        Object.assign(s, slotPatch);
+        await window.HA.updateSlot(slotKey, slotPatch);
+      } else {
+        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+        const s = allSlots.find(x => x._key === slotKey);
+        if (s) {
+          const slotPatch = { status:'ended', days: doneDates.length };
+          if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+          await window.HA.updateKpSlot(slotKey, slotPatch);
+          Object.assign(s, slotPatch);
+        }
       }
       renderKpSplitScheduleList();
       if (window.kpRenderReceipts) window.kpRenderReceipts(false);
@@ -5774,11 +5814,13 @@ document.addEventListener('keydown', function(e) {
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderKpSplitScheduleList();
-      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
+      const items = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
-      const allGroups = sample ? await kpFetchScheduleGradeGroups(sample) : [];
-      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => kpGradeStructKey(e.payload?.gradeName || '')));
+      const groupSrc = sample?._src === 'ha' ? 'ha' : 'kp';
+      const prodsList = await kpProdsForScheduleSrc(groupSrc);
+      const allGroups = sample ? await kpFetchScheduleGradeGroups(sample, prodsList) : [];
+      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => kpGradeStructKey(e.payload?.gradeName || '', prodsList)));
       st.gradeGroups = allGroups.filter(g => curStructs.has(g.structKey));
       st.loading = false;
       const curKeys = [...new Set(targetItems.map(e => kpScheduleGradeCkey(e.adrole, e.payload?.gradeName)).filter(k => k && !k.endsWith('::')))];
@@ -5799,7 +5841,7 @@ document.addEventListener('keydown', function(e) {
     kpUpdateScheduleResplitSum(slotKey);
   };
   function kpComputeResplitBuckets(slotKey, grades, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => { const t = e.sendAt || ''; if (!byTime.has(t)) byTime.set(t, []); byTime.get(t).push(e); });
@@ -5816,7 +5858,7 @@ document.addEventListener('keydown', function(e) {
     return { buckets, violations };
   }
   function kpScheduleResplitPartialSendAts(slotKey, targetKeys) {
-    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy);
+    const allItems = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     const bySendAt = new Map();
     allItems.forEach(e => { const t = e.sendAt || ''; if (!bySendAt.has(t)) bySendAt.set(t, []); bySendAt.get(t).push(e); });
     const partial = [];
@@ -5922,28 +5964,31 @@ document.addEventListener('keydown', function(e) {
     const { buckets, violations } = kpComputeResplitBuckets(slotKey, grades, targetKeys);
     if (!buckets.length) return { created: 0, removed: 0 };
     if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.');
+    const src = buckets[0].bucket[0]?._src === 'ha' ? 'ha' : 'kp';
+    const dispatchSuffix = kpScheduleDispatchSuffix(src);
+    const batchSuffix = kpScheduleBatchSuffix(src);
     const patch = {};
     let removed = 0, created = 0;
     buckets.forEach(({ sendAt, bucket, amounts }) => {
       const sample = bucket[0];
       const sampleRow = (sample.payload?.rowData || [])[0] || {};
-      bucket.forEach(e => { patch[`kimproScheduledDispatch/${e._key}`] = null; removed++; });
+      bucket.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; removed++; });
       grades.forEach(g => {
         const amt = amounts[g.ckey] || 0;
         if (amt <= 0) return;
         const key = window.kpGenId();
-        patch[`kimproScheduledDispatch/${key}`] = {
+        patch[`${dispatchSuffix}/${key}`] = {
           slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
-          payload: { ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || window.KP_BIZFIT_TAB,
+          payload: { ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || sample.payload?.tab || window.KP_BIZFIT_TAB,
             rowData: [{ ...sampleRow, 일목표: amt, 상품등급명: g.gradeName }] },
           status: 'pending', createdAt: new Date().toISOString(),
         };
         created++;
       });
     });
-    const batchSnap = await window.HA.getKpDoc(`ha/kimproScheduledBatches/${slotKey}`).catch(() => null);
+    const batchSnap = await window.HA.getKpDoc(`ha/${batchSuffix}/${slotKey}`).catch(() => null);
     const batch = (batchSnap && batchSnap.exists()) ? batchSnap.val() : { total: 0 };
-    patch[`kimproScheduledBatches/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
+    patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
     await window.HA.updateKpDoc('ha', patch);
     return { created, removed };
   }
@@ -5973,7 +6018,7 @@ document.addEventListener('keydown', function(e) {
   function kpUpdateScheduleKwSplitPreview(slotKey) {
     const st = kpSsKwSplit[slotKey]; if (!st) return;
     const groups = kpScheduleKwSplitGroups(st);
-    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy).length;
+    const pendingCount = Object.values(ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy').length;
     const previewEl = document.getElementById(`kp-ss-kwsplit-preview-${slotKey}`);
     if (previewEl) previewEl.textContent = groups.length ? `${groups.length}그룹 생성 → 대기중 ${pendingCount}건 중 ${Math.min(groups.length, pendingCount)}건에 적용` : '';
     const btn = document.getElementById(`kp-ss-kwsplit-apply-${slotKey}`);
@@ -6008,7 +6053,7 @@ document.addEventListener('keydown', function(e) {
     const groups = kpScheduleKwSplitGroups(st);
     if (!groups.length) return;
     const pendingItems = Object.values(ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && !e._legacy)
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy')
       .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
     const targets = pendingItems.slice(0, groups.length);
     if (!targets.length) return;
@@ -6016,8 +6061,9 @@ document.addEventListener('keydown', function(e) {
     const leftoverGroups = groups.length - targets.length;
     const note = leftoverPending > 0 ? `초과분 대기중 ${leftoverPending}건은 그대로 둡니다.` : (leftoverGroups > 0 ? `남는 키워드 그룹 ${leftoverGroups}개는 사용하지 않습니다.` : '');
     if (!confirm(`대기중 ${targets.length}건에 키워드를 순서대로 채웁니다.${note ? '\n' + note : ''}\n계속할까요?`)) return;
+    const dispatchSuffix = kpScheduleDispatchSuffix(targets[0]._src === 'ha' ? 'ha' : 'kp');
     const patch = {};
-    targets.forEach((e, i) => { patch[`kimproScheduledDispatch/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
+    targets.forEach((e, i) => { patch[`${dispatchSuffix}/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
     try {
       await window.HA.updateKpDoc('ha', patch);
       targets.forEach((e, i) => { const row = (e.payload.rowData||[])[0]; if (row) row.검색키워드 = groups[i].join(','); });
@@ -6033,13 +6079,15 @@ document.addEventListener('keydown', function(e) {
   window.kpEditScheduleGrade = async function(key) {
     const e = ssEntries[key];
     const cell = document.getElementById(`kp-ss-grade-${key}`);
-    if (!e || !cell || isScheduleDone(e.status) || e._legacy) return;
+    if (!e || !cell || isScheduleDone(e.status) || e._src === 'legacy') return;
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
-    const groups = await kpFetchScheduleGradeGroups(e);
+    const groupSrc = e._src === 'ha' ? 'ha' : 'kp';
+    const prodsList = await kpProdsForScheduleSrc(groupSrc);
+    const groups = await kpFetchScheduleGradeGroups(e, prodsList);
     if (!groups.length) { cell.innerHTML = '<span style="color:#dc2626;font-size:11px;">등급 조회 실패</span>'; return; }
     const curName = e.payload?.gradeName || '';
     const curCkey = kpScheduleGradeCkey(e.adrole, curName);
-    const curStruct = kpGradeStructKey(curName);
+    const curStruct = kpGradeStructKey(curName, prodsList);
     const compatGroups = groups.filter(g => g.structKey === curStruct);
     const categories = [...new Set(compatGroups.map(g => g.category))];
     cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">
@@ -6052,7 +6100,7 @@ document.addEventListener('keydown', function(e) {
       if (!g) return;
       ev.target.disabled = true;
       try {
-        await window.HA.updateKpDoc(`ha/kimproScheduledDispatch/${key}`, {
+        await window.HA.updateKpDoc(`ha/${kpScheduleDispatchSuffix(groupSrc)}/${key}`, {
           adrole: g.adrole ?? null,
           'payload/gradeName': g.gradeName, 'payload/classType': g.classType, 'payload/gradeType': g.gradeType,
           'payload/tab': g.actualTab || window.KP_BIZFIT_TAB, 'payload/rowData/0/상품등급명': g.gradeName,

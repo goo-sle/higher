@@ -4750,6 +4750,17 @@ window.toggleProdPanel = function(e) {
   let _ssResplit = {}; // slotKey -> { open, loading, gradeGroups, sel:{gradeName:pct} } — 잔여 재분류 패널 상태
   let _ssKwSplit = {}; // slotKey -> { open, kwText, chunk } — 검색키워드 일괄분배 패널 상태
 
+  // ── 예약 분할 현황 — 접수관리(ha/scheduled_dispatch)와 김프로(ha/kimproScheduledDispatch)를
+  // 한 화면에 합쳐서 관리(사용자 요청, 2026-09-10 — "서로 다른 서버라서 막아뒀던 것"이었는데
+  // 지금은 같은 프로젝트/DB라 저장은 분리 유지하면서 화면만 합침, 정산관리.html과 동일한 패턴).
+  // 항목의 _src('ha'|'kp'|'legacy')로 쓰기 액션을 올바른 저장소로 라우팅. 구 kimpro/scheduled_dispatch
+  // (레거시, kimpro-access 인증 필요)는 읽기 전용으로만 합침.
+  // ha/ 루트 아래 상대 경로 — 두 노드 다 'ha' 밑이라 fbUpdate('ha', patch) 하나로 같이 갱신 가능
+  function scheduleDispatchSuffix(src) { return src === 'kp' ? 'kimproScheduledDispatch' : 'scheduled_dispatch'; }
+  function scheduleBatchSuffix(src)    { return src === 'kp' ? 'kimproScheduledBatches'  : 'scheduled_batches'; }
+  function scheduleDispatchNode(src) { return `ha/${scheduleDispatchSuffix(src)}`; }
+  function scheduleBatchNode(src)    { return `ha/${scheduleBatchSuffix(src)}`; }
+
   function fmtScheduleTime(iso) {
     if (!iso) return '-';
     const d = new Date(iso);
@@ -4761,10 +4772,17 @@ window.toggleProdPanel = function(e) {
   }
 
   async function reloadScheduleEntries() {
-    const snap = await fbGet('ha/scheduled_dispatch');
-    const val = snap.exists() ? snap.val() : {};
+    const [haSnap, kpSnap, legacyList] = await Promise.all([
+      fbGet('ha/scheduled_dispatch'),
+      fbGet('ha/kimproScheduledDispatch'),
+      HA.getKimproLegacyScheduledDispatch().catch(() => []),
+    ]);
     _ssEntries = {};
-    Object.entries(val).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k }; });
+    const haVal = haSnap.exists() ? haSnap.val() : {};
+    Object.entries(haVal).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'ha' }; });
+    const kpVal = kpSnap.exists() ? kpSnap.val() : {};
+    Object.entries(kpVal).forEach(([k, v]) => { _ssEntries[k] = { ...v, _key: k, _src: 'kp' }; });
+    legacyList.forEach(e => { _ssEntries[e._key] = { ...e, _src: 'legacy' }; });
     renderSplitScheduleList();
   }
 
@@ -4890,6 +4908,11 @@ window.toggleProdPanel = function(e) {
         const collapsed = _ssCollapsed.has(g.gid);
         const doneCount = g.items.filter(e => isScheduleDone(e.status)).length;
         const pendCount = g.items.length - doneCount;
+        // 레거시(구 kimpro/scheduled_dispatch)는 kimpro-access 인증이 따로 필요해 읽기만 가능 —
+        // 취소/재분류/키워드 일괄분배는 신규 경로(ha/scheduled_dispatch·ha/kimproScheduledDispatch) 대기건만 대상
+        const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
+        const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'ha');
+        const srcBadge = groupSrc === 'kp' ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>' : '';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
@@ -4901,15 +4924,16 @@ window.toggleProdPanel = function(e) {
               <span style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escProd(g.store||'-')}</span>
               <span style="color:var(--muted);flex-shrink:0;">/</span>
               <span style="font-size:11px;color:var(--text2);font-family:monospace;flex-shrink:0;">${escProd(g.pid||'-')}</span>
-              ${pendCount
-                ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="대기중 ${pendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
+              ${srcBadge}
+              ${editablePendCount
+                ? `<button onclick="event.stopPropagation();cancelAllSchedulePending('${g.gid}')" title="대기중 ${editablePendCount}건 일괄 취소" style="border:none;background:none;cursor:pointer;font-size:12px;color:var(--danger);padding:0;flex-shrink:0;">✕</button>`
                 : ''}
             </div>
             <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-              ${pendCount
+              ${editablePendCount
                 ? `<button onclick="event.stopPropagation();toggleScheduleResplit('${g.gid}')" style="padding:3px 9px;border:1px solid #c7d2fe;border-radius:100px;background:#eef2ff;color:#4338ca;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">🔀 ${selCount ? `선택 ${selCount}건 재분류` : '잔여 재분류'}</button>`
                 : `<button style="padding:3px 9px;border:1px solid transparent;border-radius:100px;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;visibility:hidden;">🔀 잔여 재분류</button>`}
-              ${pendCount
+              ${editablePendCount
                 ? `<button onclick="event.stopPropagation();toggleScheduleKwSplit('${g.gid}')" style="padding:3px 9px;border:1px solid #bbf7d0;border-radius:100px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap;">✂️ 키워드 일괄분배</button>`
                 : ''}
               <div onclick="toggleScheduleGroupAt(${i})" style="font-size:11px;color:var(--text2);white-space:nowrap;cursor:pointer;">
@@ -4934,7 +4958,7 @@ window.toggleProdPanel = function(e) {
             <tbody>
               ${g.items.map(e => {
                 const row = (e.payload?.rowData || [])[0] || {};
-                const done = isScheduleDone(e.status);
+                const done = isScheduleDone(e.status) || e._src === 'legacy';
                 const checked = (_ssResplit[g.gid]?.selectedKeys || new Set()).has(e._key);
                 return `
                 <tr>
@@ -4957,7 +4981,7 @@ window.toggleProdPanel = function(e) {
                   <td style="text-align:center">${row.일수||0}</td>
                   <td style="text-align:center">${escProd(row.예약일||'-')}</td>
                   <td style="text-align:center">
-                    ${scheduleStatusLabel(e.status)}
+                    ${scheduleStatusLabel(e.status)}${e._src==='legacy' ? ' <span title="이관 전 원본 kimpro 예약 — 읽기 전용" style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:#f1f5f9;color:#64748b;">구버전</span>' : ''}
                   </td>
                 </tr>`;
               }).join('')}
@@ -4980,15 +5004,30 @@ window.toggleProdPanel = function(e) {
   // (찰리/델타가 이 계열) gradeName만으론 구분이 안 됨 — 계열까지 합친 조합키로 고유하게 식별한다.
   function scheduleGradeCkey(adrole, gradeName) { return (adrole ? 'storage' : 'traffic') + '::' + gradeName; }
 
+  // 김프로 상품 설정(ha/kimproProdSettings)은 접수관리 자체 prods와 별도 — kp 출처 항목의 등급
+  // 구조 판정엔 반드시 이걸 써야 함(두 시스템 prods가 값이 다를 수 있어 섞어 쓰면 오판정 위험).
+  let _kpProdsCache = null;
+  async function getKpProdsForSchedule() {
+    if (_kpProdsCache) return _kpProdsCache;
+    try {
+      const snap = await fbGet('ha/kimproProdSettings/prods');
+      const val = snap.exists() ? snap.val() : [];
+      _kpProdsCache = Array.isArray(val) ? val : Object.values(val||{});
+    } catch (e) { _kpProdsCache = []; }
+    return _kpProdsCache;
+  }
+  function prodsForSchedule(src, kpProds) { return src === 'kp' ? (kpProds || []) : prods; }
+
   // 등급별 요구값(rowData) 구조 시그니처 — daysMultiplied(일수 칸=총목표) · blogUrlProduct(블로그URL 필요) 중 하나라도 다르면
   // 저장돼 있는 rowData(일목표/일수/블로그URL 등)를 그대로 못 쓰므로 등급만 바꿔치기하면 접수가 깨진다. prods에 없는 이름(일반 등급 티어)은 둘 다 false로 간주.
-  function gradeStructKey(gradeName) {
-    const p = prods.find(pr => pr.name === gradeName);
+  function gradeStructKey(gradeName, prodsList) {
+    const list = prodsList || prods;
+    const p = list.find(pr => pr.name === gradeName);
     return (p?.daysMultiplied ? 'D' : '') + (p?.blogUrlProduct ? 'B' : '');
   }
 
   // 트래픽/저장 두 계열 다 조회해 합쳐서 반환 — 하나만 조회하면 반대 계열 등급이 선택지에 안 뜸.
-  async function fetchScheduleGradeGroups(sample) {
+  async function fetchScheduleGradeGroups(sample, prodsList) {
     const base = { domain: sample.payload?.domain || BIZFIT_DOMAIN, loginId: sample.payload?.loginId, pwd: sample.payload?.pwd, tab: BIZFIT_TAB, rawData: [] };
     const [giTraffic, giStorage] = await Promise.all([
       callBizfitProxy('/grade-info', base).catch(() => ({ success:false })),
@@ -4996,7 +5035,7 @@ window.toggleProdPanel = function(e) {
     ]);
     const traffic = (giTraffic.success && giTraffic.gradeGroups) ? giTraffic.gradeGroups.map(g => ({ ...g, adrole: null,  category: '트래픽' })) : [];
     const storage = (giStorage.success && giStorage.gradeGroups) ? giStorage.gradeGroups.map(g => ({ ...g, adrole: '100', category: '저장'   })) : [];
-    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName) }));
+    return [...traffic, ...storage].map(g => ({ ...g, ckey: scheduleGradeCkey(g.adrole, g.gradeName), structKey: gradeStructKey(g.gradeName, prodsList) }));
   }
 
   // 그룹당 하나만 존재하는 재분류 상태 — 패널 열기 전에 행 체크박스를 먼저 누를 수도 있어서
@@ -5019,12 +5058,15 @@ window.toggleProdPanel = function(e) {
     if (st.open && !st.gradeGroups && !st.loading) {
       st.loading = true;
       renderSplitScheduleList();
-      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+      const items = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
       const targetItems = st.selectedKeys.size ? items.filter(e => st.selectedKeys.has(e._key)) : items;
       const sample = targetItems[0] || items[0];
-      const allGroups = sample ? await fetchScheduleGradeGroups(sample) : [];
+      const groupSrc = sample?._src === 'kp' ? 'kp' : 'ha';
+      const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
+      const prodsList = prodsForSchedule(groupSrc, kpProds);
+      const allGroups = sample ? await fetchScheduleGradeGroups(sample, prodsList) : [];
       // rowData 구조가 이미 저장돼 있어 되돌릴 수 없으므로, 지금 대상들이 쓰는 등급과 요구값 구조(daysMultiplied/blogUrlProduct)가 같은 등급으로만 재분류를 제한한다
-      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => gradeStructKey(e.payload?.gradeName || '')));
+      const curStructs = new Set((targetItems.length ? targetItems : items).map(e => gradeStructKey(e.payload?.gradeName || '', prodsList)));
       st.gradeGroups = allGroups.filter(g => curStructs.has(g.structKey));
       st.loading = false;
       // 시작점 제공 — 대상(선택했으면 선택분, 아니면 전체)이 지금 쓰고 있는 등급들을 기본 체크해두고
@@ -5063,7 +5105,7 @@ window.toggleProdPanel = function(e) {
   // 같은 sendAt끼리 묶어 비율대로 나누고, 조각이 최소수량 미만이면 조용히 버리지 않고 violations로
   // 보고해 실행을 막는다(안 그러면 그 등급분 수량이 표시 없이 증발).
   function computeResplitBuckets(slotKey, grades, targetKeys) {
-    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     const items = targetKeys ? allItems.filter(e => targetKeys.has(e._key)) : allItems;
     const byTime = new Map();
     items.forEach(e => {
@@ -5089,7 +5131,7 @@ window.toggleProdPanel = function(e) {
   // 같은 sendAt에 묶인 항목을 일부만 재분류하면 그 시각의 목표가 반쪽만 재분배돼 수량이 어긋남 —
   // 걸치는 시각이 있으면 실행 자체를 막는다.
   function scheduleResplitPartialSendAts(slotKey, targetKeys) {
-    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const allItems = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     const bySendAt = new Map();
     allItems.forEach(e => {
       const t = e.sendAt || '';
@@ -5212,6 +5254,9 @@ window.toggleProdPanel = function(e) {
     if (!buckets.length) return { created: 0, removed: 0 };
     if (violations.length) throw new Error('최소 접수 수량 미만인 조각이 있어 중단했습니다.'); // applyScheduleResplitClick에서 이미 막지만 방어적으로 재확인
 
+    const src = buckets[0].bucket[0]?._src === 'kp' ? 'kp' : 'ha';
+    const dispatchSuffix = scheduleDispatchSuffix(src);
+    const batchSuffix = scheduleBatchSuffix(src);
     const patch = {};
     let removed = 0, created = 0;
 
@@ -5219,13 +5264,13 @@ window.toggleProdPanel = function(e) {
       const sample = bucket[0];
       const sampleRow = (sample.payload?.rowData || [])[0] || {};
 
-      bucket.forEach(e => { patch[`scheduled_dispatch/${e._key}`] = null; removed++; });
+      bucket.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; removed++; });
 
       grades.forEach(g => {
         const amt = amounts[g.ckey] || 0;
         if (amt <= 0) return;
         const key = genId();
-        patch[`scheduled_dispatch/${key}`] = {
+        patch[`${dispatchSuffix}/${key}`] = {
           slotKey, batchGroupId: sample.batchGroupId, sendAt, endpoint: sample.endpoint, agency: sample.agency || '', adrole: g.adrole ?? null,
           payload: {
             ...sample.payload, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, tab: g.actualTab || BIZFIT_TAB,
@@ -5237,9 +5282,9 @@ window.toggleProdPanel = function(e) {
       });
     });
 
-    const batchSnap = await fbGet(`ha/scheduled_batches/${slotKey}`);
+    const batchSnap = await fbGet(`ha/${batchSuffix}/${slotKey}`);
     const batch = batchSnap.exists() ? batchSnap.val() : { total: 0 };
-    patch[`scheduled_batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
+    patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - removed + created);
 
     await fbUpdate('ha', patch);
     return { created, removed };
@@ -5248,17 +5293,20 @@ window.toggleProdPanel = function(e) {
   // 대기중 일괄취소 — 전송 전이라 비즈핏 API 없이 예약 항목만 삭제, scheduled_batches/total도 같이
   // 줄여야 서버가 그룹 완료를 정확히 판정. 강제종료와 동일하게 실제로 나간 날짜만 인정해 일수/종료일 축소.
   window.cancelAllSchedulePending = async function(slotKey) {
-    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status));
+    const targets = Object.values(_ssEntries).filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy');
     if (!targets.length) return;
     if (!confirm(`대기중 ${targets.length}건을 취소합니다. 캠페인은 실제로 나간 날짜까지만 인정되고 종료 처리됩니다. 계속할까요?`)) return;
 
+    const src = targets[0]._src === 'kp' ? 'kp' : 'ha';
+    const dispatchSuffix = scheduleDispatchSuffix(src);
+    const batchSuffix = scheduleBatchSuffix(src);
     try {
       const patch = {};
-      targets.forEach(e => { patch[`scheduled_dispatch/${e._key}`] = null; });
-      const batchSnap = await fbGet(`ha/scheduled_batches/${slotKey}`);
+      targets.forEach(e => { patch[`${dispatchSuffix}/${e._key}`] = null; });
+      const batchSnap = await fbGet(`ha/${batchSuffix}/${slotKey}`);
       if (batchSnap.exists()) {
         const batch = batchSnap.val();
-        patch[`scheduled_batches/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
+        patch[`${batchSuffix}/${slotKey}/total`] = Math.max(0, (batch.total||0) - targets.length);
       }
       await fbUpdate('ha', patch);
       targets.forEach(e => { delete _ssEntries[e._key]; });
@@ -5269,13 +5317,20 @@ window.toggleProdPanel = function(e) {
           .map(e => (e.payload?.rowData||[])[0]?.예약일)
           .filter(Boolean)
       )].sort();
-      const slotSnap = await fbGet(`ha/slots/${slotKey}`);
-      if (slotSnap.exists()) {
+      if (src === 'kp') {
+        // 김프로 소유 슬롯(ha/kimproSlots) — 접수관리 자체 allSlots엔 없으므로 HA.updateKpSlot으로만 반영
         const slotPatch = { status: 'ended', days: doneDates.length };
         if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
-        await HA.updateSlot(slotKey, slotPatch);
-        const s = allSlots.find(x => x._key === slotKey);
-        if (s) Object.assign(s, slotPatch);
+        await HA.updateKpSlot(slotKey, slotPatch);
+      } else {
+        const slotSnap = await fbGet(`ha/slots/${slotKey}`);
+        if (slotSnap.exists()) {
+          const slotPatch = { status: 'ended', days: doneDates.length };
+          if (doneDates.length) slotPatch.endDate = doneDates[doneDates.length-1];
+          await HA.updateSlot(slotKey, slotPatch);
+          const s = allSlots.find(x => x._key === slotKey);
+          if (s) Object.assign(s, slotPatch);
+        }
       }
 
       renderSplitScheduleList();
@@ -5360,7 +5415,7 @@ window.toggleProdPanel = function(e) {
     if (!groups.length) return; // 적용 버튼이 이미 막혀있어 정상 흐름에서 도달 안 함 — 방어적으로만 남겨둠(팝업 없음)
 
     const pendingItems = Object.values(_ssEntries)
-      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status))
+      .filter(e => e.slotKey === slotKey && !isScheduleDone(e.status) && e._src !== 'legacy')
       .sort((a,b) => (a.sendAt||'').localeCompare(b.sendAt||''));
     const targets = pendingItems.slice(0, groups.length);
     if (!targets.length) return;
@@ -5370,8 +5425,9 @@ window.toggleProdPanel = function(e) {
     const note = leftoverPending > 0 ? `초과분 대기중 ${leftoverPending}건은 그대로 둡니다.` : (leftoverGroups > 0 ? `남는 키워드 그룹 ${leftoverGroups}개는 사용하지 않습니다.` : '');
     if (!confirm(`대기중 ${targets.length}건에 키워드를 순서대로 채웁니다.${note ? '\n' + note : ''}\n계속할까요?`)) return;
 
+    const dispatchSuffix = scheduleDispatchSuffix(targets[0]._src === 'kp' ? 'kp' : 'ha');
     const patch = {};
-    targets.forEach((e, i) => { patch[`scheduled_dispatch/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
+    targets.forEach((e, i) => { patch[`${dispatchSuffix}/${e._key}/payload/rowData/0/검색키워드`] = groups[i].join(','); });
 
     try {
       await fbUpdate('ha', patch);
@@ -5388,11 +5444,12 @@ window.toggleProdPanel = function(e) {
 
   // 검색키워드 변경 — 실제 접수 시 서버에 그대로 전송되는 값이라 payload.rowData[0]만 patch하면 충분
   window.saveScheduleKeyword = async function(key, inputEl) {
-    if (isScheduleDone(_ssEntries[key]?.status)) { inputEl.disabled = true; return; } // 완료된 항목은 수정 불가
+    const entry = _ssEntries[key];
+    if (isScheduleDone(entry?.status) || entry?._src === 'legacy') { inputEl.disabled = true; return; } // 완료/레거시 항목은 수정 불가
     const val = inputEl.value.trim();
     inputEl.disabled = true;
     try {
-      await fbUpdate(`ha/scheduled_dispatch/${key}/payload/rowData/0`, { 검색키워드: val });
+      await fbUpdate(`ha/${scheduleDispatchSuffix(entry._src === 'kp' ? 'kp' : 'ha')}/${key}/payload/rowData/0`, { 검색키워드: val });
       if (_ssEntries[key]) {
         const row = (_ssEntries[key].payload.rowData || [])[0]; if (row) row.검색키워드 = val;
       }
@@ -5410,9 +5467,12 @@ window.toggleProdPanel = function(e) {
   window.editScheduleGrade = async function(key) {
     const e = _ssEntries[key];
     const cell = document.getElementById(`ss-grade-${key}`);
-    if (!e || !cell || isScheduleDone(e.status)) return; // 완료된 항목은 수정 불가
+    if (!e || !cell || isScheduleDone(e.status) || e._src === 'legacy') return; // 완료/레거시 항목은 수정 불가
     cell.innerHTML = '<span style="font-size:11px;color:var(--muted);">불러오는 중...</span>';
-    const groups = await fetchScheduleGradeGroups(e);
+    const groupSrc = e._src === 'kp' ? 'kp' : 'ha';
+    const kpProds = groupSrc === 'kp' ? await getKpProdsForSchedule() : null;
+    const prodsList = prodsForSchedule(groupSrc, kpProds);
+    const groups = await fetchScheduleGradeGroups(e, prodsList);
     if (!groups.length) {
       cell.innerHTML = '<span style="color:var(--danger);font-size:11px;">등급 조회 실패</span>';
       return;
@@ -5420,7 +5480,7 @@ window.toggleProdPanel = function(e) {
     const curName = e.payload?.gradeName || '';
     const curCkey = scheduleGradeCkey(e.adrole, curName);
     // rowData(일목표/일수/블로그URL 등)는 그대로 두고 등급 메타만 바꾸므로, 요구값 구조(daysMultiplied/blogUrlProduct)가 다른 등급은 고를 수 없게 막는다
-    const curStruct = gradeStructKey(curName);
+    const curStruct = gradeStructKey(curName, prodsList);
     const compatGroups = groups.filter(g => g.structKey === curStruct);
     const categories = [...new Set(compatGroups.map(g => g.category))];
     cell.innerHTML = `<select style="font-size:12px;font-family:inherit;padding:3px 6px;border:1px solid var(--border);border-radius:5px;max-width:100%;">
@@ -5433,7 +5493,7 @@ window.toggleProdPanel = function(e) {
       if (!g) return;
       ev.target.disabled = true;
       try {
-        await fbUpdate(`ha/scheduled_dispatch/${key}`, {
+        await fbUpdate(`ha/${scheduleDispatchSuffix(groupSrc)}/${key}`, {
           adrole: g.adrole ?? null,
           'payload/gradeName':  g.gradeName,
           'payload/classType':  g.classType,
