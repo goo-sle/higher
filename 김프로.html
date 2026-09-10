@@ -74,6 +74,56 @@
     #kimpro-page .kp-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
     #kimpro-page .kp-btn-cancel { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
     #kimpro-page .kp-btn-save { padding:8px 20px; border:none; border-radius:7px; background:var(--kp-accent); color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
+    /* 상품 유형 설정 패널 */
+    #kimpro-page .kp-prod-panel { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
+    #kimpro-page .kp-prod-ph { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; cursor:pointer; user-select:none; transition:background .15s; }
+    #kimpro-page .kp-prod-ph:hover { background:#f1f5f9; }
+    #kimpro-page .kp-prod-ph-title { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; }
+    #kimpro-page .kp-prod-pb { padding:14px 16px; }
+    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph { border-bottom:none; }
+    #kimpro-page .kp-prod-panel.collapsed .kp-prod-pb { display:none; }
+    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph-desc { display:none; }
+    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph-actions { display:none !important; }
+    #kimpro-page .kp-prod-toggle-icon { transition:transform .2s; }
+    #kimpro-page .kp-prod-panel.collapsed .kp-prod-toggle-icon { transform:rotate(-90deg); }
+    #kimpro-page .kp-ps-two-row { display:flex; flex-direction:column; gap:0; }
+    #kimpro-page .kp-ps-row { display:flex; align-items:center; gap:6px; }
+    #kimpro-page .kp-ps-row-inner { display:flex; gap:8px; flex:1; min-width:0; flex-wrap:wrap; }
+    #kimpro-page .kp-ps-sect-lbl { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; min-width:26px; }
+    #kimpro-page .kp-ps-divider-h { height:1px; background:var(--border); margin:9px 0; }
+    #kimpro-page .kp-ps-item { display:flex; align-items:center; gap:7px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:6px 12px; transition:all .2s; cursor:pointer; user-select:none; flex-shrink:0; }
+    #kimpro-page .kp-ps-item:hover { border-color:rgba(0,0,0,.15); background:#fff; }
+    #kimpro-page .kp-ps-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:2px solid rgba(0,0,0,.08); }
+    #kimpro-page .kp-ps-name { font-size:13px; font-weight:700; white-space:nowrap; }
+    #kimpro-page .kp-ps-tog { width:30px; height:17px; border-radius:9px; border:none; cursor:pointer; position:relative; transition:background .2s; flex-shrink:0; }
+    #kimpro-page .kp-ps-tog.on { background:var(--info,#3b82f6); }
+    #kimpro-page .kp-ps-tog.off { background:#cbd5e1; }
+    #kimpro-page .kp-ps-tog::after { content:''; position:absolute; top:2.5px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left .2s; }
+    #kimpro-page .kp-ps-tog.on::after { left:16px; }
+    #kimpro-page .kp-ps-tog.off::after { left:2px; }
+    /* 상품 설정 모달 */
+    #kimpro-page .kp-prod-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9500; display:none; align-items:center; justify-content:center; }
+    #kimpro-page .kp-prod-modal-bg.show { display:flex; }
+    #kimpro-page .kp-prod-modal { background:#fff; border-radius:14px; width:460px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.2); }
+    #kimpro-page .kp-prod-modal-head { padding:13px 18px; background:#f8fafc; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+    #kimpro-page .kp-prod-modal-head h3 { font-size:13px; font-weight:700; flex:1; }
+    #kimpro-page .kp-prod-modal-close { width:24px; height:24px; border:none; background:#e2e8f0; border-radius:5px; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; }
+    #kimpro-page .kp-prod-modal-close:hover { background:rgba(239,68,68,.15); color:#ef4444; }
+    #kimpro-page .kp-prod-modal-body { padding:18px; display:flex; flex-direction:column; gap:14px; }
+    #kimpro-page .kp-pmf label { display:block; font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    #kimpro-page .kp-ratio-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    #kimpro-page .kp-ratio-item { background:#f8fafc; border:1px solid var(--border); border-radius:7px; padding:6px 10px; display:flex; align-items:center; gap:6px; }
+    #kimpro-page .kp-ri-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    #kimpro-page .kp-ri-name { font-size:11px; font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #kimpro-page .kp-ratio-item input[type=number] { width:52px; border:1px solid var(--border); border-radius:5px; padding:3px 6px; font-size:12px; font-family:monospace; outline:none; text-align:center; background:#fff; }
+    #kimpro-page .kp-ratio-note { font-size:11px; color:var(--muted); text-align:right; margin-top:4px; font-family:monospace; }
+    #kimpro-page .kp-ratio-note.ok { color:#10b981; }
+    #kimpro-page .kp-ratio-note.ng { color:#ef4444; }
+    #kimpro-page .kp-prod-modal-footer { padding:12px 18px; background:#f8fafc; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+    #kimpro-page .kp-pm-btn-cancel { padding:8px 16px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-family:inherit; }
+    #kimpro-page .kp-pm-btn-save { padding:8px 16px; border:none; border-radius:7px; background:var(--info,#3b82f6); color:#fff; cursor:pointer; font-size:13px; font-weight:700; font-family:inherit; }
+    #kimpro-page .kp-pm-btn-del { padding:6px 12px; border:1px solid rgba(239,68,68,.25); border-radius:7px; background:rgba(239,68,68,.08); color:#ef4444; cursor:pointer; font-size:11px; font-family:inherit; font-weight:700; display:inline-flex; align-items:center; gap:5px; margin-right:auto; }
+    #kimpro-page .mission-rule-row input, #kimpro-page .split-rule-row input { -moz-appearance:textfield; }
   </style>
 
   <div class="kp-stat-bar" id="kp-stat-bar">
@@ -85,6 +135,105 @@
     <div class="kp-stat-box"><div class="kp-sb-label">재접수 승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">임시중단</div><div class="kp-sb-val" id="kp-stat-paused" style="color:#7c3aed">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">강제종료</div><div class="kp-sb-val" id="kp-stat-force" style="color:#dc2626">-</div></div>
+  </div>
+
+  <!-- 상품 유형 설정 패널 (접수관리.html 이식 — 그룹 프리셋 저장/적용은 미이식, 필요시 추가 가능) -->
+  <div class="kp-prod-panel collapsed" id="kp-prod-panel">
+    <div class="kp-prod-ph" onclick="kpToggleProdPanel(event)">
+      <span>📦</span>
+      <span class="kp-prod-ph-title">상품 유형 설정</span>
+      <span class="kp-prod-toggle-icon">&#9660;</span>
+      <span class="kp-prod-ph-desc" style="flex:1;text-align:center;font-size:11px;color:var(--muted);">상품을 클릭하면 상품명·버전·고정 비율 설정 가능</span>
+      <div class="kp-prod-ph-actions" onclick="event.stopPropagation()" style="display:flex;gap:6px;">
+        <button class="kp-action-btn" style="background:var(--info,#3b82f6);color:#fff;font-size:11px;padding:4px 10px;" onclick="kpShowAddProdModal()">＋ 상품 추가</button>
+      </div>
+    </div>
+    <div class="kp-prod-pb">
+      <div class="kp-ps-two-row">
+        <div class="kp-ps-row">
+          <span class="kp-ps-sect-lbl">일반</span>
+          <div class="kp-ps-row-inner" id="kpPsWrapNormal"></div>
+        </div>
+        <div class="kp-ps-divider-h"></div>
+        <div class="kp-ps-row">
+          <span class="kp-ps-sect-lbl">고정</span>
+          <div class="kp-ps-row-inner" id="kpPsWrapFixed" style="margin-left:28px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상품 설정 모달 -->
+  <div class="kp-prod-modal-bg" id="kp-prod-modal-bg">
+    <div class="kp-prod-modal">
+      <div class="kp-prod-modal-head">
+        <div id="kp-prod-modal-dot" style="width:14px;height:14px;border-radius:50%;flex-shrink:0;"></div>
+        <h3 id="kp-prod-modal-title">상품 설정</h3>
+        <button class="kp-prod-modal-close" onclick="kpCloseProdModal()">✕</button>
+      </div>
+      <div class="kp-prod-modal-body">
+        <div style="display:flex;gap:8px;">
+          <div class="kp-pmf" style="flex:0 0 166px;">
+            <label>상품명</label>
+            <input type="text" id="kp-pm-name" placeholder="블랙" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;" />
+          </div>
+          <div class="kp-pmf" id="kp-pm-ver-wrap" style="flex:1.5;">
+            <label>엑셀 버전</label>
+            <div style="position:relative;">
+              <input type="text" id="kp-pm-ver" placeholder="ver.5.0/3.2" readonly style="padding:8px 30px 8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;box-sizing:border-box;background:var(--bg2,#f1f5f9);color:var(--text2);cursor:default;" />
+              <button type="button" id="kp-pm-ver-refresh" onclick="kpRefreshProdVersion()" title="엑셀 버전 새로 조회" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);padding:2px;border:none;background:transparent;cursor:pointer;font-size:15px;line-height:1;">🔄</button>
+            </div>
+          </div>
+          <div class="kp-pmf" id="kp-pm-blogsplit-wrap" style="flex:0 0 66px;display:none;">
+            <label>분할</label>
+            <input type="number" id="kp-pm-blogsplit" min="1" step="1" placeholder="5" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div class="kp-pmf" id="kp-pm-kw-wrap">
+          <label>키워드 배분</label>
+          <div class="kp-ratio-grid" id="kp-pm-kw-grid"></div>
+          <div class="kp-ratio-note" id="kp-pm-kw-note"></div>
+        </div>
+        <div class="kp-pmf">
+          <label>일 목표 배분</label>
+          <div class="kp-ratio-grid" id="kp-pm-ratio-grid"></div>
+          <div class="kp-ratio-note" id="kp-pm-ratio-note"></div>
+        </div>
+      </div>
+      <div class="kp-prod-modal-footer">
+        <button class="kp-pm-btn-del" id="kp-pm-del-btn" onclick="kpDeleteProdModal()">🗑 삭제</button>
+        <button class="kp-pm-btn-cancel" onclick="kpCloseProdModal()">취소</button>
+        <button class="kp-pm-btn-save" onclick="kpSaveProdModal()">✔ 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상품 추가 모달 -->
+  <div class="kp-prod-modal-bg" id="kp-add-prod-modal-bg" style="display:none;">
+    <div class="kp-prod-modal" style="width:400px;">
+      <div class="kp-prod-modal-head">
+        <div id="kp-ap-dot" style="width:14px;height:14px;border-radius:50%;background:#06b6d4;flex-shrink:0;"></div>
+        <h3>상품 유형 추가</h3>
+        <button class="kp-prod-modal-close" onclick="kpCloseAddProdModal()">✕</button>
+      </div>
+      <div class="kp-prod-modal-body">
+        <div class="kp-pmf">
+          <label>상품명</label>
+          <input type="text" id="kp-ap-name" placeholder="새 상품" maxlength="16"
+            style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;outline:none;width:100%;box-sizing:border-box;"
+            onkeydown="if(event.key==='Enter')kpSaveNewProd();if(event.key==='Escape')kpCloseAddProdModal();" />
+        </div>
+        <div class="kp-pmf">
+          <label>엑셀 버전</label>
+          <input type="text" id="kp-ap-ver" placeholder="ver.5.0/3.2"
+            style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;outline:none;width:100%;box-sizing:border-box;" />
+        </div>
+      </div>
+      <div class="kp-prod-modal-footer">
+        <button class="kp-pm-btn-cancel" onclick="kpCloseAddProdModal()">취소</button>
+        <button class="kp-pm-btn-save" onclick="kpSaveNewProd()">✔ 추가</button>
+      </div>
+    </div>
   </div>
 
   <div class="kp-filter-bar">
@@ -3025,7 +3174,8 @@ document.addEventListener('keydown', function(e) {
        - 등급 자동매칭(ha/grades) 미지원 — 항상 상품 유형 설정 비율 그대로 배분
        - 시간대 분할 예약 미지원 — 즉시 제출만
        - BizFit 자동 캐시차감 미지원(§7-1-3 결정과 동일 — 캐시복구/충전하기로 수동 처리)
-     상품 설정은 ha/kimproProdSettings를 읽기 전용으로 사용(라이브 편집 UI는 미이식).
+     상품 설정은 ha/kimproProdSettings에 저장(접수관리 ha/prodSettings와 완전히 별도 노드 — 데이터 분리).
+     편집 UI도 이식했으나 "그룹 프리셋" 저장/적용 기능은 규모상 미이식(필요시 추가 가능).
 ══════════════════════════════════════════ -->
 <style>
   #kimpro-page .kp-submit-tab { padding:9px 22px; font-size:13px; font-weight:700; border:none; border-bottom:3px solid transparent; background:none; cursor:pointer; color:var(--text2); font-family:inherit; margin-bottom:-2px; }
@@ -3064,20 +3214,390 @@ document.addEventListener('keydown', function(e) {
     {id:'navy',name:'네이비',color:'#1e3a8a',active:false,ver:'ver.5.0/3.4',ratio:0,kwPct:0,blogUrlProduct:true,blogSplit:1},
   ];
   const FIXED_PROD_IDS = new Set(['charlie','deduct','yupfl','yupfl2','delta','navy']);
+  // 찰리/델타/네이비의 ver는 사용자 설정값이 아니라 버전체크 우회용 백엔드 고정값 — 저장된 옛 값이
+  // 코드 기본값(버전 올릴 때)을 영원히 덮어쓰지 못하게 매 로드마다 코드 값으로 재적용한다.
+  const VER_LOCKED_IDS = new Set(['charlie', 'delta', 'navy']);
   let prods = KP_DEFAULT_PRODS.map(p => ({...p}));
   const ap = () => prods.filter(p => p.active);
   let _prodsLoaded = false;
-  async function kpEnsureProds() {
-    if (_prodsLoaded) return;
-    try {
-      const snap = await window.HA.getDoc('ha/kimproProdSettings');
-      const data = snap.exists() ? snap.val() : null;
-      if (data && Array.isArray(data.prods) && data.prods.length) prods = data.prods;
-    } catch (e) { /* 기본값 유지 */ }
-    _prodsLoaded = true;
-  }
+  let _prodModalId = null;
+  const KP_PROD_COLORS = ['#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6','#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
+  let _kpApColor = '#06b6d4';
 
   function kpSubEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  const kpEscProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function kpApplyProdsData(loaded, staticFlags, fixedDefaults, colorMap) {
+    const arr = Array.isArray(loaded) ? loaded : Object.values(loaded);
+    prods = arr;
+    prods.forEach(p => {
+      const f = staticFlags.get(p.id); if (f) Object.assign(p, f);
+      const fd = fixedDefaults.get(p.id);
+      if (fd && p.fixedPct === undefined) p.fixedPct = fd.fixedPct;
+      if (!Array.isArray(p.missionRules)) p.missionRules = [];
+      if (colorMap.has(p.id)) p.color = colorMap.get(p.id);
+    });
+    const loadedIds = new Set(prods.map(p => p.id));
+    KP_DEFAULT_PRODS.forEach(dp => { if (!loadedIds.has(dp.id)) prods.push({ ...dp }); });
+    const fixedRank = new Map(KP_DEFAULT_PRODS.filter(dp => FIXED_PROD_IDS.has(dp.id)).map((dp, i) => [dp.id, i]));
+    const fixedSorted = prods.filter(p => fixedRank.has(p.id)).sort((a, b) => fixedRank.get(a.id) - fixedRank.get(b.id));
+    let fi = 0;
+    prods = prods.map(p => fixedRank.has(p.id) ? fixedSorted[fi++] : p);
+    const balanced = prods.filter(p => p.active && p.autoBalance !== false);
+    if (balanced.length) {
+      const ratioSum = Math.round(balanced.reduce((s,p)=>s+(p.ratio||0),0)*10)/10;
+      const kwSum    = Math.round(balanced.reduce((s,p)=>s+(p.kwPct||0),0)*10)/10;
+      if (ratioSum !== 10) kpRebalanceProdActive('ratio');
+      if (kwSum !== 10) kpRebalanceProdActive('kwPct');
+    }
+  }
+  async function kpEnsureProds() {
+    if (_prodsLoaded) return;
+    _prodsLoaded = true;
+    const staticFlags = new Map(prods.map(p => [p.id, {daysMultiplied:p.daysMultiplied,fixedAlloc:p.fixedAlloc,autoBalance:p.autoBalance,splitProduct:p.splitProduct,deductOnly:p.deductOnly,blogUrlProduct:p.blogUrlProduct, ...(VER_LOCKED_IDS.has(p.id) ? {ver:p.ver} : {})}]));
+    const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
+    const colorMap = new Map(prods.map(p => [p.id, p.color]));
+    try {
+      const snap = await window.HA.getDoc('ha/kimproProdSettings/prods');
+      if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap);
+    } catch (e) { /* 기본값 유지 */ }
+    try {
+      const { getDatabase, ref, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      let first = true;
+      onValue(ref(getDatabase(), 'ha/kimproProdSettings/prods'), (snap) => {
+        if (first) { first = false; return; }
+        if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap);
+        if (document.getElementById('kp-prod-panel')) renderKpPS();
+      }, (e) => console.error('kimproProdSettings 구독 오류:', e));
+    } catch (e) { /* 실시간 구독 실패해도 최초 로드값은 유지 */ }
+  }
+  function kpSaveProdSettings() {
+    const snapProds = JSON.parse(JSON.stringify(prods));
+    window.HA.setKpDoc('ha/kimproProdSettings/prods', snapProds).catch(()=>{});
+  }
+
+  // ── 상품 유형 설정 패널 (접수관리.html 이식) ──────────────────
+  window.kpToggleProdPanel = function() {
+    document.getElementById('kp-prod-panel').classList.toggle('collapsed');
+  };
+  function renderKpPS() {
+    const prodHtml = p => `
+      <div class="kp-ps-item${p.active?' active':''}" id="kp-psi-${p.id}" onclick="kpOpenProdModal('${p.id}')">
+        <div class="kp-ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
+        <span class="kp-ps-name" style="color:${p.color}">${kpEscProd(p.name)}</span>
+        <button class="kp-ps-tog ${p.active?'on':'off'}" onclick="event.stopPropagation();kpToggleProd('${p.id}')"></button>
+      </div>`;
+    const normalProds = [], fixedProds = [];
+    for (const p of prods) (FIXED_PROD_IDS.has(p.id) ? fixedProds : normalProds).push(p);
+    const wn = document.getElementById('kpPsWrapNormal'), wf = document.getElementById('kpPsWrapFixed');
+    if (wn) wn.innerHTML = normalProds.map(prodHtml).join('');
+    if (wf) wf.innerHTML = fixedProds.map(prodHtml).join('');
+  }
+  window.kpToggleProd = function(id) {
+    const p = prods.find(x => x.id === id); if (!p) return;
+    p.active = !p.active;
+    if (p.active && (id === 'yupfl' || id === 'yupfl2')) {
+      const other = prods.find(x => x.id === (id === 'yupfl' ? 'yupfl2' : 'yupfl'));
+      if (other) other.active = false;
+    }
+    kpRebalanceProdActive('ratio'); kpRebalanceProdActive('kwPct');
+    kpSaveProdSettings(); renderKpPS();
+  };
+  function kpRebalanceProdActive(field) {
+    const active = ap().filter(p => p.autoBalance !== false);
+    const n = active.length;
+    if (!n) { prods.forEach(p => { p[field]=0; }); return; }
+    const each = Math.round(10/n*10)/10;
+    const last = Math.round((10-each*(n-1))*10)/10;
+    active.forEach((p,i) => { p[field] = i===n-1?last:each; });
+    prods.forEach(p => { if (!p.active || p.autoBalance === false) p[field]=0; });
+  }
+  function kpNextProdColor() {
+    const usedCustom = new Set(prods.filter(p => p.id.startsWith('u')).map(p => p.color));
+    return KP_PROD_COLORS.find(c => !usedCustom.has(c)) || KP_PROD_COLORS[prods.filter(p => p.id.startsWith('u')).length % KP_PROD_COLORS.length];
+  }
+  window.kpShowAddProdModal = function() {
+    _kpApColor = kpNextProdColor();
+    document.getElementById('kp-ap-dot').style.background = _kpApColor;
+    document.getElementById('kp-ap-name').value = '';
+    document.getElementById('kp-ap-ver').value  = '';
+    document.getElementById('kp-add-prod-modal-bg').style.display = 'flex';
+    setTimeout(() => document.getElementById('kp-ap-name').focus(), 50);
+  };
+  window.kpCloseAddProdModal = function() {
+    document.getElementById('kp-add-prod-modal-bg').style.display = 'none';
+  };
+  window.kpSaveNewProd = function() {
+    const name = document.getElementById('kp-ap-name').value.trim();
+    if (!name) { document.getElementById('kp-ap-name').focus(); return; }
+    const ver = document.getElementById('kp-ap-ver').value.trim();
+    prods.push({id:'u'+Date.now(),name,color:_kpApColor,active:false,ver:ver||'ver.5.0/3.2',ratio:0,kwPct:0});
+    window.kpCloseAddProdModal();
+    kpSaveProdSettings(); renderKpPS();
+  };
+  window.kpOpenProdModal = function(id) {
+    const p = prods.find(x => x.id === id); if (!p) return;
+    _prodModalId = id;
+    document.getElementById('kp-prod-modal-dot').style.background = p.color;
+    document.getElementById('kp-prod-modal-title').textContent    = `${p.name} 설정`;
+    const nameEl = document.getElementById('kp-pm-name');
+    nameEl.value = p.name;
+    const nameLocked = FIXED_PROD_IDS.has(id);
+    nameEl.readOnly = nameLocked;
+    nameEl.style.background = nameLocked ? 'var(--bg2,#f1f5f9)' : '';
+    nameEl.style.color      = nameLocked ? 'var(--text2)' : '';
+    document.getElementById('kp-pm-ver').value = p.ver || '';
+    const blogSplitWrap = document.getElementById('kp-pm-blogsplit-wrap');
+    if (blogSplitWrap) blogSplitWrap.style.display = p.blogUrlProduct ? '' : 'none';
+    const blogSplitEl = document.getElementById('kp-pm-blogsplit');
+    if (blogSplitEl) blogSplitEl.value = p.blogSplit || 1;
+    const delBtn = document.getElementById('kp-pm-del-btn');
+    if (delBtn) delBtn.style.display = FIXED_PROD_IDS.has(id) ? 'none' : '';
+    const verWrap = document.getElementById('kp-pm-ver-wrap');
+    if (verWrap) verWrap.style.display = p.fixedAlloc ? 'none' : '';
+    const kwWrap = document.getElementById('kp-pm-kw-wrap');
+    if (kwWrap) kwWrap.style.display = p.fixedAlloc ? 'none' : '';
+
+    const isFixed = !!p.fixedAlloc, isSplit = !!p.splitProduct, isDeduct = !!p.deductOnly;
+    const actives = isFixed ? [] : ap().filter(q => !q.fixedAlloc);
+    const makeGrid = (items, field, prefix) => items.map(q => `
+          <div class="kp-ratio-item">
+            <div class="kp-ri-dot" style="background:${q.color}"></div>
+            <span class="kp-ri-name" style="color:${q.color}">${kpEscProd(q.name)}</span>
+            <input type="number" step="any" min="0" max="10" value="${q[field] ?? 0}" id="${prefix}${q.id}" oninput="kpUpdateProdModalNotes()" />
+          </div>`).join('');
+
+    if (!isFixed) document.getElementById('kp-pm-kw-grid').innerHTML = makeGrid(actives, 'kwPct', 'kp-pm-kwpct-');
+
+    document.getElementById('kp-pm-ratio-grid').innerHTML = isDeduct
+      ? `<div class="kp-ratio-item" style="grid-column:1/-1;">
+          <span class="kp-ri-name" style="color:${p.color}">차감 비율</span>
+          <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 10}" id="kp-pm-fixedpct" oninput="kpUpdateProdModalNotes()" />
+          <span style="font-size:12px;color:var(--text2);">%</span>
+        </div>`
+      : isSplit
+        ? `<div class="kp-ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="kp-ri-name" style="color:${p.color}">미션 설정</span>
+              <button type="button" onclick="kpAddMissionRuleRow()" title="미션 추가"
+                style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">＋</button>
+            </div>
+            <div id="kp-pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
+          </div>`
+        : isFixed
+          ? `<div class="kp-ratio-item" style="grid-column:1/-1;">
+              <span class="kp-ri-name" style="color:${p.color}">통합 고정 배분</span>
+              <input type="number" step="1" min="0" max="100" value="${p.fixedPct ?? 30}" id="kp-pm-fixedpct" oninput="kpUpdateProdModalNotes()" />
+              <span style="font-size:12px;color:var(--text2);">%</span>
+            </div>
+            <div class="kp-ratio-item" style="grid-column:1/-1;flex-direction:column;align-items:stretch;gap:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <span class="kp-ri-name" style="color:${p.color}">키워드 배분 규칙</span>
+                <button type="button" onclick="kpAddMissionRuleRow()" title="규칙 추가"
+                  style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:${p.color};color:#fff;border:none;border-radius:5px;cursor:pointer;">＋</button>
+              </div>
+              <div id="kp-pm-mission-rules" style="display:flex;flex-direction:column;gap:6px;"></div>
+            </div>`
+          : makeGrid(actives, 'ratio', 'kp-pm-ratio-');
+
+    if (isFixed && !isDeduct) {
+      const rulesWrap = document.getElementById('kp-pm-mission-rules');
+      if (rulesWrap) {
+        const rules = (Array.isArray(p.missionRules) && p.missionRules.length) ? p.missionRules : [null];
+        rulesWrap.innerHTML = rules.map(isSplit ? kpSplitRuleRowHtml : kpMissionRuleRowHtml).join('');
+      }
+    }
+    kpUpdateProdModalNotes();
+    document.getElementById('kp-prod-modal-bg').classList.add('show');
+  };
+  function kpMissionRuleRowHtml(rule) {
+    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
+    return `<div class="mission-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">키워드</span>
+      <input type="number" min="1" step="1" class="mr-kw" value="${rule?.kw ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">개</span>
+      ${divider}
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
+      <input type="number" min="0" step="1" class="mr-mission" value="${rule?.mission ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
+      ${divider}
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
+      <input type="number" min="0" max="100" step="1" class="mr-fixedpct" value="${rule?.fixedPct ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
+      <button type="button" onclick="this.closest('.mission-rule-row').remove()" title="규칙 삭제"
+        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">✕</button>
+    </div>`;
+  }
+  function kpSplitRuleRowHtml(rule) {
+    const divider = `<span style="width:1px;height:14px;background:var(--border);flex-shrink:0;"></span>`;
+    return `<div class="split-rule-row" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">미션</span>
+      <input type="number" min="0" step="1" class="sr-mission" value="${rule?.mission ?? ''}"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">번</span>
+      ${divider}
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">고정 배분</span>
+      <input type="number" min="0" max="100" step="1" class="sr-fixedpct" value="${rule?.fixedPct ?? ''}" oninput="kpUpdateProdModalNotes()"
+        style="width:48px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:monospace;outline:none;text-align:center;" />
+      <span style="font-size:11px;color:var(--text2);white-space:nowrap;">%</span>
+      <button type="button" onclick="this.closest('.split-rule-row').remove();kpUpdateProdModalNotes();" title="미션 삭제"
+        style="width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;margin-left:auto;">✕</button>
+    </div>`;
+  }
+  window.kpAddMissionRuleRow = function() {
+    const wrap = document.getElementById('kp-pm-mission-rules');
+    if (!wrap) return;
+    const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
+    wrap.insertAdjacentHTML('beforeend', (cur && cur.splitProduct) ? kpSplitRuleRowHtml(null) : kpMissionRuleRowHtml(null));
+    kpUpdateProdModalNotes();
+  };
+  function kpSumProdModalInputs(actives, prefix) {
+    return Math.round(actives.reduce((s,q) => {
+      const el = document.getElementById(`${prefix}${q.id}`);
+      return s + (el ? parseFloat(el.value) || 0 : 0);
+    }, 0) * 10) / 10;
+  }
+  window.kpUpdateProdModalNotes = function() {
+    const cur = _prodModalId ? prods.find(x => x.id === _prodModalId) : null;
+    if (!cur) return;
+    if (cur.splitProduct) {
+      const kwNote = document.getElementById('kp-pm-kw-note');
+      const ratNote = document.getElementById('kp-pm-ratio-note');
+      if (kwNote) kwNote.textContent = '';
+      if (ratNote) {
+        const pctEls = [...document.querySelectorAll('#kp-pm-mission-rules .sr-fixedpct')];
+        const sum = Math.round(pctEls.reduce((s,el)=> s + (parseFloat(el.value)||0), 0)*10)/10;
+        ratNote.textContent = `고정 배분 합계: ${sum}%`;
+        ratNote.className = 'kp-ratio-note ' + (sum > 100 ? 'ng' : '');
+      }
+      return;
+    }
+    if (cur.fixedAlloc) {
+      const kwNote = document.getElementById('kp-pm-kw-note');
+      const ratNote = document.getElementById('kp-pm-ratio-note');
+      if (kwNote) kwNote.textContent = '';
+      if (ratNote) {
+        const pctEl = document.getElementById('kp-pm-fixedpct');
+        const pctVal = pctEl ? parseFloat(pctEl.value) : NaN;
+        if (pctVal === 100) { ratNote.textContent = '⚠️ 100%로 설정하면 일반 상품은 배분되지 않습니다'; ratNote.className = 'kp-ratio-note ng'; }
+        else { ratNote.textContent = ''; ratNote.className = 'kp-ratio-note'; }
+      }
+      return;
+    }
+    const actives = ap().filter(q => !q.fixedAlloc);
+    const kwR = kpSumProdModalInputs(actives, 'kp-pm-kwpct-'), ratR = kpSumProdModalInputs(actives, 'kp-pm-ratio-');
+    const kwNote = document.getElementById('kp-pm-kw-note');
+    const ratNote = document.getElementById('kp-pm-ratio-note');
+    if (kwNote)  { kwNote.textContent=`합계: ${kwR}`;   kwNote.className='kp-ratio-note '+(kwR===10||kwR===0?'ok':'ng'); }
+    if (ratNote) { ratNote.textContent=`합계: ${ratR}`; ratNote.className='kp-ratio-note '+(ratR===10?'ok':'ng'); }
+  };
+  window.kpCloseProdModal = function() {
+    document.getElementById('kp-prod-modal-bg').classList.remove('show');
+    _prodModalId = null;
+  };
+  async function kpFetchVersionCheckAccount() {
+    try {
+      const snap = await window.HA.getDoc('ha/version_check_account');
+      return snap.exists() ? snap.val() : null;
+    } catch { return null; }
+  }
+  window.kpRefreshProdVersion = async function() {
+    const p = prods.find(x => x.id === _prodModalId); if (!p) return;
+    const btn = document.getElementById('kp-pm-ver-refresh');
+    const verEl = document.getElementById('kp-pm-ver');
+    const account = await kpFetchVersionCheckAccount();
+    if (!account) { alert('버전 조회용 계정이 등록돼 있지 않습니다.'); return; }
+    const adrole = p.id === 'charlie' ? KP_CHARLIE_ADROLE : p.id === 'delta' ? KP_DELTA_ADROLE : undefined;
+    btn.disabled = true; const prevIcon = btn.textContent; btn.textContent = '⏳';
+    try {
+      const gi = await kpCallBizfitProxy('/grade-info', {
+        domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: KP_BIZFIT_TAB,
+        adrole: adrole || undefined, withVersion: true,
+      });
+      if (!gi.success || !gi.gradeGroups) { alert('조회 실패: ' + (gi.message || '등급 정보를 가져오지 못했습니다.')); return; }
+      const g = gi.gradeGroups.find(x => x.gradeName === p.name);
+      if (!g) { alert(`"${p.name}" 등급을 조회 계정에서 찾지 못했습니다.`); return; }
+      if (!g.version) { alert('버전 조회 결과가 비어있습니다 — 잠시 후 다시 시도해주세요.'); return; }
+      verEl.value = g.version;
+    } catch(e) {
+      alert('조회 중 오류: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = prevIcon;
+    }
+  };
+  window.kpSaveProdModal = function() {
+    const p = prods.find(x => x.id === _prodModalId); if (!p) return;
+    p.name = document.getElementById('kp-pm-name').value.trim() || p.name;
+    p.ver  = document.getElementById('kp-pm-ver').value.trim();
+    if (p.blogUrlProduct) {
+      const n = parseInt(document.getElementById('kp-pm-blogsplit')?.value, 10);
+      if (!Number.isFinite(n) || n < 1) { alert('분할 값은 1 이상의 숫자여야 합니다.'); return; }
+      p.blogSplit = n;
+    }
+    if (!p.fixedAlloc) {
+      const actives = ap().filter(q => !q.fixedAlloc);
+      if (actives.length) {
+        const kwR = kpSumProdModalInputs(actives, 'kp-pm-kwpct-'), ratR = kpSumProdModalInputs(actives, 'kp-pm-ratio-');
+        if (kwR!==10 && kwR!==0) { alert(`키워드 배분 합계는 10 또는 모두 0이어야 합니다. (현재: ${kwR})`); return; }
+        if (ratR!==10) { alert(`일 목표 배분 합계는 10이어야 합니다. (현재: ${ratR})`); return; }
+        actives.forEach(q => {
+          const kwEl=document.getElementById(`kp-pm-kwpct-${q.id}`), ratEl=document.getElementById(`kp-pm-ratio-${q.id}`);
+          if (kwEl)  q.kwPct = Math.round((parseFloat(kwEl.value) ||0)*10)/10;
+          if (ratEl) q.ratio = Math.round((parseFloat(ratEl.value)||0)*10)/10;
+        });
+      }
+    } else if (p.splitProduct) {
+      const ruleRows = [...document.querySelectorAll('#kp-pm-mission-rules .split-rule-row')];
+      const seenMission = new Set();
+      const rules = [];
+      for (const row of ruleRows) {
+        const mission     = parseInt(row.querySelector('.sr-mission')?.value, 10);
+        const rowFixedPct = parseFloat(row.querySelector('.sr-fixedpct')?.value);
+        if (!Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
+        if (seenMission.has(mission)) { alert(`미션 ${mission}번이 중복되었습니다.`); return; }
+        seenMission.add(mission);
+        rules.push({ mission, fixedPct: rowFixedPct });
+      }
+      if (!rules.length) { alert('미션을 최소 1개 이상 입력해야 합니다.'); return; }
+      p.missionRules = rules;
+    } else if (p.deductOnly) {
+      const fixedPctEl = document.getElementById('kp-pm-fixedpct');
+      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) { alert('차감 비율은 100%를 초과할 수 없습니다.'); return; }
+      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
+    } else {
+      const fixedPctEl = document.getElementById('kp-pm-fixedpct');
+      if (fixedPctEl && parseFloat(fixedPctEl.value) > 100) { alert('통합 고정 배분은 100%를 초과할 수 없습니다.'); return; }
+      if (fixedPctEl) p.fixedPct = Math.max(0, Math.min(100, parseFloat(fixedPctEl.value) || 0));
+      const ruleRows = [...document.querySelectorAll('#kp-pm-mission-rules .mission-rule-row')];
+      const seenKw = new Set();
+      const rules = [];
+      for (const row of ruleRows) {
+        const kw         = parseInt(row.querySelector('.mr-kw')?.value, 10);
+        const mission     = parseInt(row.querySelector('.mr-mission')?.value, 10);
+        const rowFixedPct = parseFloat(row.querySelector('.mr-fixedpct')?.value);
+        if (!Number.isFinite(kw) || kw <= 0 || !Number.isFinite(mission) || mission < 0 || !Number.isFinite(rowFixedPct) || rowFixedPct < 0 || rowFixedPct > 100) continue;
+        if (seenKw.has(kw)) { alert(`키워드 ${kw}개에 대한 규칙이 중복되었습니다.`); return; }
+        seenKw.add(kw);
+        rules.push({ kw, mission, fixedPct: rowFixedPct });
+      }
+      if (!rules.length) { alert('키워드 배분 규칙을 최소 1개 이상 입력해야 합니다.'); return; }
+      p.missionRules = rules;
+    }
+    window.kpCloseProdModal();
+    kpSaveProdSettings(); renderKpPS();
+  };
+  window.kpDeleteProdModal = function() {
+    if (!_prodModalId || FIXED_PROD_IDS.has(_prodModalId)) return;
+    const p = prods.find(x => x.id === _prodModalId); if (!p) return;
+    if (!confirm(`'${p.name}' 상품을 삭제할까요?`)) return;
+    const id = _prodModalId;
+    window.kpCloseProdModal();
+    prods = prods.filter(x => x.id !== id);
+    kpSaveProdSettings(); renderKpPS();
+  };
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
   function yupflRuleFor(yupfl, workKw) {
@@ -4297,6 +4817,8 @@ document.addEventListener('keydown', function(e) {
       document.head.appendChild(s);
     }
   };
+
+  kpEnsureProds().then(renderKpPS);
 })();
 </script>
 
