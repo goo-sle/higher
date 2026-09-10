@@ -3369,6 +3369,21 @@ document.addEventListener('keydown', function(e) {
 (function() {
   let uexRows = [];
 
+  // 대행사명이 회원관리(ha/users) 계정명과 일치하는지 검증 — addKpSlot이 agencyId==username으로
+  // 단가를 자동 조회하는데(2026-09-10), 오타 등으로 안 맞으면 단가 0원으로 조용히 접수돼버리는
+  // 문제가 있어 엑셀 접수 단계에서 미리 막음(사용자 요청).
+  let _kpUexAgencySet = null;
+  async function kpEnsureAgencySet() {
+    if (_kpUexAgencySet) return _kpUexAgencySet;
+    try {
+      const snap = await window.HA.getDoc('ha/users');
+      const val = snap.exists() ? snap.val() : {};
+      const list = Array.isArray(val) ? val : Object.values(val||{});
+      _kpUexAgencySet = new Set(list.map(u => (u.username||'').trim()).filter(Boolean));
+    } catch (e) { _kpUexAgencySet = new Set(); }
+    return _kpUexAgencySet;
+  }
+
   function uexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
   function uexNormalizeUrl(url) {
     const clean = String(url||'').split('?')[0].trim();
@@ -3424,8 +3439,9 @@ document.addEventListener('keydown', function(e) {
   function processKpUexExcel(file) {
     uexEnsureXLSX(() => {
       const reader = new FileReader();
-      reader.onload = e => {
+      reader.onload = async e => {
         try {
+          const agencySet = await kpEnsureAgencySet();
           const wb = window.XLSX.read(e.target.result, { type:'array', cellDates:false });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const raw = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
@@ -3449,6 +3465,7 @@ document.addEventListener('keydown', function(e) {
             const errors = [];
             const urlMid = url ? uexExtractMid(url) : null;
             if (!agencyId) errors.push('대행사 누락');
+            else if (!agencySet.has(agencyId)) errors.push('회원정보에 없는 대행사명');
             if (!storeName) errors.push('업체명 누락');
             if (!url) errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
             if (!rankKeyword) errors.push('순위키워드 누락');
