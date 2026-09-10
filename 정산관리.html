@@ -167,6 +167,13 @@
   // userId가 항상 빈 값이라 이 센티널로 덮어써서 그룹 키(timeKey__agencyId__userId)가 접수관리 쪽과
   // 절대 겹치지 않게 하고, 이 센티널 하나로 모든 쓰기 액션(입금/환불/메모/충전확인)의 저장소를 분기한다.
   const KIMPRO_USER_SENTINEL = '__kimpro__';
+  // 접수관리 승인 시 ha/kimproSlots로도 자동 미러링되는 기능(같은 key로 복사, 김프로.html 목록
+  // 노출용)이 있어 — 정산에서까지 그대로 합치면 같은 캠페인이 ha쪽/kp쪽 두 번 잡혀 이중 계상된다.
+  // kp 슬롯 중 같은 key가 ha/slots에도 있으면 미러일 뿐이므로 정산 대상에서 제외.
+  function dedupeKpSlots(haSlotsArr, kpSlotsRawArr) {
+    const haKeySet = new Set(haSlotsArr.map(s => s._key));
+    return kpSlotsRawArr.filter(s => !haKeySet.has(s._key));
+  }
   function isBillableSlot(s) {
     if (s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending') return true;
     if (s._src==='kp' && s.status) return true; // 김프로는 상태값 체계가 달라(ended/paused/split 등) 존재하는 상태면 정산 대상으로 봄
@@ -524,7 +531,7 @@
       try { haSnapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { haSnapshotMap={}; }
       try { kpSnapshotMap = await HA.getAllKpSettleSnapshots(); } catch(e) { kpSnapshotMap={}; }
       // 김프로 슬롯은 userId를 센티널로 덮어써 접수관리와 그룹 키가 절대 안 겹치게 함(위 KIMPRO_USER_SENTINEL 주석 참고)
-      const kpSlots = kpSlotsRaw.map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
+      const kpSlots = dedupeKpSlots(haSlots, kpSlotsRaw).map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
       allSlots  = [...haSlots, ...kpSlots];
       paidSet   = new Set([...haPaidSet, ...kpPaidSet]);
       refundMap = {...haRefundMap, ...kpRefundMap};
@@ -556,7 +563,7 @@
         HA.getSlots(), HA.getRefunds().catch(()=>({})),
         HA.getKpSlots().catch(()=>[]), HA.getKpRefunds().catch(()=>({})),
       ]);
-      const freshKpSlots = freshKpSlotsRaw.map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
+      const freshKpSlots = dedupeKpSlots(freshHaSlots, freshKpSlotsRaw).map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
       const freshSlots = [...freshHaSlots, ...freshKpSlots];
       allSlots = freshSlots; refundMap = {...(freshHaRefundMap||{}), ...(freshKpRefundMap||{})};
       const freshRefund = (timeKey,agencyId,userId) => (refundMap)[refundKey(timeKey,agencyId,userId)]||0;
