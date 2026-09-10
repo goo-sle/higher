@@ -515,9 +515,10 @@
       // ha(접수관리) 쪽 로딩은 항상 되게 김프로 쪽과 분리된 try/catch로 격리 — 김프로 쪽 하나가 실패해도
       // (권한/네트워크 등) 접수관리 자체 정산 데이터까지 통째로 안 보이는 회귀는 없어야 한다.
       [haSlots,allUsers,haPaidSet] = await Promise.all([HA.getSlotsLive(),HA.getUsers(),HA.getPaidSet()]);
-      try {
-        [kpSlotsRaw,kpPaidSet] = await Promise.all([HA.getKpSlotsLive(),HA.getKpPaidSet()]);
-      } catch(e) { console.error('김프로 정산 데이터 로딩 실패:', e); kpSlotsRaw=[]; kpPaidSet=new Set(); }
+      // 슬롯/입금 각각 독립 try/catch — 하나(예: 규칙 누락)만 실패해도 다른 쪽까지 같이 빈 배열로
+      // 리셋되던 문제(Promise.all 하나 실패=전체 실패) 재발 방지
+      try { kpSlotsRaw = await HA.getKpSlotsLive(); } catch(e) { console.error('김프로 슬롯 로딩 실패:', e); kpSlotsRaw=[]; }
+      try { kpPaidSet = await HA.getKpPaidSet(); } catch(e) { console.error('김프로 입금 로딩 실패:', e); kpPaidSet=new Set(); }
       try { haRefundMap = (await HA.getRefunds()) || {}; } catch(e) { haRefundMap={}; }
       try { kpRefundMap = (await HA.getKpRefunds()) || {}; } catch(e) { kpRefundMap={}; }
       try { haSnapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { haSnapshotMap={}; }
