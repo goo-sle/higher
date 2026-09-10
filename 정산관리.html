@@ -175,6 +175,7 @@
     return kpSlotsRawArr.filter(s => !haKeySet.has(s._key));
   }
   function isBillableSlot(s) {
+    if (s.isRequeue) return false; // 재접수는 기존 배분을 이어받는 것일 뿐 새 결제 건이 아니므로 정산 대상 아님(unitPrice 0으로 스냅샷됨)
     if (s.status==='active'||s.status==='accepted'||s.status==='expired'||s.status==='pending') return true;
     if (s._src==='kp' && s.status) return true; // 김프로는 상태값 체계가 달라(ended/paused/split 등) 존재하는 상태면 정산 대상으로 봄
     return false;
