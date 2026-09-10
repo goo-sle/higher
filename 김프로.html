@@ -39,7 +39,7 @@
 
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
-    <span><b>연동 작업 진행 중입니다.</b> 목록·상세·승인/상태변경·엑셀 접수·배분 제출(일반/유입플)까지 연동되었습니다. 찰리·델타·네이비(블로그 상품)·등급 자동매칭·시간대 분할 예약은 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
+    <span><b>연동 작업 진행 중입니다.</b> 목록·상세·승인/상태변경·엑셀 접수·배분 제출(일반/유입플/찰리/델타/네이비)까지 연동되었습니다. 등급 자동매칭·시간대 분할 예약만 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
   </div>
 
   <style>
@@ -2375,6 +2375,7 @@ document.addEventListener('keydown', function(e) {
         <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="2" ${dis}>${kpEsc(s.memo)}</textarea></div>
         <div class="kp-modal-field"><label>검색키워드</label><input type="text" id="kd-searchKeyword" value="${kpEsc(s.searchKeyword)}" placeholder="키워드를 입력해주세요" ${dis}></div>
         <div class="kp-modal-field"><label>유입플 키워드</label><input type="text" id="kd-yupflKeyword" value="${kpEsc(s.yupflKeyword)}" placeholder="유입플 키워드를 입력해주세요" ${dis}></div>
+        <div class="kp-modal-field"><label>블로그 URL (델타·네이비 전용, 분할 개수만큼 콤마로 구분)</label><input type="text" id="kd-deltaBlogUrl" value="${kpEsc(s.deltaBlogUrl)}" placeholder="https://blog.naver.com/...,https://blog.naver.com/..." ${dis}></div>
         <div class="kp-modal-footer">
           <button class="kp-btn-cancel" onclick="kpCloseDetailModal('${key}')">닫기</button>
           ${isSplit ? '' : `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>`}
@@ -2396,7 +2397,7 @@ document.addEventListener('keydown', function(e) {
       url: read('kd-url'), mid: read('kd-mid'), dailyTarget: read('kd-dailyTarget', true), days: read('kd-days', true),
       startDate: read('kd-startDate'), endDate: read('kd-endDate'),
       memo: document.getElementById('kd-memo')?.value.trim() ?? '',
-      searchKeyword: read('kd-searchKeyword'), yupflKeyword: read('kd-yupflKeyword'),
+      searchKeyword: read('kd-searchKeyword'), yupflKeyword: read('kd-yupflKeyword'), deltaBlogUrl: read('kd-deltaBlogUrl'),
     };
     const updates = {};
     for (const [k,v] of Object.entries(fields)) {
@@ -2700,6 +2701,9 @@ document.addEventListener('keydown', function(e) {
   const KP_BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
   const KP_BIZFIT_DOMAIN = 'http://higherad.co.kr';
   const KP_BIZFIT_TAB    = '99';
+  // 찰리는 "NP 위치저장"(adrole=100) 메뉴 — 계정에 NP트래픽도 있으면 등급명이 겹쳐 자동탐색 구분이 안 돼 강제 지정. 델타도 같은 계열.
+  const KP_CHARLIE_ADROLE = '100';
+  const KP_DELTA_ADROLE   = '100';
 
   const KP_DEFAULT_PRODS = [
     {id:'p1',name:'블랙',color:'#3b82f6',active:true,ver:'ver.5.0/3.2',ratio:5,kwPct:5},
@@ -2707,6 +2711,9 @@ document.addEventListener('keydown', function(e) {
     {id:'deduct',name:'차감',color:'#ef4444',active:false,ratio:0,kwPct:0,fixedAlloc:true,deductOnly:true,fixedPct:10,autoBalance:false},
     {id:'yupfl',name:'유입플',color:'#f59e0b',active:false,ratio:0,kwPct:0,fixedAlloc:true,fixedPct:30,autoBalance:false,missionRules:[]},
     {id:'yupfl2',name:'분할',color:'#06b6d4',active:false,ratio:0,kwPct:0,fixedAlloc:true,splitProduct:true,autoBalance:false,missionRules:[]},
+    {id:'charlie',name:'찰리',color:'#d946ef',active:false,ver:'ver.4.1/3.2',ratio:0,kwPct:0,daysMultiplied:true},
+    {id:'delta',name:'델타',color:'#22c55e',active:false,ver:'ver.4.1/3.3',ratio:0,kwPct:0,daysMultiplied:true,blogUrlProduct:true,blogSplit:1},
+    {id:'navy',name:'네이비',color:'#1e3a8a',active:false,ver:'ver.5.0/3.4',ratio:0,kwPct:0,blogUrlProduct:true,blogSplit:1},
   ];
   const FIXED_PROD_IDS = new Set(['charlie','deduct','yupfl','yupfl2','delta','navy']);
   let prods = KP_DEFAULT_PRODS.map(p => ({...p}));
@@ -2843,6 +2850,46 @@ document.addEventListener('keydown', function(e) {
     return rows;
   }
 
+  // total을 n개로 최대한 고르게(나머지는 앞쪽부터 +1) 나눔 — 델타/네이비 블로그 URL 분할용
+  function splitEven(total, n) {
+    if (n <= 0) return [];
+    const base = Math.floor(total / n);
+    const rem  = total - base * n;
+    return Array.from({length: n}, (_, i) => base + (i < rem ? 1 : 0));
+  }
+
+  // 델타/네이비 공용 — "분할"(blogSplit)만큼 일목표 쪼개 URL 1개씩 매칭한 N행 생성(daysMultiplied는 상품별로 다름: 델타=true, 네이비=false)
+  function kpBuildDeltaRows(slots, prodId = 'delta') {
+    const baseProd = prods.find(p => p.id === prodId);
+    if (!baseProd) return [];
+    const n = Math.max(1, parseInt(baseProd.blogSplit, 10) || 1);
+    const rows = [];
+    slots.forEach(r => {
+      const prod = ap().find(p => p.id === prodId);
+      if (!prod) return;
+      const alloc = allocate(ap().slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      const pp = alloc[prod.id] ?? 0;
+      if (pp <= 0) return;
+      const urls = (r.deltaBlogUrl||'').split(',').map(u=>u.trim()).filter(Boolean);
+      // 델타는 검색키워드를 별도로 나누지 않고 순위키워드를 그대로 쓴다 — 네이비는 일반 검색키워드 배분 그대로 사용
+      const kw = prodId === 'delta' ? (r.rankKeyword||'') : kwForProd(r.searchKeyword||'', prod);
+      splitEven(pp, n).forEach((partTarget, i) => {
+        if (partTarget <= 0) return;
+        const doneKey = `${prod.name}#${i+1}`;
+        rows.push({
+          _slotKey: r._key, _doneKey: doneKey,
+          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(doneKey)),
+          _requiresBlogUrl: true, _daysMultiplied: !!prod.daysMultiplied,
+          상품등급명: prod.name, 업체명: r.storeName||'', 업체URL: r.url||'', PID번호: r.mid||'',
+          순위키워드: r.rankKeyword||'', 일목표: partTarget,
+          일수: prod.daysMultiplied ? partTarget*(r.days||0) : (r.days||0),
+          예약일: r.startDate||'', 검색키워드: kw, 블로그URL: urls[i] || '',
+        });
+      });
+    });
+    return rows;
+  }
+
   const kpAgencyLabel = s => (s.agencyId||'').trim() || '(대행사 미지정)';
   function kpGetAgencies(slots) { const seen=new Set(), list=[]; slots.forEach(s=>{const ag=kpAgencyLabel(s); if(!seen.has(ag)){seen.add(ag);list.push(ag);}}); return list; }
   function kpSlotsByAgency(slots, ag) { return slots.filter(s => kpAgencyLabel(s) === ag); }
@@ -2858,18 +2905,20 @@ document.addEventListener('keydown', function(e) {
     return res.json();
   }
 
-  function kpRowIssueCounts(rows) {
+  function kpRowIssueCounts(rows, checkBlogUrl=false) {
     const kwEmptyCount = rows.filter(r => (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length===0).length;
     const lowTargetCount = rows.filter(r => (r.일목표||0) < 10).length;
-    return { kwEmptyCount, lowTargetCount };
+    const blogUrlEmptyCount = checkBlogUrl ? rows.filter(r => !r.블로그URL).length : 0;
+    return { kwEmptyCount, lowTargetCount, blogUrlEmptyCount };
   }
-  function kpAgencyIssueSummaryHtml(plan) {
+  function kpAgencyIssueSummaryHtml(plan, checkBlogUrl=false) {
     return plan.map(p => {
-      const { kwEmptyCount, lowTargetCount } = kpRowIssueCounts(p.rows);
-      if (!kwEmptyCount && !lowTargetCount) return '';
+      const { kwEmptyCount, lowTargetCount, blogUrlEmptyCount } = kpRowIssueCounts(p.rows, checkBlogUrl);
+      if (!kwEmptyCount && !lowTargetCount && !blogUrlEmptyCount) return '';
       const parts = [];
       if (kwEmptyCount) parts.push(`검색키워드 0개 ${kwEmptyCount}건`);
       if (lowTargetCount) parts.push(`일 목표 10 미만 ${lowTargetCount}건`);
+      if (blogUrlEmptyCount) parts.push(`블로그 URL 미입력 ${blogUrlEmptyCount}건`);
       return `<div style="color:#dc2626;font-size:11px;margin-top:2px;">⚠️ ${kpSubEsc(p.agency)} - ${parts.join(' / ')}</div>`;
     }).join('');
   }
@@ -2878,7 +2927,7 @@ document.addEventListener('keydown', function(e) {
     rows.forEach(r => {
       if (r._normalSubmitted) return;
       const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
-      if (kwCount === 0 || (r.일목표||0) < 10) { r._kwFail = true; anyFail = true; }
+      if (kwCount === 0 || (r.일목표||0) < 10 || (r._requiresBlogUrl && !r.블로그URL)) { r._kwFail = true; anyFail = true; }
     });
     return anyFail;
   }
@@ -2888,17 +2937,18 @@ document.addEventListener('keydown', function(e) {
     const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
     if (kwCount === 0) return { title:'검색키워드 미입력', label:'❌ 키워드 미입력' };
     if ((r.일목표||0) < 10) return { title:`일목표 ${r.일목표||0}개 — 10 미만`, label:'❌ 일목표 미달' };
+    if (r._requiresBlogUrl && !r.블로그URL) return { title:'블로그 URL 미입력', label:'❌ URL 미입력' };
     return null;
   }
 
-  function kpBuildSubmitAgencyBlock(p) {
+  function kpBuildSubmitAgencyBlock(p, daysMultiplied=false, blogUrl=false) {
     if (!p.rows.length) return null;
     const block = document.createElement('div');
     block.className = 'kp-agency-block';
-    const totalTarget = p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
+    const totalTarget = daysMultiplied ? p.rows.reduce((a,r)=>a+(r.일수||0),0) : p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
     const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
-    const { kwEmptyCount, lowTargetCount } = kpRowIssueCounts(p.rows);
-    const issueCount = kwEmptyCount + lowTargetCount;
+    const { kwEmptyCount, lowTargetCount, blogUrlEmptyCount } = kpRowIssueCounts(p.rows, blogUrl);
+    const issueCount = kwEmptyCount + lowTargetCount + blogUrlEmptyCount;
     const issueBadge = issueCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${issueCount}건</span>` : '';
     const hd = document.createElement('div');
     hd.className = 'kp-agency-hd';
@@ -2907,9 +2957,9 @@ document.addEventListener('keydown', function(e) {
     const tbl = document.createElement('table');
     tbl.className = 'kp-ag-table';
     tbl.innerHTML = `<thead><tr>
-      <th style="width:64px">등급</th><th style="width:98px">업체명</th><th style="width:120px">URL</th><th style="width:96px">MID</th>
-      <th style="width:84px">순위키워드</th><th style="width:56px;text-align:right">일목표</th><th style="width:44px">일수</th>
-      <th style="width:74px">예약일</th><th style="width:64px;text-align:center">검색키워드</th><th style="width:76px;text-align:center">상태</th>
+      <th style="width:64px">등급</th><th style="width:98px">업체명</th><th style="width:110px">URL</th><th style="width:90px">MID</th>
+      <th style="width:76px">순위키워드</th><th style="width:56px;text-align:right">일목표</th><th style="width:50px;text-align:center">${daysMultiplied?'전체목표':'일수'}</th>
+      <th style="width:70px">예약일</th><th style="width:58px;text-align:center">검색키워드</th>${blogUrl?'<th style="width:80px">블로그URL</th>':''}<th style="width:70px;text-align:center">상태</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     p.rows.forEach(r => {
@@ -2927,9 +2977,10 @@ document.addEventListener('keydown', function(e) {
         <td style="font-size:11px;color:var(--text2)">${kpSubEsc(r.PID번호||'-')}</td>
         <td>${kpSubEsc(r.순위키워드||'-')}</td>
         <td style="text-align:right">${targetLow?`<span style="color:#dc2626;font-weight:700;">${(r.일목표||0).toLocaleString()} ⚠️</span>`:(r.일목표||0).toLocaleString()}</td>
-        <td>${r.일수||0}</td>
+        <td style="text-align:center">${r.일수||0}</td>
         <td>${kpSubEsc(r.예약일||'-')}</td>
         <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':'#eff6ff'};color:${kwEmpty?'#dc2626':'#1d4ed8'};">${kwCount}개${kwEmpty?' ⚠️':''}</span></td>
+        ${blogUrl?`<td style="font-size:11px;${r.블로그URL?'':'color:#dc2626;'}">${kpSubEsc(r.블로그URL||'미입력 ⚠️')}</td>`:''}
       `;
       tr.appendChild(statusTd);
       tbody.appendChild(tr);
@@ -2994,12 +3045,15 @@ document.addEventListener('keydown', function(e) {
     return block;
   }
 
-  function kpMakeGate(hasNormal, hasFixed) {
+  function kpMakeGate(hasNormal, hasFixed, hasCharlie=false, hasDelta=false, hasNavy=false) {
     const required = [];
     if (hasNormal) required.push('normalKeys');
     if (hasFixed) required.push('fixedKeys');
+    if (hasCharlie) required.push('charlieKeys');
+    if (hasDelta) required.push('deltaKeys');
+    if (hasNavy) required.push('navyKeys');
     return {
-      required, normalKeys: null, fixedKeys: null,
+      required, normalKeys: null, fixedKeys: null, charlieKeys: null, deltaKeys: null, navyKeys: null,
       async tryApprove() {
         if (!required.length || !required.every(k => this[k] instanceof Set)) return;
         let common = null;
@@ -3015,7 +3069,7 @@ document.addEventListener('keydown', function(e) {
 
   // 대행사(계정) 1곳 처리 — BizFit /grade-info → /register. 승인은 대상 슬롯의 모든 상품행이 성공해야만(gate) 반영.
   // 접수관리.html submitPlanRows와 동일 로직(자동 캐시차감·시간대분할·multi-leg 게이트만 제외).
-  async function kpSubmitPlanRows(plan, gate) {
+  async function kpSubmitPlanRows(plan, gate, legKey='normalKeys', adrole=undefined, productVer=undefined) {
     let okTotal = 0, failTotal = 0;
     const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
     const slotMap = new Map(allSlots.map(s => [s._key, s]));
@@ -3049,7 +3103,7 @@ document.addEventListener('keydown', function(e) {
       }
       let gi;
       try {
-        gi = await kpCallBizfitProxy('/grade-info', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: KP_BIZFIT_TAB, rawData: validRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,...rest})=>rest) });
+        gi = await kpCallBizfitProxy('/grade-info', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: KP_BIZFIT_TAB, adrole: adrole || undefined, rawData: validRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,_requiresBlogUrl,_daysMultiplied,...rest})=>rest) });
       } catch(e) { gi = { success:false, message:'서버 호출 실패: '+e.message }; }
       if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
         const msg = gi.message || '전송 가능한 등급이 없습니다.';
@@ -3062,10 +3116,10 @@ document.addEventListener('keydown', function(e) {
         const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
         if (!grpRows.length) continue;
         matchedGrades.add(g.gradeName);
-        const payloadRows = grpRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,...rest})=>rest);
+        const payloadRows = grpRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,_requiresBlogUrl,_daysMultiplied,...rest})=>rest);
         let result;
         try {
-          result = await kpCallBizfitProxy('/register', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: g.actualTab||KP_BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, rowData: payloadRows });
+          result = await kpCallBizfitProxy('/register', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: g.actualTab||KP_BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, version: productVer, rowData: payloadRows });
         } catch(e) { result = { success:false, message:e.message }; }
         if (result.success) {
           const failByIdx = new Map((result.fail_rows||[]).map(f=>[f.index,f.reason]));
@@ -3108,7 +3162,7 @@ document.addEventListener('keydown', function(e) {
     }
 
     await Promise.all(plan.map(p => processAgency(p)));
-    gate.normalKeys = approvedKeys;
+    gate[legKey] = approvedKeys;
     await gate.tryApprove();
     return { okTotal, failTotal };
   }
@@ -3190,22 +3244,32 @@ document.addEventListener('keydown', function(e) {
     await kpEnsureProds();
     const agencies = kpGetAgencies(target);
     const normalPlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, ...kpBuildNormalRows(kpSlotsByAgency(target, ag)) }));
+    // 찰리는 등급/가격 체계가 일반 상품과 다른 별도 메뉴(NP 위치저장)라 같은 grade-info 호출에 절대 안 섞이게 완전 분리
+    const charliePlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, ...kpBuildNormalRows(kpSlotsByAgency(target, ag), p => p.id==='charlie') }));
+    const deltaPlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, rows: kpBuildDeltaRows(kpSlotsByAgency(target, ag), 'delta') }));
+    const navyPlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, rows: kpBuildDeltaRows(kpSlotsByAgency(target, ag), 'navy') }));
     const yupflRows = kpBuildYoupflRows(target);
     const hasNormal = normalPlan.some(p => p.rows.length > 0);
     const hasFixed = yupflRows.length > 0;
-    if (!hasNormal && !hasFixed) { alert('배분 대상 상품이 없습니다.\n상품 유형 설정(ha/kimproProdSettings)에 일반 상품 또는 유입플이 활성화돼 있는지 확인해주세요.'); return; }
+    const hasCharlie = charliePlan.some(p => p.rows.length > 0);
+    const hasDelta = deltaPlan.some(p => p.rows.length > 0);
+    const hasNavy = navyPlan.some(p => p.rows.length > 0);
+    if (!hasNormal && !hasFixed && !hasCharlie && !hasDelta && !hasNavy) { alert('배분 대상 상품이 없습니다.\n상품 유형 설정(ha/kimproProdSettings)에 활성화된 상품이 있는지 확인해주세요.'); return; }
 
-    const gate = kpMakeGate(hasNormal, hasFixed);
+    const gate = kpMakeGate(hasNormal, hasFixed, hasCharlie, hasDelta, hasNavy);
+    const defaultTab = hasNormal ? 'normal' : hasFixed ? 'fixed' : hasCharlie ? 'charlie' : 'blog';
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="kp-modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;">
         <div class="kp-modal-title">배분 제출</div>
         <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
-          <button id="kp-stab-normal" class="kp-submit-tab${hasNormal?' active':''}" onclick="kpSwitchSubmitTab('normal')" ${hasNormal?'':'disabled'}>일반</button>
-          <button id="kp-stab-fixed" class="kp-submit-tab${!hasNormal&&hasFixed?' active':''}" onclick="kpSwitchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
+          <button id="kp-stab-normal" class="kp-submit-tab${defaultTab==='normal'?' active':''}" onclick="kpSwitchSubmitTab('normal')" style="${hasNormal?'':'display:none;'}">일반</button>
+          <button id="kp-stab-fixed" class="kp-submit-tab${defaultTab==='fixed'?' active':''}" onclick="kpSwitchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
+          <button id="kp-stab-charlie" class="kp-submit-tab${defaultTab==='charlie'?' active':''}" onclick="kpSwitchSubmitTab('charlie')" style="${hasCharlie?'':'display:none;'}">찰리</button>
+          <button id="kp-stab-blog" class="kp-submit-tab${defaultTab==='blog'?' active':''}" onclick="kpSwitchSubmitTab('blog')" style="${(hasDelta||hasNavy)?'':'display:none;'}">블로그</button>
         </div>
-        <div id="kp-stab-panel-normal" style="display:${hasNormal?'block':'none'}">
+        <div id="kp-stab-panel-normal" style="display:${defaultTab==='normal'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="kp-submit-sub"></div>
             <div style="display:flex;gap:8px;">
@@ -3215,7 +3279,7 @@ document.addEventListener('keydown', function(e) {
           </div>
           <div id="kp-submit-body"></div>
         </div>
-        <div id="kp-stab-panel-fixed" style="display:${!hasNormal&&hasFixed?'block':'none'}">
+        <div id="kp-stab-panel-fixed" style="display:${defaultTab==='fixed'?'block':'none'}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
             <div style="font-size:12px;" id="kp-youpfl-sub"></div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -3230,10 +3294,35 @@ document.addEventListener('keydown', function(e) {
           </div>
           <div id="kp-youpfl-body"></div>
         </div>
+        <div id="kp-stab-panel-charlie" style="display:${defaultTab==='charlie'?'block':'none'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="font-size:12px;" id="kp-csub-sub"></div>
+            <div style="display:flex;gap:8px;">
+              <button class="kp-btn-cancel" id="kp-csub-close-btn">닫기</button>
+              <button id="kp-csub-apply-btn" style="background:#d946ef;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
+            </div>
+          </div>
+          <div id="kp-csub-body"></div>
+        </div>
+        <div id="kp-stab-panel-blog" style="display:${defaultTab==='blog'?'block':'none'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="font-size:12px;" id="kp-bsub-sub"></div>
+            <div style="display:flex;gap:8px;">
+              <button class="kp-btn-cancel" id="kp-bsub-close-btn">닫기</button>
+              <button id="kp-bsub-apply-btn" style="background:#22c55e;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
+            </div>
+          </div>
+          <div id="kp-bsub-body"></div>
+        </div>
       </div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('#kp-submit-close-btn')?.addEventListener('click', () => overlay.remove());
     overlay.querySelector('#kp-youpfl-close-btn')?.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#kp-csub-close-btn')?.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#kp-bsub-close-btn')?.addEventListener('click', () => overlay.remove());
+
+    // 찰리/델타는 버전체크 동적조회가 빈 값을 반환해 거부되는 실측 문제가 있어 상품 설정의 ver로 강제 override
+    function kpProductVerFor(id) { return prods.find(p => p.id === id)?.ver; }
 
     if (hasNormal) {
       const bodyEl = overlay.querySelector('#kp-submit-body');
@@ -3253,7 +3342,7 @@ document.addEventListener('keydown', function(e) {
       if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = async () => {
         applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
-        const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate);
+        const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate, 'normalKeys');
         applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
       };
     }
@@ -3274,13 +3363,70 @@ document.addEventListener('keydown', function(e) {
       if (yupflRows.every(r=>r._fixedSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
       else applyBtn.onclick = () => kpExecuteYoupflSubmit(yupflRows, overlay, gate);
     }
+    if (hasCharlie) {
+      const bodyEl = overlay.querySelector('#kp-csub-body');
+      const subEl = overlay.querySelector('#kp-csub-sub');
+      const applyBtn = overlay.querySelector('#kp-csub-apply-btn');
+      let totalSlots = 0, totalTarget = 0;
+      charliePlan.forEach(p => {
+        const block = kpBuildSubmitAgencyBlock(p, true);
+        if (block) bodyEl.appendChild(block);
+        totalSlots += new Set(p.rows.map(r=>r._slotKey)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일수||0),0);
+      });
+      subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${charliePlan.length}곳 · 찰리 ${totalSlots}건 · 전체목표 합계 ${totalTarget.toLocaleString()}</span>${kpAgencyIssueSummaryHtml(charliePlan)}`;
+      const allRows = charliePlan.flatMap(p=>p.rows);
+      const anyFail = kpValidateNormalRowsForSubmit(allRows);
+      if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+      if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
+      else applyBtn.onclick = async () => {
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        const { okTotal, failTotal } = await kpSubmitPlanRows(charliePlan, gate, 'charlieKeys', KP_CHARLIE_ADROLE, kpProductVerFor('charlie'));
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+      };
+    }
+    if (hasDelta || hasNavy) {
+      const bodyEl = overlay.querySelector('#kp-bsub-body');
+      const subEl = overlay.querySelector('#kp-bsub-sub');
+      const applyBtn = overlay.querySelector('#kp-bsub-apply-btn');
+      let totalSlots = 0, totalTarget = 0;
+      if (hasDelta) deltaPlan.forEach(p => {
+        const block = kpBuildSubmitAgencyBlock(p, true, true);
+        if (block) bodyEl.appendChild(block);
+        totalSlots += new Set(p.rows.map(r=>r._slotKey)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일수||0),0);
+      });
+      if (hasNavy) navyPlan.forEach(p => {
+        const block = kpBuildSubmitAgencyBlock(p, false, true);
+        if (block) bodyEl.appendChild(block);
+        totalSlots += new Set(p.rows.map(r=>r._slotKey)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
+      });
+      const issueSummary = (hasDelta?kpAgencyIssueSummaryHtml(deltaPlan,true):'') + (hasNavy?kpAgencyIssueSummaryHtml(navyPlan,true):'');
+      subEl.innerHTML = `<span style="color:var(--text2)">블로그(델타+네이비) ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${issueSummary}`;
+      const allRows = [...deltaPlan.flatMap(p=>p.rows), ...navyPlan.flatMap(p=>p.rows)];
+      const anyFail = kpValidateNormalRowsForSubmit(allRows);
+      if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+      if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
+      else applyBtn.onclick = async () => {
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        const results = await Promise.all([
+          hasDelta ? kpSubmitPlanRows(deltaPlan, gate, 'deltaKeys', KP_DELTA_ADROLE, kpProductVerFor('delta')) : { okTotal:0, failTotal:0 },
+          hasNavy ? kpSubmitPlanRows(navyPlan, gate, 'navyKeys', undefined, kpProductVerFor('navy')) : { okTotal:0, failTotal:0 },
+        ]);
+        const okTotal = results.reduce((a,r)=>a+r.okTotal,0);
+        const failTotal = results.reduce((a,r)=>a+r.failTotal,0);
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+      };
+    }
   }
 
   window.kpSwitchSubmitTab = function(tab) {
-    document.getElementById('kp-stab-normal')?.classList.toggle('active', tab==='normal');
-    document.getElementById('kp-stab-fixed')?.classList.toggle('active', tab==='fixed');
-    const pn = document.getElementById('kp-stab-panel-normal'); if (pn) pn.style.display = tab==='normal'?'block':'none';
-    const pf = document.getElementById('kp-stab-panel-fixed'); if (pf) pf.style.display = tab==='fixed'?'block':'none';
+    ['normal','fixed','charlie','blog'].forEach(t => {
+      document.getElementById(`kp-stab-${t}`)?.classList.toggle('active', tab===t);
+      const panel = document.getElementById(`kp-stab-panel-${t}`);
+      if (panel) panel.style.display = tab===t ? 'block' : 'none';
+    });
   };
 
   window.kpApplyYoupflMissionBulk = function(btn) {
@@ -3297,7 +3443,7 @@ document.addEventListener('keydown', function(e) {
     const base = checkedKeys.length ? allSlots.filter(s=>keySet.has(s._key)) : allSlots;
     const target = base.filter(s => s.status === 'accepted');
     if (!target.length) { alert('접수(accepted) 상태인 캠페인이 없습니다.\n(체크박스를 선택하지 않으면 목록 전체 중 접수 상태 건을 대상으로 합니다)'); return; }
-    if (!confirm(`${target.length}건을 실제 BizFit에 배분·제출합니다.\n(일반/유입플 상품만 지원 — 찰리·델타·네이비는 아직 지원 안 함)\n\n진행하시겠습니까?`)) return;
+    if (!confirm(`${target.length}건을 실제 BizFit에 배분·제출합니다.\n\n진행하시겠습니까?`)) return;
     await kpOpenSubmitModal(target);
   };
 })();
