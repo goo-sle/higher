@@ -198,8 +198,18 @@
   function refundKey(timeKey,agencyId,userId){const safe=s=>s.replace(/[.#$\[\]]/g,'_');return `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;}
   function getRefund(timeKey,agencyId,userId){return refundMap[refundKey(timeKey,agencyId,userId)]||0;}
   function getPrice(userId){const u=allUsers.find(u=>u.username===userId);return u?(u.unitPrice||0):0;}
+  // 김프로 슬롯의 실제 userId는 레코드마다 있을 수도 없을 수도 있음(과거 이관분은 비어있는 경우 많음) +
+  // 그룹 키 충돌 방지용 센티널(KIMPRO_USER_SENTINEL)로 화면에서 덮어써져 있어 원본은 _origUserId에
+  // 별도 보관해둠. 원본 userId 있으면 그걸로, 없으면 agencyId(대행사 표시명)를 회원관리 agencyId와
+  // 매칭 — 접수관리/김프로 둘 다 회원관리 단가를 그대로 쓰는 게 맞는 설계.
+  function getAgencyPrice(s){
+    if (s._src !== 'kp') return getPrice(s.userId);
+    if (s._origUserId) { const p = getPrice(s._origUserId); if (p) return p; }
+    const u = allUsers.find(u => u.agencyId === s.agencyId || u.agency === s.agencyId);
+    return u ? (u.unitPrice||0) : 0;
+  }
   // 슬롯 저장 단가 우선, 없거나 0이면 현재 유저 단가 (기존 데이터 호환)
-  function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getPrice(s.userId);}
+  function getSlotPrice(s){return (s.unitPrice!=null&&s.unitPrice!==''&&s.unitPrice>0)?s.unitPrice:getAgencyPrice(s);}
   const escProd = v => String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // onclick 홑따옴표 JS 문자열용 — encodeURIComponent는 '를 안 건드려 값에 '가 있으면 문자열 탈출 가능, %27로 추가 치환해 막음
   const encAttr = v => encodeURIComponent(v).replace(/'/g,'%27');
@@ -532,7 +542,7 @@
       try { haSnapshotMap = await HA.getAllSettleSnapshots(); } catch(e) { haSnapshotMap={}; }
       try { kpSnapshotMap = await HA.getAllKpSettleSnapshots(); } catch(e) { kpSnapshotMap={}; }
       // 김프로 슬롯은 userId를 센티널로 덮어써 접수관리와 그룹 키가 절대 안 겹치게 함(위 KIMPRO_USER_SENTINEL 주석 참고)
-      const kpSlots = dedupeKpSlots(haSlots, kpSlotsRaw).map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
+      const kpSlots = dedupeKpSlots(haSlots, kpSlotsRaw).map(s => ({...s, _src:'kp', _origUserId:s.userId, userId: KIMPRO_USER_SENTINEL}));
       allSlots  = [...haSlots, ...kpSlots];
       paidSet   = new Set([...haPaidSet, ...kpPaidSet]);
       refundMap = {...haRefundMap, ...kpRefundMap};
@@ -564,7 +574,7 @@
         HA.getSlots(), HA.getRefunds().catch(()=>({})),
         HA.getKpSlots().catch(()=>[]), HA.getKpRefunds().catch(()=>({})),
       ]);
-      const freshKpSlots = dedupeKpSlots(freshHaSlots, freshKpSlotsRaw).map(s => ({...s, _src:'kp', userId: KIMPRO_USER_SENTINEL}));
+      const freshKpSlots = dedupeKpSlots(freshHaSlots, freshKpSlotsRaw).map(s => ({...s, _src:'kp', _origUserId:s.userId, userId: KIMPRO_USER_SENTINEL}));
       const freshSlots = [...freshHaSlots, ...freshKpSlots];
       allSlots = freshSlots; refundMap = {...(freshHaRefundMap||{}), ...(freshKpRefundMap||{})};
       const freshRefund = (timeKey,agencyId,userId) => (refundMap)[refundKey(timeKey,agencyId,userId)]||0;

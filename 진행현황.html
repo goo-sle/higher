@@ -435,7 +435,12 @@
   renderSlots(false);
 
   // ── 휴지통 ─────────────────────────────────────────────────
+  // 진행현황 메인 목록은 ha/slots 전용 유지(김프로 캠페인은 단가·액션 체계가 달라 그대로 섞으면
+  // 위험) — 휴지통만 별도로 ha/kimproSlots의 삭제 항목을 합쳐서 보여줌(사용자 요청, 2026-09-10)
   const TRASH_DAYS = 30;
+  let kpTrashSlots = [];
+  let kpTrashLoaded = false;
+  let _trashTab = 'ha'; // 'ha' | 'kp' — 저장소가 달라 헷갈리지 않게 탭으로 구분(사용자 요청)
 
   function _trashRemaining(deletedAt) {
     if (!deletedAt) return TRASH_DAYS;
@@ -451,6 +456,7 @@
 
   window.openTrashView = async function() {
     if (document.getElementById('trash-modal')) return;
+    _trashTab = 'ha';
     const overlay = document.createElement('div');
     overlay.id = 'trash-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;';
@@ -462,11 +468,12 @@
             <span style="font-size:12px;color:var(--muted);">삭제 후 ${TRASH_DAYS}일간 보관 · 기간 만료 시 자동 영구삭제</span>
           </div>
           <div style="display:flex;gap:8px;">
-            <button onclick="emptyTrash()" style="padding:7px 14px;border:none;border-radius:6px;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">전체 영구삭제</button>
+            <button onclick="emptyTrash()" style="padding:7px 14px;border:none;border-radius:6px;background:#ef4444;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">현재 탭 전체 영구삭제</button>
             <button onclick="document.getElementById('trash-modal').remove()" style="padding:7px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;font-family:inherit;">닫기</button>
           </div>
         </div>
-        <div id="trash-table-area" style="min-height:200px;">
+        <div id="trash-tab-bar" style="display:flex;gap:6px;padding:12px 24px 0;"></div>
+        <div id="trash-table-area" style="min-height:200px;padding-top:12px;">
           <div class="loading-wrap"><div class="spinner"></div> 불러오는 중...</div>
         </div>
       </div>`;
@@ -474,25 +481,61 @@
     await _renderTrashContent();
   };
 
+  window.switchTrashTab = function(tab) {
+    _trashTab = tab;
+    _renderTrashContent();
+  };
+
+  function _renderTrashTabBar(haCount, kpCount) {
+    const bar = document.getElementById('trash-tab-bar');
+    if (!bar) return;
+    const tabBtn = (key, label, count) => {
+      const active = _trashTab === key;
+      return `<button onclick="switchTrashTab('${key}')" style="padding:7px 16px;border:none;border-bottom:2px solid ${active?'var(--accent)':'transparent'};background:none;font-size:13px;font-weight:${active?'700':'500'};color:${active?'var(--text)':'var(--text2)'};cursor:pointer;font-family:inherit;">${label} ${count}건</button>`;
+    };
+    bar.innerHTML = tabBtn('ha', '하이어애드', haCount) + tabBtn('kp', '김프로', kpCount);
+  }
+
   // 이미 받아둔 module 캐시(allSlots) 재사용 — 매번 HA.getSlots()(5.8MB+) 재조회는 낭비. 삭제/복구 시 각 함수가 allSlots를 직접 patch해 최신 유지
+  // 김프로 휴지통 항목은 별도 캐시(kpTrashSlots)로 관리 — 메인 목록엔 안 섞음(단가 체계 등이 달라 위험)
   async function _renderTrashContent() {
     const area = document.getElementById('trash-table-area');
     if (!area) return;
 
-    const trashed = allSlots.filter(s => s.status === 'deleted');
+    if (!kpTrashLoaded) {
+      try {
+        kpTrashSlots = (await HA.getKpSlots()).filter(s => s.status === 'deleted');
+      } catch (e) { console.error('김프로 휴지통 로딩 오류:', e); kpTrashSlots = []; }
+      kpTrashLoaded = true;
+    }
 
-    // 30일 초과 항목 자동 영구삭제
+    const haTrashed = allSlots.filter(s => s.status === 'deleted');
+    const kpTrashed = kpTrashSlots;
+
+    // 30일 초과 항목 자동 영구삭제(양쪽 다)
     const now = Date.now();
-    const expired = trashed.filter(s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000);
-    if (expired.length) {
-      await Promise.all(expired.map(s => HA.permanentDeleteSlot(s._key)));
-      const expiredKeys = new Set(expired.map(s => s._key));
+    const expire = s => s.deletedAt && now > new Date(s.deletedAt).getTime() + TRASH_DAYS * 86400000;
+    const haExpired = haTrashed.filter(expire);
+    const kpExpired = kpTrashed.filter(expire);
+    if (haExpired.length) {
+      await Promise.all(haExpired.map(s => HA.permanentDeleteSlot(s._key)));
+      const expiredKeys = new Set(haExpired.map(s => s._key));
       allSlots = allSlots.filter(s => !expiredKeys.has(s._key));
     }
-    const active = trashed.filter(s => !expired.some(e => e._key === s._key));
+    if (kpExpired.length) {
+      await Promise.all(kpExpired.map(s => HA.permanentDeleteKpSlot(s._key)));
+      const expiredKeys = new Set(kpExpired.map(s => s._key));
+      kpTrashSlots = kpTrashSlots.filter(s => !expiredKeys.has(s._key));
+    }
+    const haActive = haTrashed.filter(s => !haExpired.some(e => e._key === s._key));
+    const kpActive = kpTrashed.filter(s => !kpExpired.some(e => e._key === s._key));
+    _renderTrashTabBar(haActive.length, kpActive.length);
+
+    const active = _trashTab === 'kp' ? kpActive : haActive;
+    const isKp = _trashTab === 'kp';
 
     if (!active.length) {
-      area.innerHTML = '<div style="padding:60px 0;text-align:center;color:var(--muted);font-size:13px;">휴지통이 비어 있습니다.</div>';
+      area.innerHTML = `<div style="padding:60px 0;text-align:center;color:var(--muted);font-size:13px;">${isKp?'김프로':'하이어애드'} 휴지통이 비어 있습니다.</div>`;
       return;
     }
 
@@ -536,27 +579,43 @@
 
   window.restoreFromTrash = async function(key) {
     if (!confirm('이 캠페인을 복구하시겠습니까?')) return;
-    const slot = allSlots.find(s => s._key === key);
-    await HA.restoreSlot(key);
-    if (slot) { slot.status = slot.originalStatus || 'pending'; slot.deletedAt = null; slot.originalStatus = null; }
+    if (_trashTab === 'kp') {
+      await HA.restoreKpSlot(key);
+      kpTrashSlots = kpTrashSlots.filter(s => s._key !== key);
+    } else {
+      const slot = allSlots.find(s => s._key === key);
+      await HA.restoreSlot(key);
+      if (slot) { slot.status = slot.originalStatus || 'pending'; slot.deletedAt = null; slot.originalStatus = null; }
+    }
     await _renderTrashContent();
     renderSlots(false); // allSlots를 이미 위에서 patch했으므로 강제 재조회 불필요
   };
 
   window.permanentDeleteFromTrash = async function(key) {
     if (!confirm('영구 삭제하면 복구가 불가능합니다.\n정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?')) return;
-    await HA.permanentDeleteSlot(key);
-    allSlots = allSlots.filter(s => s._key !== key);
+    if (_trashTab === 'kp') {
+      await HA.permanentDeleteKpSlot(key);
+      kpTrashSlots = kpTrashSlots.filter(s => s._key !== key);
+    } else {
+      await HA.permanentDeleteSlot(key);
+      allSlots = allSlots.filter(s => s._key !== key);
+    }
     await _renderTrashContent();
   };
 
   window.emptyTrash = async function() {
-    const trashed = allSlots.filter(s => s.status === 'deleted');
-    if (!trashed.length) { alert('휴지통이 이미 비어 있습니다.'); return; }
-    if (!confirm(`휴지통의 모든 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
-    await Promise.all(trashed.map(s => HA.permanentDeleteSlot(s._key)));
+    const isKp = _trashTab === 'kp';
+    const trashed = (isKp ? kpTrashSlots : allSlots.filter(s => s.status === 'deleted'));
+    if (!trashed.length) { alert(`${isKp?'김프로':'하이어애드'} 휴지통이 이미 비어 있습니다.`); return; }
+    if (!confirm(`${isKp?'김프로':'하이어애드'} 휴지통의 항목 ${trashed.length}건을 영구 삭제합니다.\n복구할 수 없으며, 정산 데이터도 함께 삭제됩니다. 계속하시겠습니까?`)) return;
     const trashedKeys = new Set(trashed.map(s => s._key));
-    allSlots = allSlots.filter(s => !trashedKeys.has(s._key));
+    if (isKp) {
+      await Promise.all(trashed.map(s => HA.permanentDeleteKpSlot(s._key)));
+      kpTrashSlots = kpTrashSlots.filter(s => !trashedKeys.has(s._key));
+    } else {
+      await Promise.all(trashed.map(s => HA.permanentDeleteSlot(s._key)));
+      allSlots = allSlots.filter(s => !trashedKeys.has(s._key));
+    }
     await _renderTrashContent();
   };
 
