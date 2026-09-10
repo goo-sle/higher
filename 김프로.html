@@ -2493,7 +2493,7 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-split').textContent = split.toLocaleString();
     // 예약(split) 카드는 예약 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)으로
     // 표시 — 팝업/카드/접수관리·김프로 화면 전부 숫자가 항상 일치하도록
-    computeKpScheduleGroupCount().then(n => {
+    window.computeKpScheduleGroupCount().then(n => {
       const el = document.getElementById('kp-stat-split');
       if (el) el.textContent = n.toLocaleString();
     }).catch(e => console.error('예약 건수 조회 오류:', e));
@@ -5481,7 +5481,7 @@ document.addEventListener('keydown', function(e) {
 
   // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 전역 상태(ssEntries)
   // 건드리지 않고 반환. 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 안 어긋나게 함.
-  async function computeKpScheduleGroupCount() {
+  window.computeKpScheduleGroupCount = async function() {
     const [kpSnap, haSnap] = await Promise.all([
       window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
       window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
@@ -5496,7 +5496,7 @@ document.addEventListener('keydown', function(e) {
       legacyList.forEach(e => { entries[e._key] = { ...e, _src:'legacy' }; });
     } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
     return groupScheduleEntries(Object.values(entries)).length;
-  }
+  };
 
   async function reloadKpScheduleEntries() {
     const [kpSnap, haSnap] = await Promise.all([
@@ -5605,7 +5605,11 @@ document.addEventListener('keydown', function(e) {
         // 취소/재분류/키워드 일괄분배 등 쓰기 액션은 신규 경로(ha/kimproScheduledDispatch) 대기건만 대상으로 함
         const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
         const groupSrc = g.items.find(e => e._src === 'ha') ? 'ha' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'kp');
-        const srcBadge = groupSrc === 'ha' ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>' : '';
+        const srcBadge = groupSrc === 'ha'
+          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>'
+          : groupSrc === 'kp'
+          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>'
+          : '';
         const selCount = (kpSsResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">

@@ -4938,7 +4938,11 @@ window.toggleProdPanel = function(e) {
         // 취소/재분류/키워드 일괄분배는 신규 경로(ha/scheduled_dispatch·ha/kimproScheduledDispatch) 대기건만 대상
         const editablePendCount = g.items.filter(e => e._src !== 'legacy' && !isScheduleDone(e.status)).length;
         const groupSrc = g.items.find(e => e._src === 'kp') ? 'kp' : (g.items.every(e => e._src === 'legacy') ? 'legacy' : 'ha');
-        const srcBadge = groupSrc === 'kp' ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>' : '';
+        const srcBadge = groupSrc === 'kp'
+          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>'
+          : groupSrc === 'ha'
+          ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>'
+          : '';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
