@@ -153,7 +153,7 @@
     <div class="kp-stat-box" style="cursor:pointer;" onclick="openKpSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="kp-sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="kp-sb-val" id="kp-stat-split" style="color:#b45309">-</div></div>
   </div>
 
-  <!-- 상품 유형 설정 패널 (접수관리.html 이식 — 그룹 프리셋 저장/적용은 미이식, 필요시 추가 가능) -->
+  <!-- 상품 유형 설정 패널 (접수관리.html 이식 — 그룹 프리셋 포함) -->
   <div class="kp-prod-panel collapsed" id="kp-prod-panel">
     <div class="kp-prod-ph" onclick="kpToggleProdPanel(event)">
       <span>📦</span>
@@ -187,6 +187,8 @@
         <div class="kp-ps-row">
           <span class="kp-ps-sect-lbl">고정</span>
           <div class="kp-ps-row-inner" id="kpPsWrapFixed" style="margin-left:28px;"></div>
+          <button class="kp-action-btn" id="kp-dl-main-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="kpDownloadExcel()">시트 분류</button>
+          <button class="kp-action-btn" id="kp-dl-submit-btn" style="background:#EA580C;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="kpSubmitDirect()">접수</button>
         </div>
       </div>
     </div>
@@ -3249,6 +3251,9 @@ document.addEventListener('keydown', function(e) {
   const ap = () => prods.filter(p => p.active);
   let _prodsLoaded = false;
   let _prodModalId = null;
+  let prodGroups = [];
+  let activeProdGroupId = null;
+  let defaultProdsState = null;
   const KP_PROD_COLORS = ['#06b6d4','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6','#facc15','#ef4444','#14b8a6','#d946ef','#78716c'];
   let _kpApColor = '#06b6d4';
 
@@ -3286,22 +3291,123 @@ document.addEventListener('keydown', function(e) {
     const fixedDefaults = new Map(prods.map(p => [p.id, {fixedPct:p.fixedPct}]));
     const colorMap = new Map(prods.map(p => [p.id, p.color]));
     try {
-      const snap = await window.HA.getDoc('ha/kimproProdSettings/prods');
-      if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap);
+      const [prodsSnap, groupsSnap] = await Promise.all([
+        window.HA.getDoc('ha/kimproProdSettings/prods'),
+        window.HA.getDoc('ha/kimproProdSettings/groups'),
+      ]);
+      if (prodsSnap.exists()) kpApplyProdsData(prodsSnap.val(), staticFlags, fixedDefaults, colorMap);
+      if (groupsSnap.exists()) { const g = groupsSnap.val(); prodGroups = Array.isArray(g) ? g : Object.values(g); }
     } catch (e) { /* 기본값 유지 */ }
     try {
       const { getDatabase, ref, onValue } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
-      let first = true;
-      onValue(ref(getDatabase(), 'ha/kimproProdSettings/prods'), (snap) => {
-        if (first) { first = false; return; }
-        if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap);
-        if (document.getElementById('kp-prod-panel')) renderKpPS();
-      }, (e) => console.error('kimproProdSettings 구독 오류:', e));
+      const db = getDatabase();
+      const subscribe = (suffix, apply) => {
+        let first = true;
+        onValue(ref(db, 'ha/kimproProdSettings' + suffix), (snap) => {
+          if (first) { first = false; return; }
+          apply(snap);
+          if (document.getElementById('kp-prod-panel')) renderKpPS();
+        }, (e) => console.error('kimproProdSettings 구독 오류:', e));
+      };
+      subscribe('/prods', (snap) => { if (snap.exists()) kpApplyProdsData(snap.val(), staticFlags, fixedDefaults, colorMap); });
+      subscribe('/groups', (snap) => { prodGroups = snap.exists() ? (Array.isArray(snap.val()) ? snap.val() : Object.values(snap.val())) : []; });
     } catch (e) { /* 실시간 구독 실패해도 최초 로드값은 유지 */ }
   }
   function kpSaveProdSettings() {
     const snapProds = JSON.parse(JSON.stringify(prods));
+    const snapGroups = JSON.parse(JSON.stringify(prodGroups));
     window.HA.setKpDoc('ha/kimproProdSettings/prods', snapProds).catch(()=>{});
+    window.HA.setKpDoc('ha/kimproProdSettings/groups', snapGroups.length ? snapGroups : null).catch(()=>{});
+  }
+
+  // ── 상품 유형 설정 그룹 프리셋 (접수관리.html 이식) ──────────
+  const kpProdSnapshot = () => prods.map(p => ({id:p.id,active:p.active,ratio:p.ratio,name:p.name,ver:p.ver,kwPct:p.kwPct,fixedPct:p.fixedPct,blogSplit:p.blogSplit,
+    missionRules: Array.isArray(p.missionRules) ? p.missionRules.map(r => ({...r})) : undefined}));
+  function kpSaveProdDefault() { defaultProdsState = kpProdSnapshot(); }
+  function kpDeactivateProdGroup() {
+    activeProdGroupId = null;
+    if (defaultProdsState) {
+      defaultProdsState.forEach(s => { const p = prods.find(x => x.id === s.id); if (p) Object.assign(p, s); });
+    }
+    renderKpPS();
+  }
+  function renderKpProdGroups() {
+    const wrap = document.getElementById('kpProdGroupWrap');
+    if (!wrap) return;
+    if (!prodGroups.length) { wrap.innerHTML = `<span style="font-size:11px;color:var(--muted);">저장된 그룹 없음</span>`; return; }
+    wrap.innerHTML = prodGroups.map(g => {
+      const isActive = g.id === activeProdGroupId;
+      const dots = g.state.map(s => {
+        const p = prods.find(x => x.id === s.id);
+        const col = p ? p.color : '#999';
+        return `<span style="width:7px;height:7px;border-radius:50%;background:${col};opacity:${s.active?1:.2};display:inline-block;flex-shrink:0;"></span>`;
+      }).join('');
+      return `<div class="kp-prod-grp-btn${isActive?' active-g':''}" data-gid="${g.id}"
+        onclick="kpApplyProdGroup('${g.id}')"
+        ondblclick="event.stopPropagation();kpStartRenameProdGroup('${g.id}')"
+        title="${g.state.filter(s=>s.active).map(s=>prods.find(x=>x.id===s.id)?.name||s.id).join(', ')}">
+        <div class="kp-prod-grp-name-wrap">
+          <span class="kp-prod-grp-name">${kpEscProd(g.name)}</span>
+          <span class="kp-prod-grp-dots">${dots}</span>
+        </div>
+        <button class="kp-prod-grp-del" onclick="event.stopPropagation();kpDeleteProdGroup('${g.id}')">✕</button>
+      </div>`;
+    }).join('');
+  }
+  window.kpShowAddProdGroup = function() {
+    document.getElementById('kpAddProdGroupForm').style.display = 'flex';
+    document.getElementById('kpProdGroupNameInput').focus();
+  };
+  window.kpHideAddProdGroup = function() {
+    document.getElementById('kpAddProdGroupForm').style.display = 'none';
+    document.getElementById('kpProdGroupNameInput').value = '';
+  };
+  window.kpSaveProdGroup = function() {
+    const name = document.getElementById('kpProdGroupNameInput').value.trim();
+    if (!name) { document.getElementById('kpProdGroupNameInput').focus(); return; }
+    prodGroups.push({ id:'g'+Date.now(), name, state: kpProdSnapshot() });
+    kpSaveProdSettings(); window.kpHideAddProdGroup(); renderKpProdGroups();
+  };
+  window.kpDeleteProdGroup = function(id) {
+    if (activeProdGroupId === id) activeProdGroupId = null;
+    prodGroups = prodGroups.filter(g => g.id !== id);
+    kpSaveProdSettings(); renderKpProdGroups();
+  };
+  window.kpApplyProdGroup = function(id) {
+    if (id === activeProdGroupId) { kpDeactivateProdGroup(); return; }
+    const g = prodGroups.find(x => x.id === id); if (!g) return;
+    if (!activeProdGroupId) kpSaveProdDefault();
+    g.state.forEach(s => {
+      const p = prods.find(x => x.id === s.id); if (!p) return;
+      p.active = s.active;
+      if (s.ratio  !== undefined) p.ratio  = s.ratio;
+      if (s.name)                 p.name   = s.name;
+      if (s.ver    !== undefined && !VER_LOCKED_IDS.has(p.id)) p.ver = s.ver;
+      if (s.kwPct  !== undefined) p.kwPct  = s.kwPct;
+      if (s.fixedPct !== undefined) p.fixedPct = s.fixedPct;
+      if (s.blogSplit !== undefined) p.blogSplit = s.blogSplit;
+      if (Array.isArray(s.missionRules)) p.missionRules = s.missionRules.map(r => ({...r}));
+    });
+    activeProdGroupId = id; renderKpPS();
+  };
+  window.kpStartRenameProdGroup = function(id) {
+    const g = prodGroups.find(x => x.id === id); if (!g) return;
+    const el = document.querySelector(`.kp-prod-grp-btn[data-gid="${id}"] .kp-prod-grp-name`);
+    if (!el) return;
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.value = g.name; inp.maxLength = 24;
+    inp.style.cssText = 'background:transparent;border:none;border-bottom:1px solid var(--info,#3b82f6);color:var(--text);font-size:12px;font-weight:700;font-family:inherit;outline:none;width:80px;padding:0;';
+    let committed = false;
+    const commit = () => { if (committed) return; committed = true; const v = inp.value.trim(); if (v) g.name = v; kpSaveProdSettings(); renderKpProdGroups(); };
+    inp.onblur = commit;
+    inp.onkeydown = e => { if (e.key==='Enter') { inp.blur(); } if (e.key==='Escape') { committed=true; renderKpProdGroups(); } e.stopPropagation(); };
+    el.replaceWith(inp); inp.focus(); inp.select();
+  };
+  function kpUpdateActiveProdGroup() {
+    if (!activeProdGroupId) return;
+    const g = prodGroups.find(x => x.id === activeProdGroupId); if (!g) return;
+    g.state = kpProdSnapshot();
+    kpSaveProdSettings(); renderKpProdGroups();
   }
 
   // ── 상품 유형 설정 패널 (접수관리.html 이식) ──────────────────
@@ -3309,6 +3415,7 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-prod-panel').classList.toggle('collapsed');
   };
   function renderKpPS() {
+    renderKpProdGroups();
     const prodHtml = p => `
       <div class="kp-ps-item${p.active?' active':''}" id="kp-psi-${p.id}" onclick="kpOpenProdModal('${p.id}')">
         <div class="kp-ps-dot" style="background:${p.color};border-color:rgba(0,0,0,.1);"></div>
@@ -3329,7 +3436,8 @@ document.addEventListener('keydown', function(e) {
       if (other) other.active = false;
     }
     kpRebalanceProdActive('ratio'); kpRebalanceProdActive('kwPct');
-    kpSaveProdSettings(); renderKpPS();
+    if (activeProdGroupId) kpUpdateActiveProdGroup(); else { kpSaveProdDefault(); kpSaveProdSettings(); }
+    renderKpPS();
   };
   function kpRebalanceProdActive(field) {
     const active = ap().filter(p => p.autoBalance !== false);
@@ -3361,7 +3469,8 @@ document.addEventListener('keydown', function(e) {
     const ver = document.getElementById('kp-ap-ver').value.trim();
     prods.push({id:'u'+Date.now(),name,color:_kpApColor,active:false,ver:ver||'ver.5.0/3.2',ratio:0,kwPct:0});
     window.kpCloseAddProdModal();
-    kpSaveProdSettings(); renderKpPS();
+    if (activeProdGroupId) kpUpdateActiveProdGroup(); else { kpSaveProdDefault(); kpSaveProdSettings(); }
+    renderKpPS();
   };
   window.kpOpenProdModal = function(id) {
     const p = prods.find(x => x.id === id); if (!p) return;
@@ -3614,8 +3723,10 @@ document.addEventListener('keydown', function(e) {
       if (!rules.length) { alert('키워드 배분 규칙을 최소 1개 이상 입력해야 합니다.'); return; }
       p.missionRules = rules;
     }
+    prodGroups.forEach(g => { const gs=g.state.find(s=>s.id===p.id); if(gs){gs.name=p.name;gs.ver=p.ver;} });
     window.kpCloseProdModal();
-    kpSaveProdSettings(); renderKpPS();
+    if (activeProdGroupId) kpUpdateActiveProdGroup(); else { kpSaveProdDefault(); kpSaveProdSettings(); }
+    renderKpPS();
   };
   window.kpDeleteProdModal = function() {
     if (!_prodModalId || FIXED_PROD_IDS.has(_prodModalId)) return;
@@ -3624,7 +3735,9 @@ document.addEventListener('keydown', function(e) {
     const id = _prodModalId;
     window.kpCloseProdModal();
     prods = prods.filter(x => x.id !== id);
-    kpSaveProdSettings(); renderKpPS();
+    prodGroups.forEach(g => { g.state = g.state.filter(s => s.id !== id); });
+    if (activeProdGroupId) kpUpdateActiveProdGroup(); else { kpSaveProdDefault(); kpSaveProdSettings(); }
+    renderKpPS();
   };
 
   function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
