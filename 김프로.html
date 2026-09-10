@@ -2491,14 +2491,12 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
     document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
     document.getElementById('kp-stat-split').textContent = split.toLocaleString();
-    // 예약(split) 카드는 예약 분할 현황 팝업/접수관리와 동일하게 양쪽 합산 건수로 표시(사용자 요청) —
-    // 미러된(같은 key) 캠페인은 한 번만 세도록 제외
-    window.HA.getSlotsLive().then(haSlots => {
-      const kpKeys = new Set(allSlots.map(s => s._key));
-      const haSplit = haSlots.filter(s => s.status === 'split' && !kpKeys.has(s._key)).length;
+    // 예약(split) 카드는 예약 분할 현황 팝업과 완전히 동일한 계산(computeKpScheduleGroupCount)으로
+    // 표시 — 팝업/카드/접수관리·김프로 화면 전부 숫자가 항상 일치하도록
+    computeKpScheduleGroupCount().then(n => {
       const el = document.getElementById('kp-stat-split');
-      if (el) el.textContent = (split + haSplit).toLocaleString();
-    }).catch(e => console.error('접수관리 예약 건수 조회 오류:', e));
+      if (el) el.textContent = n.toLocaleString();
+    }).catch(e => console.error('예약 건수 조회 오류:', e));
 
     const start = (currentPage-1)*PER_PAGE;
     const page  = all.slice(start, start+PER_PAGE);
@@ -5479,6 +5477,25 @@ document.addEventListener('keydown', function(e) {
   async function kpProdsForScheduleSrc(src) {
     if (src === 'ha') return await getHaProdsForSchedule();
     return window.kpProdsRef ? window.kpProdsRef() : [];
+  }
+
+  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 전역 상태(ssEntries)
+  // 건드리지 않고 반환. 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 안 어긋나게 함.
+  async function computeKpScheduleGroupCount() {
+    const [kpSnap, haSnap] = await Promise.all([
+      window.HA.getKpDoc('ha/kimproScheduledDispatch').catch(() => null),
+      window.HA.getDoc('ha/scheduled_dispatch').catch(() => null),
+    ]);
+    const entries = {};
+    const kpVal = (kpSnap && kpSnap.exists()) ? kpSnap.val() : {};
+    Object.entries(kpVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'kp' }; });
+    const haVal = (haSnap && haSnap.exists()) ? haSnap.val() : {};
+    Object.entries(haVal).forEach(([k,v]) => { entries[k] = { ...v, _key:k, _src:'ha' }; });
+    try {
+      const legacyList = await window.HA.getKimproLegacyScheduledDispatch();
+      legacyList.forEach(e => { entries[e._key] = { ...e, _src:'legacy' }; });
+    } catch (err) { console.error('구 예약 항목 조회 오류:', err); }
+    return groupScheduleEntries(Object.values(entries)).length;
   }
 
   async function reloadKpScheduleEntries() {

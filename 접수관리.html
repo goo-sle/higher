@@ -683,14 +683,12 @@ window.toggleProdPanel = function(e) {
     document.getElementById('stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('stat-split').textContent    = split.toLocaleString();
     document.getElementById('stat-active').textContent   = active.toLocaleString();
-    // 예약(split) 카드는 예약 분할 현황 팝업과 동일하게 접수관리+김프로 합산 건수로 표시(사용자 요청) —
-    // 미러된(같은 key) 캠페인은 한 번만 세도록 제외
-    HA.getKpSlotsLive().then(kpSlots => {
-      const haKeys = new Set(allSlots.map(s => s._key));
-      const kpSplit = kpSlots.filter(s => s.status === 'split' && !haKeys.has(s._key)).length;
+    // 예약(split) 카드는 예약 분할 현황 팝업과 완전히 동일한 계산(computeScheduleGroupCount)으로
+    // 표시 — 팝업/카드/접수관리·김프로 화면 전부 숫자가 항상 일치하도록
+    computeScheduleGroupCount().then(n => {
       const el = document.getElementById('stat-split');
-      if (el) el.textContent = (split + kpSplit).toLocaleString();
-    }).catch(e => console.error('김프로 예약 건수 조회 오류:', e));
+      if (el) el.textContent = n.toLocaleString();
+    }).catch(e => console.error('예약 건수 조회 오류:', e));
 
     const start = (currentPage-1)*PER_PAGE;
     const page  = all.slice(start, start+PER_PAGE);
@@ -4778,6 +4776,23 @@ window.toggleProdPanel = function(e) {
     const hh = String(d.getHours()).padStart(2,'0');
     const mi = String(d.getMinutes()).padStart(2,'0');
     return `${mm}.${dd} ${hh}:${mi}`;
+  }
+
+  // 예약(split) 카드 전용 — 팝업의 groupScheduleEntries와 완전히 동일한 계산을 DOM 렌더 없이 반환.
+  // 두 화면 카드/팝업이 전부 이 하나의 계산식만 쓰도록 해서 숫자가 어긋나지 않게 함.
+  async function computeScheduleGroupCount() {
+    const [haSnap, kpSnap, legacyList] = await Promise.all([
+      fbGet('ha/scheduled_dispatch'),
+      fbGet('ha/kimproScheduledDispatch'),
+      HA.getKimproLegacyScheduledDispatch().catch(() => []),
+    ]);
+    const entries = {};
+    const haVal = haSnap.exists() ? haSnap.val() : {};
+    Object.entries(haVal).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'ha' }; });
+    const kpVal = kpSnap.exists() ? kpSnap.val() : {};
+    Object.entries(kpVal).forEach(([k, v]) => { entries[k] = { ...v, _key: k, _src: 'kp' }; });
+    legacyList.forEach(e => { entries[e._key] = { ...e, _src: 'legacy' }; });
+    return groupScheduleEntries(Object.values(entries)).length;
   }
 
   async function reloadScheduleEntries() {
