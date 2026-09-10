@@ -107,7 +107,10 @@
     </div>
   </div>
 
-  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
+    <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
+    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenSplitScheduleModal()">⏰ 예약 분할 현황</button>
+    <button class="kp-action-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
     <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpSubmitDirect()">🚀 배분 제출 (선택 또는 전체 접수건)</button>
   </div>
 
@@ -117,7 +120,7 @@
         <tr>
           <th style="width:32px;"><input type="checkbox" id="kp-check-all" onchange="kpToggleAll(this)"></th>
           <th>번호</th><th>접수일시</th><th>대행사</th><th>캠페인타입</th><th>플레이스명</th><th>MID</th>
-          <th>순위키워드</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
+          <th>순위키워드</th><th>일 수</th><th>시작일</th><th>종료일</th><th id="kp-th-daily-target" onclick="kpToggleSort()" style="cursor:pointer;user-select:none;white-space:nowrap;" title="클릭하여 정렬">일 목표 <span id="kp-sort-arrow">▼</span></th><th>상태</th><th>액션</th><th>삭제</th>
         </tr>
       </thead>
       <tbody id="kp-receipt-body">
@@ -2200,6 +2203,12 @@ document.addEventListener('keydown', function(e) {
   let _slotsLoaded = false;
   let _detailOpen  = false;
   let _slotsUnsub  = null;
+  let dtSortAsc    = null; // 일 목표 정렬: null=미적용(기본), false=내림차순, true=오름차순
+  window.kpToggleSort = function() {
+    dtSortAsc = dtSortAsc === false ? true : false;
+    document.getElementById('kp-sort-arrow').textContent = dtSortAsc ? '▲' : '▼';
+    kpRenderReceipts(false);
+  };
 
   function kpEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function kpFmtDate(d) {
@@ -2254,6 +2263,9 @@ document.addEventListener('keydown', function(e) {
       const slotDate = s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
       return true;
+    }).sort((a, b) => {
+      if (dtSortAsc === null) return 0;
+      return dtSortAsc ? (a.dailyTarget||0) - (b.dailyTarget||0) : (b.dailyTarget||0) - (a.dailyTarget||0);
     });
   }
 
@@ -2575,6 +2587,133 @@ document.addEventListener('keydown', function(e) {
     const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='accepted';
     kpCloseModalAndRefresh();
   };
+
+  // ── 대기 히스토리 재접수 (kimpro/reception.html 이식) ──────────────────
+  // 같은 MID의 최근 N일 키워드 히스토리로 대기 슬롯을 자동 접수 전환. 원본은 higher(ha/slots) 이력까지
+  // 합쳐 보여주지만(fullKeywordHistory), 데이터 분리 원칙(2026-09-10)에 따라 ha/kimproSlots 자체 이력만 사용.
+  function kpDedupHistoryByDay(list) {
+    const seen = new Set();
+    return list.filter(h => h.keyword).filter(h => {
+      const dayStr = h.date ? kpFmtDate(new Date(h.date)) : '';
+      const dedupKey = h.keyword + '|' + dayStr;
+      if (seen.has(dedupKey)) return false;
+      seen.add(dedupKey);
+      return true;
+    });
+  }
+  function kpLocalKeywordHistory(mid) {
+    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const sortedByCreated = sameMidSlots.filter(s => s.searchKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
+    const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.searchKeyword !== sortedByCreated[i-1].searchKeyword).map(s => ({ keyword:s.searchKeyword, date:s.createdAt }));
+    const changeHistory = sameMidSlots.flatMap(s => s.keywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
+    return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
+  }
+  function kpLocalYupflKeywordHistory(mid) {
+    const sameMidSlots = allSlots.filter(s => s.mid === mid);
+    const sortedByCreated = sameMidSlots.filter(s => s.yupflKeyword).sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt));
+    const currentHistory = sortedByCreated.filter((s,i) => i===0 || s.yupflKeyword !== sortedByCreated[i-1].yupflKeyword).map(s => ({ keyword:s.yupflKeyword, date:s.createdAt }));
+    const changeHistory = sameMidSlots.flatMap(s => s.yupflKeywordHistory||[]).map(h => ({ keyword:h.keyword, date:h.date }));
+    return kpDedupHistoryByDay([...currentHistory, ...changeHistory]).sort((a,b) => new Date(b.date)-new Date(a.date));
+  }
+
+  window.kpOpenReacceptModal = function() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="kp-modal-box" style="width:min(96vw,440px);">
+        <div class="kp-modal-title" style="display:flex;align-items:center;gap:6px;">🔁 대기 히스토리 재접수<span id="kp-reaccept-help-btn" title="도움말" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border);color:var(--text2);font-size:11px;font-weight:700;font-style:italic;font-family:Georgia,serif;cursor:pointer;flex-shrink:0;position:relative;top:1px;">i</span></div>
+        <div id="kp-reaccept-help" style="display:none;font-size:12px;color:var(--text2);background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:16px;">검색키워드는 ①일 이내 이력이 있어야 처리됩니다.<br>유입플은 ②를 비우면 ③ 값을 바로 쓰고, 채우면 이력을 먼저 찾고 없을 때만 ③을 씁니다.<br>조건을 모두 충족해야 접수로 전환되고, 아니면 키워드만 채워집니다.</div>
+        <div class="kp-modal-field" style="margin-bottom:12px;">
+          <label>① 검색키워드 히스토리 검색 일자 (일)</label>
+          <input type="number" id="kp-reaccept-days-kw" value="3" min="1">
+        </div>
+        <div class="kp-modal-field" style="margin-bottom:12px;">
+          <label>② 유입플 키워드 히스토리 검색 일자 (일)</label>
+          <input type="number" id="kp-reaccept-days-yupfl" value="3" min="1">
+        </div>
+        <div class="kp-modal-field" style="margin-bottom:12px;">
+          <label>③ 유입플 키워드 개별 설정</label>
+          <input type="text" id="kp-reaccept-yupfl" value="">
+        </div>
+        <div id="kp-reaccept-result" style="font-size:12px;margin-top:14px;"></div>
+        <div class="kp-modal-footer">
+          <button class="kp-btn-cancel" id="kp-reaccept-close-btn">닫기</button>
+          <button id="kp-reaccept-run-btn" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">실행</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#kp-reaccept-close-btn').onclick = () => { if (!window.kpReacceptRunning) overlay.remove(); };
+    overlay.querySelector('#kp-reaccept-run-btn').onclick = () => kpRunReaccept(overlay);
+    overlay.querySelector('#kp-reaccept-help-btn').onclick = () => {
+      const el = overlay.querySelector('#kp-reaccept-help');
+      el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    };
+  };
+
+  async function kpRunReaccept(overlay) {
+    const runBtn = overlay.querySelector('#kp-reaccept-run-btn');
+    const closeBtn = overlay.querySelector('#kp-reaccept-close-btn');
+    const resultEl = overlay.querySelector('#kp-reaccept-result');
+    const daysKw = parseInt(overlay.querySelector('#kp-reaccept-days-kw').value, 10);
+    if (!Number.isInteger(daysKw) || daysKw < 1) { alert('검색키워드 히스토리 검색 일자를 1 이상의 숫자로 입력해주세요.'); return; }
+    const daysYupflRaw = overlay.querySelector('#kp-reaccept-days-yupfl').value.trim();
+    const yupflSkip = daysYupflRaw === '';
+    const daysYupfl = yupflSkip ? null : parseInt(daysYupflRaw, 10);
+    if (!yupflSkip && (!Number.isInteger(daysYupfl) || daysYupfl < 1)) { alert('유입플 키워드 히스토리 검색 일자를 1 이상의 숫자로 입력하거나 비워두세요.'); return; }
+    const yupflKw = overlay.querySelector('#kp-reaccept-yupfl').value.trim();
+
+    const pending = allSlots.filter(s => (s.status === 'pending' || s.status === 'requeue') && s.mid);
+    if (!pending.length) { resultEl.innerHTML = '<span style="color:var(--muted)">대기 상태인 슬롯이 없습니다.</span>'; return; }
+
+    runBtn.disabled = true; runBtn.textContent = '⏳ 히스토리 조회 중...';
+    closeBtn.disabled = true; window.kpReacceptRunning = true;
+    resultEl.innerHTML = '';
+
+    const cutoffDayKw = kpFmtDate(new Date(Date.now() - daysKw*24*3600*1000));
+    const cutoffDayYupfl = yupflSkip ? null : kpFmtDate(new Date(Date.now() - daysYupfl*24*3600*1000));
+    const withinCutoff = (h, cutoffDay) => !!(h && h.date && kpFmtDate(new Date(h.date)) >= cutoffDay);
+    const normKw = kw => (kw||'').split(',').map(k=>k.trim()).filter(Boolean).join(',');
+    const rows = pending.map(s => {
+      const kwTop = kpLocalKeywordHistory(s.mid)[0];
+      const yTop  = kpLocalYupflKeywordHistory(s.mid)[0];
+      const kwMatched = withinCutoff(kwTop, cutoffDayKw);
+      const yMatched  = yupflSkip ? false : withinCutoff(yTop, cutoffDayYupfl);
+      const ySatisfied = yupflSkip ? true : yMatched;
+      const bothMatched = kwMatched && ySatisfied;
+      return {
+        slot: s, matched: kwMatched || yMatched,
+        newStatus: kpResolveRequeueStatus(s, bothMatched ? 'accepted' : 'pending'),
+        matchKeyword: kwMatched ? normKw(kwTop.keyword) : (s.searchKeyword||''),
+        matchYupfl: yMatched ? normKw(yTop.keyword) : '',
+        bothMatched,
+      };
+    });
+    const matched = rows.filter(r => r.matched);
+
+    if (!matched.length) {
+      resultEl.innerHTML = `<span style="color:var(--muted)">대기 ${pending.length}건 중 최근 히스토리(검색키워드 ${daysKw}일${yupflSkip?'':` / 유입플 ${daysYupfl}일`})가 있는 건이 없습니다.</span>`;
+      runBtn.disabled = false; runBtn.textContent = '실행'; closeBtn.disabled = false; window.kpReacceptRunning = false;
+      return;
+    }
+    const acceptCount = matched.filter(r=>r.bothMatched).length;
+    const keepCount = matched.length - acceptCount;
+    if (!confirm(`대기 ${matched.length}건 처리 대상\n- 접수 전환(접수) ${acceptCount}건\n- 키워드 갱신(대기) ${keepCount}건\n\n진행하시겠습니까?`)) {
+      runBtn.disabled = false; runBtn.textContent = '실행'; closeBtn.disabled = false; window.kpReacceptRunning = false;
+      return;
+    }
+    runBtn.textContent = `⏳ 처리 중... (0/${matched.length})`;
+    let done = 0;
+    for (const r of matched) {
+      const updates = { searchKeyword: r.matchKeyword, yupflKeyword: r.matchYupfl || yupflKw, status: r.newStatus };
+      await HA.updateKpSlot(r.slot._key, updates);
+      const idx = allSlots.findIndex(x=>x._key===r.slot._key);
+      if (idx !== -1) Object.assign(allSlots[idx], updates);
+      done++; runBtn.textContent = `⏳ 처리 중... (${done}/${matched.length})`;
+    }
+    kpRenderReceipts(false);
+    resultEl.innerHTML = `<span style="color:var(--kp-accent);font-weight:600;">✅ 접수 전환 ${acceptCount}건 / 키워드만 갱신 ${keepCount}건 처리 완료</span>`;
+    runBtn.textContent = '✅ 완료'; runBtn.disabled = true; closeBtn.disabled = false; window.kpReacceptRunning = false;
+  }
 
   kpRenderReceipts();
 })();
