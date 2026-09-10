@@ -1067,11 +1067,6 @@ window.closeStopModal = function() {
   const SERVER = 'https://macro-7-bizfit-stop-938928195180.asia-northeast3.run.app';
   let bsEntries = [];
   let bsSearchQ = '';
-  let _bsUnitPriceMap = null;
-  async function getBsUnitPriceMap() {
-    if (!_bsUnitPriceMap) _bsUnitPriceMap = await window.HA.getKpUnitPriceMap();
-    return _bsUnitPriceMap;
-  }
 
   function bsEsc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1385,7 +1380,7 @@ window.closeStopModal = function() {
             x.mid === s.mid && x.startDate === tomorrowStr && x.endDate === originalEndDate && x.status !== 'ended'
           );
           if (remainDays >= 1 && !alreadyExists) {
-            const bsUnitPriceMap = await getBsUnitPriceMap();
+            // 단가는 원 캠페인 값을 그대로 이어받고, 없으면 addKpSlot이 회원관리(agencyId==username)로 자동 조회
             const newSlot = await window.HA.addKpSlot({
               agencyId:      s.agencyId      || '',
               userId:        s.userId        || '',
@@ -1399,7 +1394,7 @@ window.closeStopModal = function() {
               startDate:     tomorrowStr,
               endDate:       originalEndDate,
               memo:          s.memo || '',
-              unitPrice:     bsUnitPriceMap[s.userId || ''] || 0,
+              unitPrice:     s.unitPrice || 0,
             });
             if (newSlot && newSlot._key) {
               await window.HA.updateKpSlot(newSlot._key, { status: 'requeue', isRequeue: true });
@@ -2526,7 +2521,7 @@ document.addEventListener('keydown', function(e) {
                 agencyId: s.agencyId||'', userId: s.userId||'', storeName: s.storeName||'', url: s.url||'',
                 mid: s.mid||'', rankKeyword: s.rankKeyword||'', searchKeyword: s.searchKeyword||'',
                 dailyTarget: s.dailyTarget||0, days: remainDays, startDate: todayStr, endDate: s.origEndDate,
-                memo: s.memo||'', unitPrice: 0,
+                memo: s.memo||'', unitPrice: s.unitPrice||0,
               });
               if (newSlot && newSlot._key) await HA.updateKpSlot(newSlot._key, { status:'requeue', isRequeue:true });
             }

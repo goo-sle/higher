@@ -288,6 +288,18 @@ const HA = {
   },
 
   async addKpSlot(data) {
+    // 접수 시점 단가 스냅샷 — addSlot과 동일한 패턴(ha/users, 회원관리 데이터)을 그대로 사용.
+    // 김프로 캠페인은 userId 필드를 안 쓰고 agencyId가 곧 회원관리 계정명이므로 agencyId로
+    // ha/users.username을 매칭한다(ha/bizfit_charge도 동일하게 agencyId==username 매칭).
+    let unitPriceSnapshot = data.unitPrice || 0;
+    if (!unitPriceSnapshot) {
+      try {
+        const uSnap = await get(ref(db, PATHS.users));
+        const users = snapToArray(uSnap);
+        const u = users.find(u => u.username === (data.agencyId || ''));
+        unitPriceSnapshot = u ? (u.unitPrice || 0) : 0;
+      } catch(e) {}
+    }
     const newSlot = {
       status:        'pending',
       createdAt:     new Date().toISOString(),
@@ -303,7 +315,7 @@ const HA = {
       days:          Number(data.days)        || 0,
       dailyTarget:   Number(data.dailyTarget) || 0,
       searchKeyword: data.searchKeyword  || '',
-      unitPrice:     data.unitPrice != null ? data.unitPrice : 0,
+      unitPrice:     unitPriceSnapshot,
     };
     const newRef = await push(ref(db, KP_PATHS.slots), newSlot);
     return { ...newSlot, _key: newRef.key };
@@ -331,8 +343,11 @@ const HA = {
   },
 
   // kimpro/users가 실제로는 항상 비어있었던 것과 동일한 실사용 결과(강제종료 배치 재접수 시 단가 스냅샷 0원) — 별도 저장소 없이 고정
+  // ha/users(회원관리)를 그대로 사용 — 김프로 전용 단가 테이블은 따로 없고 회원관리 데이터와 동일하게 맞춤(username 기준)
   async getKpUnitPriceMap() {
-    return {};
+    const snap = await get(ref(db, PATHS.users));
+    const users = snapToArray(snap);
+    return users.reduce((m, u) => { if (u.username) m[u.username] = u.unitPrice || 0; return m; }, {});
   },
 
   // 강제종료/키워드변경 처리 목록(ha/kimproBizfitStop, ha/kimproBizfitKeyword) — raw snapshot 반환
