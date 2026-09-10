@@ -55,14 +55,26 @@
   .kp-tag     { display:inline-block; font-size:9px; font-weight:700; padding:1px 5px; border-radius:6px; background:#f1f5f9; color:#0f172a; margin-left:4px; vertical-align:1px; }
 </style>
 
-<div class="stat-bar" style="grid-template-columns:repeat(4,1fr)">
+<div class="stat-bar" style="grid-template-columns:repeat(7,1fr)">
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(16,185,129,.1)">▶️</div>
-    <div><div class="sb-label">진행중</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
+    <div><div class="sb-label">진행</div><div class="sb-val" id="stat-companies" style="color:var(--accent)">-</div></div>
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(245,158,11,.1)">📌</div>
-    <div><div class="sb-label">예약중</div><div class="sb-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
+    <div><div class="sb-label">예약</div><div class="sb-val" id="stat-reserved" style="color:var(--warn)">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:#fef3c7">⏰</div>
+    <div><div class="sb-label">분할</div><div class="sb-val" id="stat-split" style="color:#b45309">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(239,68,68,.1)">🛑</div>
+    <div><div class="sb-label">강제종료</div><div class="sb-val" id="stat-force" style="color:#dc2626">-</div></div>
+  </div>
+  <div class="stat-box">
+    <div class="sb-icon" style="background:rgba(124,58,237,.1)">⏸️</div>
+    <div><div class="sb-label">임시중단</div><div class="sb-val" id="stat-paused" style="color:#7c3aed">-</div></div>
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(59,130,246,.1)">🎯</div>
@@ -70,7 +82,7 @@
   </div>
   <div class="stat-box">
     <div class="sb-icon" style="background:rgba(139,92,246,.1)">📅</div>
-    <div><div class="sb-label">진행중 일 목표</div><div class="sb-val" id="stat-today-target" style="color:#7c3aed">-</div></div>
+    <div><div class="sb-label">진행 일 목표</div><div class="sb-val" id="stat-today-target" style="color:#7c3aed">-</div></div>
   </div>
 </div>
 
@@ -85,8 +97,8 @@
 <div class="filter-bar">
   <select id="f-status" onchange="renderSlots()">
     <option value="">전체</option>
-    <option value="active">진행중</option>
-    <option value="reserved">예약중</option>
+    <option value="active">진행</option>
+    <option value="reserved">예약</option>
     <option value="split">분할</option>
     <option value="force_stopped">강제종료</option>
     <option value="paused">임시중단</option>
@@ -168,10 +180,16 @@
     const active      = allSlots.filter(s => s.status === 'active');
     const reserved    = active.filter(s => isReserved(s, todayStr));
     const inProgress  = active.filter(s => !isReserved(s, todayStr));
+    const split       = allSlots.filter(s => s.status === 'split').length;
+    const forceStopped = allSlots.filter(s => s.status === 'force_stopped').length;
+    const paused      = allSlots.filter(s => s.status === 'paused').length;
     const totalTarget = active.reduce((a,s) => a+((s.dailyTarget||0)*(s.days||0)), 0);
     const todayTarget = inProgress.reduce((a,s) => a+(s.dailyTarget||0), 0);
     document.getElementById('stat-companies').textContent    = inProgress.length;
     document.getElementById('stat-reserved').textContent     = reserved.length;
+    document.getElementById('stat-split').textContent        = split;
+    document.getElementById('stat-force').textContent        = forceStopped;
+    document.getElementById('stat-paused').textContent       = paused;
     document.getElementById('stat-target').textContent      = totalTarget.toLocaleString();
     document.getElementById('stat-today-target').textContent = todayTarget.toLocaleString();
   }
