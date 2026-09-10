@@ -740,6 +740,7 @@
 
   window.loadDashboard = function() {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.body.classList.remove('kp-mode'); // loadPage()를 안 거치므로 김프로 진입 시 붙은 여백 최소화 모드를 직접 해제
     document.getElementById('page-heading').textContent = '운영 현황 대시보드';
     renderDashboard();
     window.scrollTo(0, 0);
