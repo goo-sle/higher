@@ -4942,7 +4942,7 @@ window.toggleProdPanel = function(e) {
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#0f172a;">김프로</span>'
           : groupSrc === 'ha'
           ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;">접수관리</span>'
-          : '';
+          : ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:#f1f5f9;color:#64748b;" title="이관 전 원본 kimpro 예약 — 읽기 전용">구버전</span>';
         const selCount = (_ssResplit[g.gid]?.selectedKeys || new Set()).size;
         return `
         <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">
