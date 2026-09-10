@@ -1,16 +1,18 @@
 <div id="kimpro-page">
 <style>
-  #kimpro-page { --kp-navy:#0f172a; --kp-accent:#10b981; }
-  #kimpro-page .kp-banner { display:flex; align-items:center; gap:10px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#9a3412; }
-  #kimpro-page .kp-banner b { font-weight:700; }
+  /* 모달 등 동적으로 document.body에 붙는 요소는 #kimpro-page의 후손이 아니라 --kp-* 변수가 안 보임 —
+     :root에 둬서 페이지 어디서든(모달 포함) 항상 참조되게 함 */
+  :root { --kp-navy:#0f172a; --kp-accent:#10b981; }
+  .kp-banner { display:flex; align-items:center; gap:10px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#9a3412; }
+  .kp-banner b { font-weight:700; }
   /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼 */
-  #kimpro-page .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; align-items:center; gap:0; margin-bottom:22px; }
-  #kimpro-page .kp-header .kp-logo { font-size:18px; font-weight:900; color:#fff; letter-spacing:-.5px; padding:8px 14px 8px 10px; flex:0 0 auto; }
-  #kimpro-page .kp-header .kp-logo span { color:var(--kp-accent); }
-  #kimpro-page .kp-nav { display:flex; align-items:center; justify-content:center; flex:1 1 auto; flex-wrap:wrap; row-gap:2px; }
-  #kimpro-page .kp-btn { display:flex; align-items:center; gap:5px; padding:7px 14px; background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
-  #kimpro-page .kp-btn:not(:disabled) { cursor:pointer; }
-  #kimpro-page .kp-btn:not(:disabled):hover { background:rgba(255,255,255,.15); }
+  .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; align-items:center; gap:0; margin-bottom:22px; }
+  .kp-header .kp-logo { font-size:18px; font-weight:900; color:#fff; letter-spacing:-.5px; padding:8px 14px 8px 10px; flex:0 0 auto; }
+  .kp-header .kp-logo span { color:var(--kp-accent); }
+  .kp-nav { display:flex; align-items:center; justify-content:center; flex:1 1 auto; flex-wrap:wrap; row-gap:2px; }
+  .kp-btn { display:flex; align-items:center; gap:5px; padding:7px 14px; background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
+  .kp-btn:not(:disabled) { cursor:pointer; }
+  .kp-btn:not(:disabled):hover { background:rgba(255,255,255,.15); }
 </style>
 
   <div class="kp-header">
@@ -34,97 +36,109 @@
   </div>
 
   <style>
-    #kimpro-page .kp-stat-bar { display:grid; grid-template-columns:repeat(8,1fr); gap:10px; margin-bottom:16px; }
-    #kimpro-page .kp-stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
-    #kimpro-page .kp-sb-label { font-size:11px; color:var(--text2); font-weight:600; }
-    #kimpro-page .kp-sb-val { font-size:20px; font-weight:800; line-height:1; }
-    @media (max-width:1100px) { #kimpro-page .kp-stat-bar { grid-template-columns:repeat(4,1fr); } }
-    #kimpro-page .kp-filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
-    #kimpro-page .kp-filter-bar select, #kimpro-page .kp-filter-bar input[type=text], #kimpro-page .kp-filter-bar input[type=date] {
+    .kp-stat-bar { display:grid; grid-template-columns:repeat(9,1fr); gap:10px; margin-bottom:16px; }
+    .kp-stat-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
+    .kp-sb-label { font-size:11px; color:var(--text2); font-weight:600; }
+    .kp-sb-val { font-size:20px; font-weight:800; line-height:1; }
+    @media (max-width:1100px) { .kp-stat-bar { grid-template-columns:repeat(4,1fr); } }
+    .kp-filter-bar { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+    .kp-filter-bar select, .kp-filter-bar input[type=text], .kp-filter-bar input[type=date] {
       padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none;
     }
-    #kimpro-page .kp-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; }
-    #kimpro-page .kp-tbl { width:100%; border-collapse:collapse; font-size:12px; }
-    #kimpro-page .kp-tbl thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; white-space:nowrap; text-align:center; }
-    #kimpro-page .kp-tbl tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
-    #kimpro-page .kp-tbl tbody tr:last-child td { border-bottom:none; }
-    #kimpro-page .kp-tbl tbody tr:hover { background:#f8fafc; }
-    #kimpro-page .kp-status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
-    #kimpro-page .kp-s-pending  { background:rgba(245,158,11,.1); color:#b45309; }
-    #kimpro-page .kp-s-accepted { background:rgba(59,130,246,.1); color:#1d4ed8; }
-    #kimpro-page .kp-s-active   { background:rgba(16,185,129,.1); color:#059669; }
-    #kimpro-page .kp-s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
-    #kimpro-page .kp-s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
-    #kimpro-page .kp-s-ended    { background:#f1f5f9; color:#64748b; }
-    #kimpro-page .kp-action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
-    #kimpro-page .kp-dl-prog-wrap { margin-bottom:10px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 14px; }
-    #kimpro-page .kp-dl-prog-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
-    #kimpro-page .kp-dl-prog-fill { height:100%; background:linear-gradient(90deg,#0d9488,#7c3aed); border-radius:2px; width:0%; transition:width .3s; }
-    #kimpro-page .kp-dl-prog-lbl { font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
-    #kimpro-page .kp-btn-approve { background:var(--kp-accent); color:#fff; }
-    #kimpro-page .kp-empty-row td { height:160px; text-align:center; color:var(--muted); font-size:13px; }
-    #kimpro-page .kp-pagination { display:flex; justify-content:center; gap:5px; margin-top:16px; }
-    #kimpro-page .kp-pg-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; justify-content:center; }
-    #kimpro-page .kp-pg-btn.active { background:var(--info,#3b82f6); color:#fff; border-color:var(--info,#3b82f6); }
-    #kimpro-page .kp-modal-box { background:#fff; border-radius:16px; width:520px; max-width:calc(100vw - 32px); max-height:80vh; overflow-y:auto; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-    #kimpro-page .kp-modal-title { font-size:17px; font-weight:700; margin-bottom:20px; }
-    #kimpro-page .kp-modal-field { margin-bottom:14px; }
-    #kimpro-page .kp-modal-field label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
-    #kimpro-page .kp-modal-field input, #kimpro-page .kp-modal-field textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; }
-    #kimpro-page .kp-modal-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    #kimpro-page .kp-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
-    #kimpro-page .kp-btn-cancel { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
-    #kimpro-page .kp-btn-save { padding:8px 20px; border:none; border-radius:7px; background:var(--kp-accent); color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
+    .kp-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; }
+    .kp-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+    .kp-tbl thead th { background:#1e293b; color:#fff; padding:11px 10px; font-weight:500; white-space:nowrap; text-align:center; }
+    .kp-tbl tbody td { padding:10px 10px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+    .kp-tbl tbody tr:last-child td { border-bottom:none; }
+    .kp-tbl tbody tr:hover { background:#f8fafc; }
+    .kp-status-badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; }
+    .kp-s-pending  { background:rgba(245,158,11,.1); color:#b45309; }
+    .kp-s-accepted { background:rgba(59,130,246,.1); color:#1d4ed8; }
+    .kp-s-active   { background:rgba(16,185,129,.1); color:#059669; }
+    .kp-s-force    { background:rgba(239,68,68,.1); color:#dc2626; }
+    .kp-s-paused   { background:rgba(124,58,237,.1); color:#7c3aed; }
+    .kp-s-ended    { background:#f1f5f9; color:#64748b; }
+    .kp-action-btn { padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+    .kp-dl-prog-wrap { margin-bottom:10px; background:#fff; border:1px solid var(--border); border-radius:8px; padding:10px 14px; }
+    .kp-dl-prog-bar { height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+    .kp-dl-prog-fill { height:100%; background:linear-gradient(90deg,#0d9488,#7c3aed); border-radius:2px; width:0%; transition:width .3s; }
+    .kp-dl-prog-lbl { font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
+    .kp-btn-approve { background:var(--kp-accent); color:#fff; }
+    .kp-empty-row td { height:160px; text-align:center; color:var(--muted); font-size:13px; }
+    .kp-pagination { display:flex; justify-content:center; gap:5px; margin-top:16px; }
+    .kp-pg-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); display:flex; align-items:center; justify-content:center; }
+    .kp-pg-btn.active { background:var(--info,#3b82f6); color:#fff; border-color:var(--info,#3b82f6); }
+    .kp-modal-box { background:#fff; border-radius:16px; width:520px; max-width:calc(100vw - 32px); max-height:80vh; overflow-y:auto; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+    .kp-modal-title { font-size:17px; font-weight:700; margin-bottom:20px; }
+    .kp-modal-field { margin-bottom:14px; }
+    .kp-modal-field label { display:block; font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; }
+    .kp-modal-field input, .kp-modal-field textarea { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:7px; font-size:13px; font-family:inherit; outline:none; color:var(--text); box-sizing:border-box; }
+    .kp-modal-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .kp-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+    .kp-btn-cancel { padding:8px 20px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; }
+    .kp-btn-save { padding:8px 20px; border:none; border-radius:7px; background:var(--kp-accent); color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
     /* 상품 유형 설정 패널 */
-    #kimpro-page .kp-prod-panel { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
-    #kimpro-page .kp-prod-ph { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; cursor:pointer; user-select:none; transition:background .15s; }
-    #kimpro-page .kp-prod-ph:hover { background:#f1f5f9; }
-    #kimpro-page .kp-prod-ph-title { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; }
-    #kimpro-page .kp-prod-pb { padding:14px 16px; }
-    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph { border-bottom:none; }
-    #kimpro-page .kp-prod-panel.collapsed .kp-prod-pb { display:none; }
-    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph-desc { display:none; }
-    #kimpro-page .kp-prod-panel.collapsed .kp-prod-ph-actions { display:none !important; }
-    #kimpro-page .kp-prod-toggle-icon { transition:transform .2s; }
-    #kimpro-page .kp-prod-panel.collapsed .kp-prod-toggle-icon { transform:rotate(-90deg); }
-    #kimpro-page .kp-ps-two-row { display:flex; flex-direction:column; gap:0; }
-    #kimpro-page .kp-ps-row { display:flex; align-items:center; gap:6px; }
-    #kimpro-page .kp-ps-row-inner { display:flex; gap:8px; flex:1; min-width:0; flex-wrap:wrap; }
-    #kimpro-page .kp-ps-sect-lbl { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; min-width:26px; }
-    #kimpro-page .kp-ps-divider-h { height:1px; background:var(--border); margin:9px 0; }
-    #kimpro-page .kp-ps-item { display:flex; align-items:center; gap:7px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:6px 12px; transition:all .2s; cursor:pointer; user-select:none; flex-shrink:0; }
-    #kimpro-page .kp-ps-item:hover { border-color:rgba(0,0,0,.15); background:#fff; }
-    #kimpro-page .kp-ps-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:2px solid rgba(0,0,0,.08); }
-    #kimpro-page .kp-ps-name { font-size:13px; font-weight:700; white-space:nowrap; }
-    #kimpro-page .kp-ps-tog { width:30px; height:17px; border-radius:9px; border:none; cursor:pointer; position:relative; transition:background .2s; flex-shrink:0; }
-    #kimpro-page .kp-ps-tog.on { background:var(--info,#3b82f6); }
-    #kimpro-page .kp-ps-tog.off { background:#cbd5e1; }
-    #kimpro-page .kp-ps-tog::after { content:''; position:absolute; top:2.5px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left .2s; }
-    #kimpro-page .kp-ps-tog.on::after { left:16px; }
-    #kimpro-page .kp-ps-tog.off::after { left:2px; }
+    .kp-prod-panel { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:16px; }
+    .kp-prod-ph { padding:11px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; background:#f8fafc; cursor:pointer; user-select:none; transition:background .15s; }
+    .kp-prod-ph:hover { background:#f1f5f9; }
+    .kp-prod-ph-title { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; }
+    .kp-prod-pb { padding:14px 16px; }
+    .kp-prod-panel.collapsed .kp-prod-ph { border-bottom:none; }
+    .kp-prod-panel.collapsed .kp-prod-pb { display:none; }
+    .kp-prod-panel.collapsed .kp-prod-ph-desc { display:none; }
+    .kp-prod-panel.collapsed .kp-prod-ph-actions { display:none !important; }
+    .kp-prod-toggle-icon { transition:transform .2s; }
+    .kp-prod-panel.collapsed .kp-prod-toggle-icon { transform:rotate(-90deg); }
+    .kp-prod-grp-section { margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+    .kp-prod-grp-label { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+    .kp-prod-grp-btn { display:inline-flex; align-items:center; gap:7px; background:#f8fafc; border:1.5px solid var(--border); border-radius:8px; padding:5px 8px 5px 12px; cursor:pointer; transition:all .2s; user-select:none; }
+    .kp-prod-grp-btn:hover { border-color:rgba(0,0,0,.2); background:#fff; }
+    .kp-prod-grp-btn.active-g { border-color:var(--info,#3b82f6); background:#eff6ff; box-shadow:0 0 0 2px rgba(59,130,246,.12); }
+    .kp-prod-grp-name-wrap { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+    .kp-prod-grp-name { font-size:12px; font-weight:700; line-height:1.2; color:var(--text); }
+    .kp-prod-grp-dots { display:flex; gap:3px; align-items:center; }
+    .kp-prod-grp-del { width:18px; height:18px; border-radius:4px; border:none; background:rgba(239,68,68,.08); color:#ef4444; cursor:pointer; font-size:10px; display:flex; align-items:center; justify-content:center; transition:all .12s; flex-shrink:0; line-height:1; }
+    .kp-prod-grp-del:hover { background:rgba(239,68,68,.25); }
+    .kp-prod-grp-add-form { margin-top:8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .kp-prod-grp-add-form input[type=text] { border:1px solid var(--border); border-radius:7px; color:var(--text); padding:5px 10px; font-size:12px; font-family:inherit; outline:none; width:160px; }
+    .kp-ps-two-row { display:flex; flex-direction:column; gap:0; }
+    .kp-ps-row { display:flex; align-items:center; gap:6px; }
+    .kp-ps-row-inner { display:flex; gap:8px; flex:1; min-width:0; flex-wrap:wrap; }
+    .kp-ps-sect-lbl { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; min-width:26px; }
+    .kp-ps-divider-h { height:1px; background:var(--border); margin:9px 0; }
+    .kp-ps-item { display:flex; align-items:center; gap:7px; background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:6px 12px; transition:all .2s; cursor:pointer; user-select:none; flex-shrink:0; }
+    .kp-ps-item:hover { border-color:rgba(0,0,0,.15); background:#fff; }
+    .kp-ps-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:2px solid rgba(0,0,0,.08); }
+    .kp-ps-name { font-size:13px; font-weight:700; white-space:nowrap; }
+    .kp-ps-tog { width:30px; height:17px; border-radius:9px; border:none; cursor:pointer; position:relative; transition:background .2s; flex-shrink:0; }
+    .kp-ps-tog.on { background:var(--info,#3b82f6); }
+    .kp-ps-tog.off { background:#cbd5e1; }
+    .kp-ps-tog::after { content:''; position:absolute; top:2.5px; width:12px; height:12px; border-radius:50%; background:#fff; transition:left .2s; }
+    .kp-ps-tog.on::after { left:16px; }
+    .kp-ps-tog.off::after { left:2px; }
     /* 상품 설정 모달 */
-    #kimpro-page .kp-prod-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9500; display:none; align-items:center; justify-content:center; }
-    #kimpro-page .kp-prod-modal-bg.show { display:flex; }
-    #kimpro-page .kp-prod-modal { background:#fff; border-radius:14px; width:460px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.2); }
-    #kimpro-page .kp-prod-modal-head { padding:13px 18px; background:#f8fafc; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-    #kimpro-page .kp-prod-modal-head h3 { font-size:13px; font-weight:700; flex:1; }
-    #kimpro-page .kp-prod-modal-close { width:24px; height:24px; border:none; background:#e2e8f0; border-radius:5px; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; }
-    #kimpro-page .kp-prod-modal-close:hover { background:rgba(239,68,68,.15); color:#ef4444; }
-    #kimpro-page .kp-prod-modal-body { padding:18px; display:flex; flex-direction:column; gap:14px; }
-    #kimpro-page .kp-pmf label { display:block; font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-    #kimpro-page .kp-ratio-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-    #kimpro-page .kp-ratio-item { background:#f8fafc; border:1px solid var(--border); border-radius:7px; padding:6px 10px; display:flex; align-items:center; gap:6px; }
-    #kimpro-page .kp-ri-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-    #kimpro-page .kp-ri-name { font-size:11px; font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #kimpro-page .kp-ratio-item input[type=number] { width:52px; border:1px solid var(--border); border-radius:5px; padding:3px 6px; font-size:12px; font-family:monospace; outline:none; text-align:center; background:#fff; }
-    #kimpro-page .kp-ratio-note { font-size:11px; color:var(--muted); text-align:right; margin-top:4px; font-family:monospace; }
-    #kimpro-page .kp-ratio-note.ok { color:#10b981; }
-    #kimpro-page .kp-ratio-note.ng { color:#ef4444; }
-    #kimpro-page .kp-prod-modal-footer { padding:12px 18px; background:#f8fafc; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
-    #kimpro-page .kp-pm-btn-cancel { padding:8px 16px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-family:inherit; }
-    #kimpro-page .kp-pm-btn-save { padding:8px 16px; border:none; border-radius:7px; background:var(--info,#3b82f6); color:#fff; cursor:pointer; font-size:13px; font-weight:700; font-family:inherit; }
-    #kimpro-page .kp-pm-btn-del { padding:6px 12px; border:1px solid rgba(239,68,68,.25); border-radius:7px; background:rgba(239,68,68,.08); color:#ef4444; cursor:pointer; font-size:11px; font-family:inherit; font-weight:700; display:inline-flex; align-items:center; gap:5px; margin-right:auto; }
-    #kimpro-page .mission-rule-row input, #kimpro-page .split-rule-row input { -moz-appearance:textfield; }
+    .kp-prod-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9500; display:none; align-items:center; justify-content:center; }
+    .kp-prod-modal-bg.show { display:flex; }
+    .kp-prod-modal { background:#fff; border-radius:14px; width:460px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.2); }
+    .kp-prod-modal-head { padding:13px 18px; background:#f8fafc; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+    .kp-prod-modal-head h3 { font-size:13px; font-weight:700; flex:1; }
+    .kp-prod-modal-close { width:24px; height:24px; border:none; background:#e2e8f0; border-radius:5px; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; }
+    .kp-prod-modal-close:hover { background:rgba(239,68,68,.15); color:#ef4444; }
+    .kp-prod-modal-body { padding:18px; display:flex; flex-direction:column; gap:14px; }
+    .kp-pmf label { display:block; font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .kp-ratio-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .kp-ratio-item { background:#f8fafc; border:1px solid var(--border); border-radius:7px; padding:6px 10px; display:flex; align-items:center; gap:6px; }
+    .kp-ri-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .kp-ri-name { font-size:11px; font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .kp-ratio-item input[type=number] { width:52px; border:1px solid var(--border); border-radius:5px; padding:3px 6px; font-size:12px; font-family:monospace; outline:none; text-align:center; background:#fff; }
+    .kp-ratio-note { font-size:11px; color:var(--muted); text-align:right; margin-top:4px; font-family:monospace; }
+    .kp-ratio-note.ok { color:#10b981; }
+    .kp-ratio-note.ng { color:#ef4444; }
+    .kp-prod-modal-footer { padding:12px 18px; background:#f8fafc; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+    .kp-pm-btn-cancel { padding:8px 16px; border:1px solid var(--border); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-family:inherit; }
+    .kp-pm-btn-save { padding:8px 16px; border:none; border-radius:7px; background:var(--info,#3b82f6); color:#fff; cursor:pointer; font-size:13px; font-weight:700; font-family:inherit; }
+    .kp-pm-btn-del { padding:6px 12px; border:1px solid rgba(239,68,68,.25); border-radius:7px; background:rgba(239,68,68,.08); color:#ef4444; cursor:pointer; font-size:11px; font-family:inherit; font-weight:700; display:inline-flex; align-items:center; gap:5px; margin-right:auto; }
+    .mission-rule-row input, .split-rule-row input { -moz-appearance:textfield; }
   </style>
 
   <div class="kp-stat-bar" id="kp-stat-bar">
@@ -136,6 +150,7 @@
     <div class="kp-stat-box"><div class="kp-sb-label">재접수 승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">임시중단</div><div class="kp-sb-val" id="kp-stat-paused" style="color:#7c3aed">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">강제종료</div><div class="kp-sb-val" id="kp-stat-force" style="color:#dc2626">-</div></div>
+    <div class="kp-stat-box" style="cursor:pointer;" onclick="openKpSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="kp-sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="kp-sb-val" id="kp-stat-split" style="color:#b45309">-</div></div>
   </div>
 
   <!-- 상품 유형 설정 패널 (접수관리.html 이식 — 그룹 프리셋 저장/적용은 미이식, 필요시 추가 가능) -->
@@ -147,9 +162,22 @@
       <span class="kp-prod-ph-desc" style="flex:1;text-align:center;font-size:11px;color:var(--muted);">상품을 클릭하면 상품명·버전·고정 비율 설정 가능</span>
       <div class="kp-prod-ph-actions" onclick="event.stopPropagation()" style="display:flex;gap:6px;">
         <button class="kp-action-btn" style="background:var(--info,#3b82f6);color:#fff;font-size:11px;padding:4px 10px;" onclick="kpShowAddProdModal()">＋ 상품 추가</button>
+        <button class="kp-action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="kpShowAddProdGroup()">＋ 그룹 추가</button>
       </div>
     </div>
     <div class="kp-prod-pb">
+      <div class="kp-prod-grp-section">
+        <div class="kp-prod-grp-label">그룹 프리셋 — 클릭하면 설정이 자동 적용됩니다</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          <div id="kpProdGroupWrap" style="display:contents;"></div>
+        </div>
+        <div id="kpAddProdGroupForm" class="kp-prod-grp-add-form" style="display:none;">
+          <input type="text" id="kpProdGroupNameInput" placeholder="그룹 이름 (예: 블랙+올리브)" maxlength="24"
+            onkeydown="if(event.key==='Enter')kpSaveProdGroup();if(event.key==='Escape')kpHideAddProdGroup();" />
+          <button class="kp-btn-save" style="font-size:11px;padding:4px 12px;border:none;border-radius:6px;background:var(--kp-accent);color:#fff;cursor:pointer;" onclick="kpSaveProdGroup()">✔ 저장</button>
+          <button class="kp-btn-cancel" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;" onclick="kpHideAddProdGroup()">취소</button>
+        </div>
+      </div>
       <div class="kp-ps-two-row">
         <div class="kp-ps-row">
           <span class="kp-ps-sect-lbl">일반</span>
@@ -263,10 +291,7 @@
 
   <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
     <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
-    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="openKpSplitScheduleModal()">⏰ 예약 분할 현황</button>
-    <button class="kp-action-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
-    <button class="kp-action-btn" id="kp-dl-main-btn" style="background:#0891b2;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcel()">📑 시트 분류</button>
-    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpSubmitDirect()">🚀 배분 제출 (선택 또는 전체 접수건)</button>
+    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
   </div>
 
   <div class="kp-dl-prog-wrap" id="kp-dl-prog-wrap" style="display:none;">
@@ -2518,6 +2543,7 @@ document.addEventListener('keydown', function(e) {
     const requeueActive    = allSlots.filter(s => s.isRequeue && s.status==='active').length;
     const paused            = allSlots.filter(s => s.status==='paused').length;
     const forceStopped      = allSlots.filter(s => s.status==='force_stopped').length;
+    const split              = allSlots.filter(s => s.status==='split').length;
     document.getElementById('kp-stat-pending').textContent = pending.toLocaleString();
     document.getElementById('kp-stat-accepted').textContent = accepted.toLocaleString();
     document.getElementById('kp-stat-active').textContent = active.toLocaleString();
@@ -2526,6 +2552,7 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-stat-requeue-active').textContent = requeueActive.toLocaleString();
     document.getElementById('kp-stat-paused').textContent = paused.toLocaleString();
     document.getElementById('kp-stat-force').textContent = forceStopped.toLocaleString();
+    document.getElementById('kp-stat-split').textContent = split.toLocaleString();
 
     const start = (currentPage-1)*PER_PAGE;
     const page  = all.slice(start, start+PER_PAGE);
@@ -2934,18 +2961,18 @@ document.addEventListener('keydown', function(e) {
      비즈핏 실제 배분·제출(allocate 엔진)은 별도 단계, 아직 미이식)
 ══════════════════════════════════════════ -->
 <style>
-  #kimpro-page .kp-uex-info { background:rgba(59,130,246,.05); border:1px solid rgba(59,130,246,.2); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12px; color:var(--text2); line-height:1.6; }
-  #kimpro-page .kp-uex-info strong { color:#1d4ed8; }
-  #kimpro-page .kp-uex-zone { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:.2s; margin-bottom:4px; }
-  #kimpro-page .kp-uex-zone:hover, #kimpro-page .kp-uex-zone.drag { border-color:var(--kp-accent); background:rgba(16,185,129,.03); }
-  #kimpro-page .kp-uex-zone input[type=file] { display:none; }
-  #kimpro-page .kp-uex-preview-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; max-height:320px; }
-  #kimpro-page .kp-uex-table { width:100%; border-collapse:collapse; font-size:12px; }
-  #kimpro-page .kp-uex-table thead th { background:#1e293b; color:#fff; padding:9px 10px; font-weight:500; text-align:left; white-space:nowrap; position:sticky; top:0; }
-  #kimpro-page .kp-uex-table tbody td { padding:8px 10px; border-bottom:1px solid var(--border); }
-  #kimpro-page .kp-row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; white-space:nowrap; display:inline-block; }
-  #kimpro-page .kp-row-ok  { background:rgba(16,185,129,.1); color:#059669; }
-  #kimpro-page .kp-row-err { background:rgba(239,68,68,.1);  color:var(--danger,#ef4444); }
+  .kp-uex-info { background:rgba(59,130,246,.05); border:1px solid rgba(59,130,246,.2); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12px; color:var(--text2); line-height:1.6; }
+  .kp-uex-info strong { color:#1d4ed8; }
+  .kp-uex-zone { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:.2s; margin-bottom:4px; }
+  .kp-uex-zone:hover, .kp-uex-zone.drag { border-color:var(--kp-accent); background:rgba(16,185,129,.03); }
+  .kp-uex-zone input[type=file] { display:none; }
+  .kp-uex-preview-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; max-height:320px; }
+  .kp-uex-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .kp-uex-table thead th { background:#1e293b; color:#fff; padding:9px 10px; font-weight:500; text-align:left; white-space:nowrap; position:sticky; top:0; }
+  .kp-uex-table tbody td { padding:8px 10px; border-bottom:1px solid var(--border); }
+  .kp-row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; white-space:nowrap; display:inline-block; }
+  .kp-row-ok  { background:rgba(16,185,129,.1); color:#059669; }
+  .kp-row-err { background:rgba(239,68,68,.1);  color:var(--danger,#ef4444); }
 </style>
 
 <div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
@@ -3179,20 +3206,20 @@ document.addEventListener('keydown', function(e) {
      편집 UI도 이식했으나 "그룹 프리셋" 저장/적용 기능은 규모상 미이식(필요시 추가 가능).
 ══════════════════════════════════════════ -->
 <style>
-  #kimpro-page .kp-submit-tab { padding:9px 22px; font-size:13px; font-weight:700; border:none; border-bottom:3px solid transparent; background:none; cursor:pointer; color:var(--text2); font-family:inherit; margin-bottom:-2px; }
-  #kimpro-page .kp-submit-tab.active { color:#1d4ed8; border-bottom-color:#1d4ed8; }
-  #kimpro-page .kp-submit-tab:disabled { opacity:.3; cursor:not-allowed; }
-  #kimpro-page .kp-agency-block { margin-bottom:16px; border:1.5px solid #c7d2fe; border-radius:14px; overflow:hidden; }
-  #kimpro-page .kp-agency-block:last-child { margin-bottom:0; }
-  #kimpro-page .kp-agency-hd { padding:12px 16px; background:#eff4ff; border-bottom:1.5px solid #c7d2fe; }
-  #kimpro-page .kp-aname { font-size:15px; font-weight:800; color:#4f46e5; }
-  #kimpro-page .kp-ameta { font-size:12px; color:#6366f1; margin-top:1px; }
-  #kimpro-page .kp-ag-table { width:100%; border-collapse:collapse; font-size:12.5px; table-layout:fixed; }
-  #kimpro-page .kp-ag-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:9px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  #kimpro-page .kp-ag-table tbody tr { border-bottom:1px solid var(--border); }
-  #kimpro-page .kp-ag-table tbody tr:last-child { border-bottom:none; }
-  #kimpro-page .kp-ag-table tbody td { padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #kimpro-page .kp-agency-ft { background:#f0f4ff; border-top:1.5px solid #c7d2fe; padding:8px 16px; font-size:12px; min-height:16px; }
+  .kp-submit-tab { padding:9px 22px; font-size:13px; font-weight:700; border:none; border-bottom:3px solid transparent; background:none; cursor:pointer; color:var(--text2); font-family:inherit; margin-bottom:-2px; }
+  .kp-submit-tab.active { color:#1d4ed8; border-bottom-color:#1d4ed8; }
+  .kp-submit-tab:disabled { opacity:.3; cursor:not-allowed; }
+  .kp-agency-block { margin-bottom:16px; border:1.5px solid #c7d2fe; border-radius:14px; overflow:hidden; }
+  .kp-agency-block:last-child { margin-bottom:0; }
+  .kp-agency-hd { padding:12px 16px; background:#eff4ff; border-bottom:1.5px solid #c7d2fe; }
+  .kp-aname { font-size:15px; font-weight:800; color:#4f46e5; }
+  .kp-ameta { font-size:12px; color:#6366f1; margin-top:1px; }
+  .kp-ag-table { width:100%; border-collapse:collapse; font-size:12.5px; table-layout:fixed; }
+  .kp-ag-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:9px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kp-ag-table tbody tr { border-bottom:1px solid var(--border); }
+  .kp-ag-table tbody tr:last-child { border-bottom:none; }
+  .kp-ag-table tbody td { padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kp-agency-ft { background:#f0f4ff; border-top:1.5px solid #c7d2fe; padding:8px 16px; font-size:12px; min-height:16px; }
 </style>
 
 <script>
@@ -4828,9 +4855,9 @@ document.addEventListener('keydown', function(e) {
      "잔여 재분류"·"키워드 일괄분배"·"등급 변경" 세부 도구는 미이식(규모가 커서 별도, 필요시 추가 가능))
 ══════════════════════════════════════════ -->
 <style>
-  #kimpro-page .kp-ss-table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
-  #kimpro-page .kp-ss-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:8px 6px; text-align:center; border-bottom:1px solid var(--border); }
-  #kimpro-page .kp-ss-table tbody td { padding:7px 6px; border-bottom:1px solid var(--border); text-align:center; }
+  .kp-ss-table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+  .kp-ss-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:8px 6px; text-align:center; border-bottom:1px solid var(--border); }
+  .kp-ss-table tbody td { padding:7px 6px; border-bottom:1px solid var(--border); text-align:center; }
 </style>
 
 <div id="kp-ss-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9300;align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain;padding:40px 16px;">
@@ -5086,29 +5113,29 @@ document.addEventListener('keydown', function(e) {
        - 정산 대상 슬롯 범위: ha/kimproSlots 전체(삭제는 하드 삭제라 이미 제외됨 — 상태별 필터는 안 함)
 ══════════════════════════════════════════ -->
 <style>
-  #kimpro-page .kp-settle-box { background:#fff; border-radius:16px; width:min(1000px,calc(100vw - 32px)); max-height:88vh; overflow-y:auto; padding:24px 28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
-  #kimpro-page .kp-settle-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
-  #kimpro-page .kp-sum-card { background:#f8fafc; border-radius:10px; padding:14px 16px; position:relative; overflow:hidden; }
-  #kimpro-page .kp-sum-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); }
-  #kimpro-page .kp-sum-card.month::after { background:var(--kp-accent); }
-  #kimpro-page .kp-sum-card.today::after { background:var(--info,#3b82f6); }
-  #kimpro-page .kp-sum-card .kp-sc-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:6px; }
-  #kimpro-page .kp-sum-card.month .kp-sc-value { font-size:20px; font-weight:800; color:var(--kp-accent); line-height:1; }
-  #kimpro-page .kp-sum-card.today .kp-sc-value { font-size:20px; font-weight:800; color:var(--info,#3b82f6); line-height:1; }
-  #kimpro-page .kp-sum-card .kp-sc-sub { font-size:11px; color:var(--muted); margin-top:6px; }
-  #kimpro-page .kp-settle-filter-bar { background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:10px 14px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-  #kimpro-page .kp-settle-filter-bar select, #kimpro-page .kp-settle-filter-bar input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
-  #kimpro-page .kp-settle-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
-  #kimpro-page .kp-settle-tbl { width:100%; border-collapse:collapse; font-size:12px; }
-  #kimpro-page .kp-settle-tbl thead th { background:#1e293b; color:#fff; padding:10px 7px; font-weight:500; white-space:nowrap; text-align:center; font-size:11px; }
-  #kimpro-page .kp-settle-tbl tbody td { padding:9px 7px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
-  #kimpro-page .kp-settle-tbl tbody tr:last-child td { border-bottom:none; }
-  #kimpro-page .kp-settle-tbl tbody tr:hover { background:#f8fafc; }
-  #kimpro-page .kp-paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
-  #kimpro-page .kp-unpaid-badge { background:rgba(239,68,68,.1); color:#dc2626; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
-  #kimpro-page .kp-btn-refund   { background:rgba(239,68,68,.1); color:#dc2626; padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
-  #kimpro-page .kp-btn-toggle   { transition:box-shadow .25s ease, background-color .25s ease, color .25s ease; }
-  #kimpro-page .kp-settle-empty-row td { height:140px; text-align:center; color:var(--muted); font-size:13px; }
+  .kp-settle-box { background:#fff; border-radius:16px; width:min(1000px,calc(100vw - 32px)); max-height:88vh; overflow-y:auto; padding:24px 28px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+  .kp-settle-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+  .kp-sum-card { background:#f8fafc; border-radius:10px; padding:14px 16px; position:relative; overflow:hidden; }
+  .kp-sum-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--border); }
+  .kp-sum-card.month::after { background:var(--kp-accent); }
+  .kp-sum-card.today::after { background:var(--info,#3b82f6); }
+  .kp-sum-card .kp-sc-label { font-size:11px; color:var(--text2); font-weight:600; margin-bottom:6px; }
+  .kp-sum-card.month .kp-sc-value { font-size:20px; font-weight:800; color:var(--kp-accent); line-height:1; }
+  .kp-sum-card.today .kp-sc-value { font-size:20px; font-weight:800; color:var(--info,#3b82f6); line-height:1; }
+  .kp-sum-card .kp-sc-sub { font-size:11px; color:var(--muted); margin-top:6px; }
+  .kp-settle-filter-bar { background:#f8fafc; border:1px solid var(--border); border-radius:10px; padding:10px 14px; display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .kp-settle-filter-bar select, .kp-settle-filter-bar input { padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:12px; font-family:inherit; color:var(--text); background:#fff; outline:none; }
+  .kp-settle-tbl-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow-x:auto; }
+  .kp-settle-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+  .kp-settle-tbl thead th { background:#1e293b; color:#fff; padding:10px 7px; font-weight:500; white-space:nowrap; text-align:center; font-size:11px; }
+  .kp-settle-tbl tbody td { padding:9px 7px; border-bottom:1px solid var(--border); text-align:center; vertical-align:middle; }
+  .kp-settle-tbl tbody tr:last-child td { border-bottom:none; }
+  .kp-settle-tbl tbody tr:hover { background:#f8fafc; }
+  .kp-paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .kp-unpaid-badge { background:rgba(239,68,68,.1); color:#dc2626; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .kp-btn-refund   { background:rgba(239,68,68,.1); color:#dc2626; padding:4px 10px; border-radius:5px; border:none; font-size:11px; font-weight:600; cursor:pointer; }
+  .kp-btn-toggle   { transition:box-shadow .25s ease, background-color .25s ease, color .25s ease; }
+  .kp-settle-empty-row td { height:140px; text-align:center; color:var(--muted); font-size:13px; }
 </style>
 <div id="kp-settle-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeKpSettleModal()">
   <div class="kp-settle-box">
