@@ -26,7 +26,7 @@
   <div class="kp-header">
     <div class="kp-logo">KIM <span>PRO</span></div>
     <div class="kp-nav">
-      <button class="kp-btn" disabled>📊 엑셀 접수</button>
+      <button class="kp-btn" onclick="openKpUexModal()">📊 엑셀 접수</button>
       <button class="kp-btn" onclick="openStopModal()">🛑 강제종료</button>
       <button class="kp-btn" onclick="openKwModal()">🔤 키워드 변경</button>
       <button class="kp-btn" onclick="openCrModal()">💰 캐시복구</button>
@@ -39,7 +39,7 @@
 
   <div class="kp-banner">
     <i data-lucide="construction" size="16"></i>
-    <span><b>연동 작업 진행 중입니다.</b> 캠페인 목록·상세·승인/상태변경까지 연동되었고, 엑셀 접수(신규 등록·배분)만 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
+    <span><b>연동 작업 진행 중입니다.</b> 목록·상세·승인/상태변경·엑셀 접수(신규 등록)까지 연동되었고, 접수된 캠페인을 실제 비즈핏에 배분·제출하는 엔진만 아직 없습니다 — <code>어드민 통합.md</code> 참고.</span>
   </div>
 
   <style>
@@ -2418,5 +2418,243 @@ document.addEventListener('keydown', function(e) {
   };
 
   kpRenderReceipts();
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     엑셀 접수 (kimpro/reception.html의 uex 이식 — 신규 캠페인을 pending 상태로 일괄 등록만 함.
+     비즈핏 실제 배분·제출(allocate 엔진)은 별도 단계, 아직 미이식)
+══════════════════════════════════════════ -->
+<style>
+  #kimpro-page .kp-uex-info { background:rgba(59,130,246,.05); border:1px solid rgba(59,130,246,.2); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:12px; color:var(--text2); line-height:1.6; }
+  #kimpro-page .kp-uex-info strong { color:#1d4ed8; }
+  #kimpro-page .kp-uex-zone { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:.2s; margin-bottom:4px; }
+  #kimpro-page .kp-uex-zone:hover, #kimpro-page .kp-uex-zone.drag { border-color:var(--kp-accent); background:rgba(16,185,129,.03); }
+  #kimpro-page .kp-uex-zone input[type=file] { display:none; }
+  #kimpro-page .kp-uex-preview-wrap { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:auto; max-height:320px; }
+  #kimpro-page .kp-uex-table { width:100%; border-collapse:collapse; font-size:12px; }
+  #kimpro-page .kp-uex-table thead th { background:#1e293b; color:#fff; padding:9px 10px; font-weight:500; text-align:left; white-space:nowrap; position:sticky; top:0; }
+  #kimpro-page .kp-uex-table tbody td { padding:8px 10px; border-bottom:1px solid var(--border); }
+  #kimpro-page .kp-row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; white-space:nowrap; display:inline-block; }
+  #kimpro-page .kp-row-ok  { background:rgba(16,185,129,.1); color:#059669; }
+  #kimpro-page .kp-row-err { background:rgba(239,68,68,.1);  color:var(--danger,#ef4444); }
+</style>
+
+<div id="kp-uex-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+  <div style="background:#fff;border-radius:16px;width:860px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);">
+      <div style="font-size:15px;font-weight:700;">📊 엑셀 접수</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="kp-action-btn" style="background:#475569;color:#fff;font-size:11px;padding:4px 10px;" onclick="downloadKpUexTemplate()">📥 양식 다운로드</button>
+        <button onclick="closeKpUexModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+      </div>
+    </div>
+    <div style="padding:20px 24px;">
+      <div class="kp-uex-info"><strong>엑셀 양식 컬럼 순서</strong><br>대행사 / 업체명 / URL / MID / 순위키워드 / 일 수 / 시작일 / 일 목표 / 검색키워드</div>
+      <div class="kp-uex-zone" id="kp-uex-zone" onclick="document.getElementById('kp-uex-file').click()">
+        <input type="file" id="kp-uex-file" accept=".xlsx,.xls" onchange="handleKpUexFile(this)">
+        <div style="font-size:28px;margin-bottom:8px;">📊</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px;">엑셀 파일을 여기에 끌어다 놓거나 클릭하여 선택</div>
+        <div style="font-size:11px;color:var(--text2);">.xlsx, .xls 파일 지원</div>
+      </div>
+      <div id="kp-uex-preview" style="display:none;">
+        <div id="kp-uex-preview-info" style="font-size:12px;color:var(--text2);margin-bottom:10px;"></div>
+        <div class="kp-uex-preview-wrap">
+          <table class="kp-uex-table">
+            <thead><tr>
+              <th style="width:30px">#</th><th>대행사</th><th>업체명</th><th>URL</th><th style="width:100px">MID</th>
+              <th>순위키워드</th><th style="width:50px">일수</th><th style="width:86px">시작일</th>
+              <th style="width:86px">종료일</th><th style="width:70px">일목표</th><th>검색키워드</th><th style="width:160px">상태</th>
+            </tr></thead>
+            <tbody id="kp-uex-preview-body"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;">
+          <button class="kp-btn-cancel" onclick="resetKpUex()">다시 선택</button>
+          <button class="kp-btn-save" id="kp-uex-submit-btn" onclick="submitKpUex()">접수 등록</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let uexRows = [];
+
+  function uexFmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function uexNormalizeUrl(url) {
+    const clean = String(url||'').split('?')[0].trim();
+    const match = clean.match(/(https?:\/\/(?:m\.)?place\.naver\.com\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/\d+)/);
+    return match ? match[1] : clean;
+  }
+  const UEX_PLACE_URL_REGEX = /(?:place\.naver\.com|m\.place\.naver\.com)\/(?:restaurant|hospital|place|hairshop|nailshop|accommodation)\/([0-9]+)/;
+  function uexExtractMid(url) {
+    const m = uexNormalizeUrl(url).match(UEX_PLACE_URL_REGEX);
+    return m ? m[1] : '';
+  }
+  function uexNormalizeDate(value) {
+    if (typeof value === 'number' && value > 0) {
+      const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return Number.isNaN(d.getTime()) ? '' : uexFmt(d);
+    }
+    const raw = String(value||'').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const nums = raw.replace(/[^\d]/g,'-').split('-').filter(Boolean);
+    if (nums.length === 3) {
+      let [y,m,d] = nums;
+      if (y.length === 2) y = `20${y}`;
+      if (y.length !== 4) return '';
+      return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    if (nums.length === 2) {
+      const y = String(new Date().getFullYear());
+      const [m,d] = nums;
+      return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    return '';
+  }
+  function uexEnsureXLSX(cb) {
+    if (window.XLSX) { cb(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = cb; document.head.appendChild(s);
+  }
+
+  window.openKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'flex'; };
+  window.closeKpUexModal = function() { document.getElementById('kp-uex-modal').style.display = 'none'; };
+
+  (function initZone() {
+    const zone = document.getElementById('kp-uex-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag'); const f=e.dataTransfer.files[0]; if (f) processKpUexExcel(f); });
+  })();
+
+  window.handleKpUexFile = function(input) { if (input.files[0]) processKpUexExcel(input.files[0]); };
+
+  function processKpUexExcel(file) {
+    uexEnsureXLSX(() => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb = window.XLSX.read(e.target.result, { type:'array', cellDates:false });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const raw = window.XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+          const dataRows = raw.slice(1).filter(r => r[0] || r[2]);
+          uexRows = dataRows.map(r => {
+            const agencyId  = String(r[0]??'').trim();
+            const storeName = String(r[1]??'').trim();
+            const url       = uexNormalizeUrl(r[2]) || null;
+            const mid       = String(r[3]??'').trim();
+            const rankKeyword = String(r[4]??'').trim().replace(/\s+/g,'');
+            const daysRaw = String(r[5]??'').trim();
+            const days = daysRaw !== '' ? Number(daysRaw) : null;
+            const startDate = uexNormalizeDate(r[6]) || null;
+            const dailyTargetRaw = String(r[7]??'').trim();
+            const dailyTarget = dailyTargetRaw !== '' ? Number(dailyTargetRaw) : null;
+            const searchKeyword = String(r[8]??'').trim();
+            let endDate = null;
+            if (startDate && days !== null && !isNaN(days) && days > 0) {
+              const endD = new Date(startDate); endD.setDate(endD.getDate()+days-1); endDate = uexFmt(endD);
+            }
+            const errors = [];
+            const urlMid = url ? uexExtractMid(url) : null;
+            if (!agencyId) errors.push('대행사 누락');
+            if (!storeName) errors.push('업체명 누락');
+            if (!url) errors.push('URL 누락'); else if (!urlMid) errors.push('유효하지 않은 플레이스 주소');
+            if (!rankKeyword) errors.push('순위키워드 누락');
+            if (days === null || isNaN(days) || days <= 0) errors.push('일 수 오류');
+            if (!startDate) errors.push('시작일 형식 오류');
+            if (!mid) errors.push('MID 누락');
+            if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
+            if (dailyTarget === null || isNaN(dailyTarget) || dailyTarget < 0) errors.push('일 목표 오류');
+            return { agencyId, storeName, url, mid, rankKeyword, days, startDate, endDate, dailyTarget, searchKeyword, valid: errors.length===0, error: errors.join(' / ') };
+          });
+          renderKpUexPreview();
+        } catch (err) {
+          alert('파일을 읽는 중 오류가 발생했습니다. 양식을 확인해주세요.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function kpUexEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function renderKpUexPreview() {
+    const validCount = uexRows.filter(r=>r.valid).length;
+    const errorCount = uexRows.length - validCount;
+    document.getElementById('kp-uex-preview-info').innerHTML =
+      `총 <strong>${uexRows.length}건</strong> 중 <strong style="color:var(--kp-accent)">${validCount}건</strong> 등록 가능 / <strong style="color:#ef4444">${errorCount}건</strong> 오류`;
+    const submitBtn = document.getElementById('kp-uex-submit-btn');
+    submitBtn.disabled = errorCount > 0;
+    submitBtn.textContent = errorCount > 0 ? `오류를 수정해주세요 (${errorCount}건)` : '접수 등록';
+    document.getElementById('kp-uex-preview-body').innerHTML = uexRows.map((r,i) => `
+      <tr>
+        <td style="color:var(--muted)">${i+1}</td>
+        <td style="font-weight:600">${kpUexEsc(r.agencyId)||'-'}</td>
+        <td style="font-weight:500">${kpUexEsc(r.storeName)||'-'}</td>
+        <td style="color:var(--text2);font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${kpUexEsc(r.url)||'-'}</td>
+        <td style="color:var(--text2)">${kpUexEsc(r.mid)||'-'}</td>
+        <td>${kpUexEsc(r.rankKeyword)||'-'}</td>
+        <td style="color:var(--text2)">${r.days ?? '-'}</td>
+        <td style="color:var(--text2)">${r.startDate||'-'}</td>
+        <td style="color:var(--text2)">${r.endDate||'-'}</td>
+        <td style="color:var(--text2)">${r.dailyTarget!=null ? r.dailyTarget.toLocaleString() : '-'}</td>
+        <td style="color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${kpUexEsc(r.searchKeyword)||'-'}</td>
+        <td>${r.valid ? '<span class="kp-row-status kp-row-ok">정상</span>' : `<span class="kp-row-status kp-row-err">${kpUexEsc(r.error)}</span>`}</td>
+      </tr>`).join('');
+    document.getElementById('kp-uex-zone').style.display = 'none';
+    document.getElementById('kp-uex-preview').style.display = 'block';
+  }
+
+  window.resetKpUex = function() {
+    uexRows = [];
+    document.getElementById('kp-uex-file').value = '';
+    document.getElementById('kp-uex-zone').style.display = 'block';
+    document.getElementById('kp-uex-preview').style.display = 'none';
+    const btn = document.getElementById('kp-uex-submit-btn');
+    btn.disabled = false; btn.textContent = '접수 등록';
+  };
+
+  window.downloadKpUexTemplate = function() {
+    uexEnsureXLSX(() => {
+      const wb = window.XLSX.utils.book_new();
+      const todayStr = uexFmt(new Date());
+      const ws = window.XLSX.utils.aoa_to_sheet([
+        ['대행사','업체명','URL','MID','순위키워드','일 수','시작일','일 목표','검색키워드'],
+        ['예시대행사','테스트 맛집','https://m.place.naver.com/restaurant/123456789','123456789','강남 맛집',7,todayStr,1000,''],
+      ]);
+      ws['!cols'] = [{wch:14},{wch:20},{wch:50},{wch:13},{wch:18},{wch:8},{wch:12},{wch:10},{wch:20}];
+      window.XLSX.utils.book_append_sheet(wb, ws, '접수');
+      window.XLSX.writeFile(wb, '김프로_유저엑셀접수_양식.xlsx');
+    });
+  };
+
+  window.submitKpUex = async function() {
+    if (uexRows.some(r=>!r.valid)) { alert('오류가 있는 행이 있습니다. 오류를 수정한 후 다시 업로드해주세요.'); return; }
+    const validRows = uexRows.filter(r=>r.valid);
+    if (!validRows.length) { alert('등록 가능한 데이터가 없습니다.'); return; }
+    const btn = document.getElementById('kp-uex-submit-btn');
+    btn.disabled = true; btn.textContent = '등록 중...';
+    let success = 0, fail = 0;
+    for (const row of validRows) {
+      try {
+        await window.HA.addKpSlot({
+          agencyId: row.agencyId, storeName: row.storeName, rankKeyword: row.rankKeyword, url: row.url, mid: row.mid,
+          startDate: row.startDate, endDate: row.endDate, days: row.days, dailyTarget: row.dailyTarget,
+          searchKeyword: row.searchKeyword || '', memo: '', unitPrice: 0,
+        });
+        success++;
+      } catch { fail++; }
+    }
+    if (window.kpRenderReceipts) window.kpRenderReceipts(true, true);
+    alert(`총 ${validRows.length}건 중 ${success}건 등록 완료${fail ? ` / ${fail}건 실패` : ''}`);
+    resetKpUex();
+    btn.disabled = false; btn.textContent = '접수 등록';
+    closeKpUexModal();
+  };
 })();
 </script>
