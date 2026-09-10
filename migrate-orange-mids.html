@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>[일회성] 오렌지 MID 이관 도구</title>
+<style>
+  body { font-family:'Pretendard',-apple-system,sans-serif; background:#f0f4f8; color:#1e293b; padding:28px; max-width:1100px; margin:0 auto; }
+  h1 { font-size:18px; margin-bottom:4px; }
+  .sub { color:#64748b; font-size:13px; margin-bottom:20px; }
+  .warn { background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:14px 16px; margin-bottom:20px; font-size:13px; color:#9a3412; line-height:1.6; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  .card h2 { font-size:14px; margin:0 0 10px; }
+  button { padding:9px 18px; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; margin-right:8px; }
+  .btn-primary { background:#10b981; color:#fff; }
+  .btn-danger { background:#dc2626; color:#fff; }
+  button:disabled { background:#cbd5e1; cursor:not-allowed; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+  th { background:#1e293b; color:#fff; padding:8px 6px; text-align:center; }
+  td { padding:7px 6px; border-bottom:1px solid #e2e8f0; text-align:center; }
+  .ok { color:#059669; font-weight:700; }
+  .bad { color:#dc2626; font-weight:700; }
+  .muted { color:#94a3b8; }
+  #log { background:#0f172a; color:#e2e8f0; border-radius:10px; padding:14px 16px; font-size:12px; font-family:monospace; white-space:pre-wrap; max-height:400px; overflow-y:auto; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<h1>⚠️ [일회성] 접수관리 → 김프로 MID 이관 도구</h1>
+<div class="sub">사용 후 반드시 삭제할 것 — 정식 기능 아님, 이 작업 전용 임시 스크립트</div>
+<div class="warn">
+  <b>대상:</b> 대행사 "[단독]오렌지", 아래 12개 MID<br>
+  <b>동작:</b> ha/slots → ha/kimproSlots로 <u>완전 이동</u>(원본은 ha/slots에서 완전 삭제) + 관련 입금(ha/paid_slots)·
+  정산 스냅샷(ha/settle_snapshots)·환불(ha/refunds)이 있으면 같은 그룹이 전부 이 12건으로만 구성된 경우에 한해
+  ha/kimproPaidSlots·ha/kimproSettleSnapshots·ha/kimproRefunds로 함께 이동. 다른 캠페인과 섞인 그룹은 자동 이동하지 않고
+  경고만 표시(수동 확인 필요).<br>
+  <b>또한 접수관리 승인 시 ha/kimproSlots로 자동 미러링되는 기능이 있어, 이 12건이 이미 김프로 쪽에
+  (같은 key로) 미리 복사돼 있을 수 있습니다 — 그 경우 ②에서 자연스럽게 덮어써져 문제없지만, 만약
+  "다른 key"로 별도 중복 등록된 캠페인이 있다면 아래 ②-2에서 별도로 찾아 삭제합니다.<br>
+  <b>먼저 "① 조회"로 확인 후, 이상 없으면 "② 실행"을 눌러주세요. 조회만으로는 아무것도 바뀌지 않습니다.</b>
+</div>
+
+<div class="card">
+  <h2>대상 MID (12개)</h2>
+  <div id="mid-list" class="muted" style="font-family:monospace;font-size:12px;"></div>
+</div>
+
+<div class="card">
+  <button class="btn-primary" id="scan-btn" onclick="runScan()">① 조회 (읽기 전용)</button>
+  <button class="btn-danger" id="exec-btn" onclick="runExecute()" disabled>② 실행 (이동 + 김프로 중복 삭제)</button>
+  <div id="scan-result"></div>
+  <h2 style="margin-top:18px;">김프로(ha/kimproSlots)에 이미 있는 동일 MID 캠페인</h2>
+  <div id="kp-dup-result"></div>
+</div>
+
+<div id="log-wrap" style="display:none;">
+  <div class="card">
+    <h2>실행 로그</h2>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAF-Rn7tzIjQeyUDJKnvKTRNccsXUVsIjo",
+  authDomain: "higherad-b9d62.firebaseapp.com",
+  databaseURL: "https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "higherad-b9d62",
+  storageBucket: "higherad-b9d62.firebasestorage.app",
+  messagingSenderId: "938928195180",
+  appId: "1:938928195180:web:8209b1e02a8caabe643a49",
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const TARGET_AGENCY_HINT = '오렌지';
+const TARGET_MIDS = [
+  '1595588988','2086702176','1020045509','1019321941','1574132966','2060110285',
+  '1567705615','17925854','2011049969','1966892827','2039653778','1372286139',
+];
+document.getElementById('mid-list').textContent = TARGET_MIDS.join(', ');
+
+function safe(s) { return String(s).replace(/[.#$[\]/]/g, '_'); }
+function getMinuteKey(isoStr) {
+  if (!isoStr) return 'unknown';
+  const d = new Date(isoStr);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function groupKeyOf(slot) {
+  const t = getMinuteKey(slot.createdAt);
+  return `${safe(t)}__${safe(slot.agencyId||'-')}__${safe(slot.userId||'-')}`;
+}
+
+let scanResult = null; // { flatFound: [{key,data,groupKey,pureGroup}], kpDupExtra: [{key,data}] }
+
+function logLine(msg) {
+  const el = document.getElementById('log');
+  el.textContent += msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+window.runScan = async function() {
+  const scanBtn = document.getElementById('scan-btn');
+  scanBtn.disabled = true; scanBtn.textContent = '조회 중...';
+  const resultEl = document.getElementById('scan-result');
+  resultEl.innerHTML = '<p class="muted">ha/slots 전체를 읽는 중... (5초~수십초 소요될 수 있음)</p>';
+  try {
+    const slotsSnap = await get(ref(db, 'ha/slots'));
+    if (!slotsSnap.exists()) throw new Error('ha/slots가 비어있습니다.');
+    const allSlots = [];
+    slotsSnap.forEach(child => { allSlots.push({ _key: child.key, ...child.val() }); });
+
+    const found = TARGET_MIDS.map(mid => {
+      const matches = allSlots.filter(s => s.mid === mid && s.status !== 'deleted');
+      return { mid, matches };
+    });
+
+    // 각 매치 슬롯의 정산 그룹(timeKey__agencyId__userId) 내에 "이번에 옮기지 않는" 다른 슬롯이
+    // 있는지 확인 — 있으면 그 그룹의 스냅샷/환불/입금은 자동 이동 대상에서 제외(수동 확인 필요).
+    const migratingKeys = new Set(found.flatMap(f => f.matches.map(s => s._key)));
+    const groupAllMembers = new Map(); // groupKey -> [slotKey,...] (전체, 이번 대상 여부 무관)
+    allSlots.forEach(s => {
+      if (s.status === 'deleted') return;
+      const gk = groupKeyOf(s);
+      if (!groupAllMembers.has(gk)) groupAllMembers.set(gk, []);
+      groupAllMembers.get(gk).push(s._key);
+    });
+
+    let rows = '';
+    const flatFound = [];
+    for (const f of found) {
+      if (!f.matches.length) {
+        rows += `<tr><td>${f.mid}</td><td colspan="6" class="bad">ha/slots에서 찾을 수 없음(이미 삭제됐거나 MID 오류)</td></tr>`;
+        continue;
+      }
+      for (const s of f.matches) {
+        const gk = groupKeyOf(s);
+        const members = groupAllMembers.get(gk) || [];
+        const pureGroup = members.every(k => migratingKeys.has(k));
+        const agencyOk = (s.agencyId||'').includes(TARGET_AGENCY_HINT);
+        flatFound.push({ key: s._key, data: s, groupKey: gk, pureGroup });
+        rows += `<tr>
+          <td>${f.mid}</td>
+          <td>${s._key}</td>
+          <td>${agencyOk ? '' : '<span class="bad">⚠️ </span>'}${(s.agencyId||'-')}</td>
+          <td>${s.storeName||'-'}</td>
+          <td>${s.status||'-'}</td>
+          <td>${s.createdAt ? s.createdAt.slice(0,16).replace('T',' ') : '-'}</td>
+          <td>${pureGroup ? '<span class="ok">단독 그룹(정산 데이터 있으면 같이 이동)</span>' : '<span class="bad">⚠️ 다른 캠페인과 그룹 공유 — 정산 데이터 수동 확인 필요</span>'}</td>
+        </tr>`;
+      }
+    }
+    resultEl.innerHTML = `<table><thead><tr><th>MID</th><th>slot key</th><th>대행사</th><th>업체명</th><th>상태</th><th>접수일시</th><th>정산 그룹</th></tr></thead><tbody>${rows}</tbody></table>
+      <p style="margin-top:10px;font-size:12px;color:#475569;">찾은 슬롯: ${flatFound.length}건 / 대상 MID: ${TARGET_MIDS.length}개</p>`;
+
+    // ── 김프로(ha/kimproSlots) 쪽에 이미 있는 동일 MID 확인 ──
+    // 접수관리 승인 시 ha/kimproSlots로 자동 미러링되는 기존 로직이 "같은 key"로 복사하므로,
+    // ①의 ha/slots key와 동일한 key로 있는 건 ②에서 자연스럽게 덮어써져 문제없음(별도 삭제 불필요).
+    // key가 다른데 mid가 같은 건 진짜 중복(수동 등록 등)이라 별도로 찾아서 삭제 대상으로 표시.
+    const migratedKeySet = new Set(flatFound.map(f => f.key));
+    const kpSnap = await get(ref(db, 'ha/kimproSlots'));
+    const kpDupResultEl = document.getElementById('kp-dup-result');
+    const kpDupExtra = [];
+    if (kpSnap.exists()) {
+      const kpRows = [];
+      kpSnap.forEach(child => {
+        const v = child.val();
+        if (!TARGET_MIDS.includes(v.mid) || v.status === 'deleted') return;
+        const sameKeyAsMove = migratedKeySet.has(child.key);
+        if (!sameKeyAsMove) kpDupExtra.push({ key: child.key, data: v });
+        kpRows.push(`<tr>
+          <td>${v.mid}</td>
+          <td>${child.key}</td>
+          <td>${v.agencyId||'-'}</td>
+          <td>${v.storeName||'-'}</td>
+          <td>${v.status||'-'}</td>
+          <td>${v.createdAt ? v.createdAt.slice(0,16).replace('T',' ') : '-'}</td>
+          <td>${sameKeyAsMove ? '<span class="ok">이동 대상과 같은 key — ②에서 자동 덮어써짐(별도 조치 불필요)</span>' : '<span class="bad">⚠️ 다른 key — 진짜 중복, ②에서 삭제 예정</span>'}</td>
+        </tr>`);
+      });
+      kpDupResultEl.innerHTML = kpRows.length
+        ? `<table><thead><tr><th>MID</th><th>slot key</th><th>대행사</th><th>업체명</th><th>상태</th><th>접수일시</th><th>비고</th></tr></thead><tbody>${kpRows.join('')}</tbody></table>`
+        : '<p class="muted">김프로 쪽에 동일 MID 캠페인 없음.</p>';
+    } else {
+      kpDupResultEl.innerHTML = '<p class="muted">ha/kimproSlots가 비어있음.</p>';
+    }
+
+    scanResult = { flatFound, kpDupExtra };
+    document.getElementById('exec-btn').disabled = flatFound.length === 0;
+  } catch (e) {
+    resultEl.innerHTML = `<p class="bad">조회 실패: ${e.message}</p>`;
+  } finally {
+    scanBtn.disabled = false; scanBtn.textContent = '① 조회 (읽기 전용)';
+  }
+};
+
+window.runExecute = async function() {
+  if (!scanResult || !scanResult.flatFound.length) return;
+  const dupNote = scanResult.kpDupExtra.length ? `\n추가로 김프로 쪽 중복 ${scanResult.kpDupExtra.length}건도 삭제합니다.` : '';
+  if (!confirm(`${scanResult.flatFound.length}건을 ha/slots에서 완전 삭제하고 ha/kimproSlots로 이동합니다.${dupNote}\n되돌릴 수 없습니다. 계속할까요?`)) return;
+  const execBtn = document.getElementById('exec-btn');
+  execBtn.disabled = true;
+  document.getElementById('scan-btn').disabled = true;
+  document.getElementById('log-wrap').style.display = 'block';
+  document.getElementById('log').textContent = '';
+
+  const doneGroups = new Set();
+  for (const { key, data, groupKey, pureGroup } of scanResult.flatFound) {
+    try {
+      // 1) 슬롯 본체: ha/kimproSlots로 같은 key 그대로 복사 후 ha/slots에서 완전 삭제
+      await set(ref(db, `ha/kimproSlots/${key}`), data);
+      await remove(ref(db, `ha/slots/${key}`));
+      logLine(`✅ 슬롯 이동: ${data.mid} (${key})`);
+
+      // 2) 입금(paid_slots)
+      const paidSnap = await get(ref(db, `ha/paid_slots/${key}`));
+      if (paidSnap.exists()) {
+        await set(ref(db, `ha/kimproPaidSlots/${key}`), true);
+        await remove(ref(db, `ha/paid_slots/${key}`));
+        logLine(`  ↳ 입금 기록도 이동`);
+      }
+
+      // 3) 정산 스냅샷/환불 — "단독 그룹"(이 이관 대상들로만 구성된 그룹)일 때만, 그룹당 1회
+      if (pureGroup && !doneGroups.has(groupKey)) {
+        doneGroups.add(groupKey);
+        const snapSnap = await get(ref(db, `ha/settle_snapshots/${groupKey}`));
+        if (snapSnap.exists()) {
+          await set(ref(db, `ha/kimproSettleSnapshots/${groupKey}`), snapSnap.val());
+          await remove(ref(db, `ha/settle_snapshots/${groupKey}`));
+          logLine(`  ↳ 정산 스냅샷 이동 (그룹 ${groupKey})`);
+        }
+        const refundSnap = await get(ref(db, `ha/refunds/${groupKey}`));
+        if (refundSnap.exists()) {
+          await set(ref(db, `ha/kimproRefunds/${groupKey}`), refundSnap.val());
+          await remove(ref(db, `ha/refunds/${groupKey}`));
+          logLine(`  ↳ 환불 기록 이동 (그룹 ${groupKey})`);
+        }
+      } else if (!pureGroup) {
+        logLine(`  ⚠️ 그룹 공유 — 정산 스냅샷/환불은 수동 확인 필요 (그룹 ${groupKey})`);
+      }
+    } catch (e) {
+      logLine(`❌ 실패: ${data.mid} (${key}) — ${e.message}`);
+    }
+  }
+
+  // 김프로 쪽 진짜 중복(이동 대상과 key가 다른 것) 삭제
+  for (const { key, data } of scanResult.kpDupExtra) {
+    try {
+      await remove(ref(db, `ha/kimproSlots/${key}`));
+      logLine(`🗑️ 김프로 중복 삭제: ${data.mid} (${key})`);
+    } catch (e) {
+      logLine(`❌ 중복 삭제 실패: ${data.mid} (${key}) — ${e.message}`);
+    }
+  }
+
+  logLine('\n=== 완료 ===');
+  execBtn.textContent = '완료됨';
+};
+</script>
+</body>
+</html>
