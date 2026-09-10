@@ -284,7 +284,20 @@
     <select id="kp-filter-grade" onchange="kpRenderReceipts()" disabled>
       <option value="">⏳ 등급 로딩 중...</option>
     </select>
-    <input type="date" id="kp-filter-date" onchange="kpRenderReceipts()" title="접수일">
+    <div id="kp-date-filter-wrap" style="position:relative;display:flex;align-items:center;">
+      <button id="kp-date-pick-btn" onclick="document.getElementById('kp-filter-date').showPicker?document.getElementById('kp-filter-date').showPicker():document.getElementById('kp-filter-date').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
+        📅 <span id="kp-date-label">접수일</span>
+      </button>
+      <input type="date" id="kp-filter-date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="kpOnDateChange()">
+      <button id="kp-date-clear-btn" onclick="kpClearDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
+    </div>
+    <div id="kp-start-date-filter-wrap" style="position:relative;display:flex;align-items:center;">
+      <button id="kp-start-date-pick-btn" onclick="document.getElementById('kp-filter-start-date').showPicker?document.getElementById('kp-filter-start-date').showPicker():document.getElementById('kp-filter-start-date').focus()" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;font-family:inherit;color:var(--text2);white-space:nowrap;">
+        📅 <span id="kp-start-date-label">시작일</span>
+      </button>
+      <input type="date" id="kp-filter-start-date" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" onchange="kpOnStartDateChange()">
+      <button id="kp-start-date-clear-btn" onclick="kpClearStartDateFilter()" style="display:none;margin-left:4px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;padding:2px 4px;" title="날짜 초기화">✕</button>
+    </div>
     <div style="margin-left:auto;display:flex;gap:6px;">
       <input type="text" id="kp-search" placeholder="대행사/플레이스명/MID (콤마 구분)" style="width:220px;" onkeydown="if(event.key==='Enter') kpRenderReceipts()">
       <button class="kp-action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="kpRenderReceipts()">검색</button>
@@ -2483,6 +2496,7 @@ document.addEventListener('keydown', function(e) {
     const gradeFilter = document.getElementById('kp-filter-grade').value;
     const kwTerms = (document.getElementById('kp-search').value||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
     const dateFrom = document.getElementById('kp-filter-date').value;
+    const startDateFrom = document.getElementById('kp-filter-start-date').value;
     return allSlots.filter(s => {
       if (s.status === 'deleted') return false;
       if (status === 'requeue_accepted') { if (!(s.isRequeue && s.status === 'accepted')) return false; }
@@ -2498,6 +2512,7 @@ document.addEventListener('keydown', function(e) {
       if (kwTerms.length && !kwTerms.some(t => [s.agencyId,s.storeName,s.mid].some(v=>(v||'').toLowerCase().includes(t)))) return false;
       const slotDate = s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '';
       if (dateFrom && slotDate !== dateFrom) return false;
+      if (startDateFrom && s.startDate !== startDateFrom) return false;
       return true;
     }).sort((a, b) => {
       if (dtSortAsc === null) return 0;
@@ -2542,7 +2557,46 @@ document.addEventListener('keydown', function(e) {
     document.getElementById('kp-filter-status').value = '';
     document.getElementById('kp-filter-grade').value = '';
     document.getElementById('kp-filter-date').value = '';
+    document.getElementById('kp-date-label').textContent = '접수일';
+    document.getElementById('kp-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('kp-date-clear-btn').style.display = 'none';
+    document.getElementById('kp-filter-start-date').value = '';
+    document.getElementById('kp-start-date-label').textContent = '시작일';
+    document.getElementById('kp-start-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('kp-start-date-clear-btn').style.display = 'none';
     document.getElementById('kp-search').value = '';
+    kpRenderReceipts();
+  };
+  window.kpClearDateFilter = function() {
+    document.getElementById('kp-filter-date').value = '';
+    document.getElementById('kp-date-label').textContent = '접수일';
+    document.getElementById('kp-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('kp-date-clear-btn').style.display = 'none';
+    kpRenderReceipts();
+  };
+  window.kpOnDateChange = function() {
+    const val = document.getElementById('kp-filter-date').value;
+    if (val) {
+      document.getElementById('kp-date-label').textContent = val;
+      document.getElementById('kp-date-pick-btn').style.color = 'var(--text)';
+      document.getElementById('kp-date-clear-btn').style.display = 'inline';
+    }
+    kpRenderReceipts();
+  };
+  window.kpClearStartDateFilter = function() {
+    document.getElementById('kp-filter-start-date').value = '';
+    document.getElementById('kp-start-date-label').textContent = '시작일';
+    document.getElementById('kp-start-date-pick-btn').style.color = 'var(--text2)';
+    document.getElementById('kp-start-date-clear-btn').style.display = 'none';
+    kpRenderReceipts();
+  };
+  window.kpOnStartDateChange = function() {
+    const val = document.getElementById('kp-filter-start-date').value;
+    if (val) {
+      document.getElementById('kp-start-date-label').textContent = val;
+      document.getElementById('kp-start-date-pick-btn').style.color = 'var(--text)';
+      document.getElementById('kp-start-date-clear-btn').style.display = 'inline';
+    }
     kpRenderReceipts();
   };
 
