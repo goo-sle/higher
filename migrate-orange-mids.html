@@ -120,7 +120,8 @@ window.runScan = async function() {
     slotsSnap.forEach(child => { allSlots.push({ _key: child.key, ...child.val() }); });
 
     const found = TARGET_MIDS.map(mid => {
-      const matches = allSlots.filter(s => s.mid === mid && s.status !== 'deleted');
+      // 같은 MID를 과거에 다른 대행사가 쓴 이력(예: [단독]트렌드)은 이관 대상 아님 — agencyId로 좁힘
+      const matches = allSlots.filter(s => s.mid === mid && s.status !== 'deleted' && (s.agencyId||'').includes(TARGET_AGENCY_HINT));
       return { mid, matches };
     });
 
@@ -167,6 +168,9 @@ window.runScan = async function() {
     // ①의 ha/slots key와 동일한 key로 있는 건 ②에서 자연스럽게 덮어써져 문제없음(별도 삭제 불필요).
     // key가 다른데 mid가 같은 건 진짜 중복(수동 등록 등)이라 별도로 찾아서 삭제 대상으로 표시.
     const migratedKeySet = new Set(flatFound.map(f => f.key));
+    // 자연 종료(ended/expired)된 과거 캠페인 이력은 중복이 아니라 정상 기록 — 아직 안 끝난
+    // 상태(진행 전/진행 중)로 남아있는 것만 "중복 접수" 후보로 본다.
+    const LIVE_STATUSES = new Set(['pending', 'accepted', 'active', 'split']);
     const kpSnap = await get(ref(db, 'ha/kimproSlots'));
     const kpDupResultEl = document.getElementById('kp-dup-result');
     const kpDupExtra = [];
@@ -175,6 +179,7 @@ window.runScan = async function() {
       kpSnap.forEach(child => {
         const v = child.val();
         if (!TARGET_MIDS.includes(v.mid) || v.status === 'deleted') return;
+        if (!LIVE_STATUSES.has(v.status)) return;
         const sameKeyAsMove = migratedKeySet.has(child.key);
         if (!sameKeyAsMove) kpDupExtra.push({ key: child.key, data: v });
         kpRows.push(`<tr>
