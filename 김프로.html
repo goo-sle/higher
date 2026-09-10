@@ -114,16 +114,21 @@
     </div>
   </div>
 
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpSubmitDirect()">🚀 배분 제출 (선택 또는 전체 접수건)</button>
+  </div>
+
   <div class="kp-tbl-wrap">
     <table class="kp-tbl">
       <thead>
         <tr>
+          <th style="width:32px;"><input type="checkbox" id="kp-check-all" onchange="kpToggleAll(this)"></th>
           <th>번호</th><th>접수일시</th><th>대행사</th><th>플레이스명</th><th>MID</th>
           <th>순위키워드</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th><th>액션</th><th>삭제</th>
         </tr>
       </thead>
       <tbody id="kp-receipt-body">
-        <tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
+        <tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>
       </tbody>
     </table>
   </div>
@@ -2163,7 +2168,7 @@ document.addEventListener('keydown', function(e) {
 
     if (!_slotsLoaded || forceReload) {
       document.getElementById('kp-receipt-body').innerHTML =
-        '<tr><td colspan="13"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
+        '<tr><td colspan="14"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
       allSlots = await HA.getKpSlots();
       _slotsLoaded = true;
       attachKpSlotsLiveSync();
@@ -2219,11 +2224,12 @@ document.addEventListener('keydown', function(e) {
     const page  = all.slice(start, start+PER_PAGE);
     const body  = document.getElementById('kp-receipt-body');
     if (!page.length) {
-      body.innerHTML = '<tr class="kp-empty-row"><td colspan="13">데이터가 없습니다.</td></tr>';
+      body.innerHTML = '<tr class="kp-empty-row"><td colspan="14">데이터가 없습니다.</td></tr>';
     } else {
       const numMap = new Map([...all].sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt)).map((s,idx)=>[s._key, idx+1]));
       body.innerHTML = page.map(s => `
         <tr>
+          <td><input type="checkbox" class="kp-row-check" data-key="${s._key}"></td>
           <td style="color:var(--text2)">${numMap.get(s._key)}</td>
           <td style="color:var(--text2)">${s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${kpEsc(s.agencyId||'-')}</td>
@@ -2271,6 +2277,9 @@ document.addEventListener('keydown', function(e) {
     pg.innerHTML = html;
   }
   window.kpGoPage = function(n) { currentPage=n; kpRenderReceipts(false); };
+  window.kpToggleAll = function(cb) { document.querySelectorAll('.kp-row-check').forEach(c => c.checked = cb.checked); };
+  // 배분/제출 엔진(별도 스크립트 블록)이 현재 로드된 슬롯 배열에 접근할 수 있도록 노출
+  window.getKpAllSlots = () => allSlots;
 
   function attachKpSlotsLiveSync() {
     if (_slotsUnsub) return;
@@ -2655,6 +2664,641 @@ document.addEventListener('keydown', function(e) {
     resetKpUex();
     btn.disabled = false; btn.textContent = '접수 등록';
     closeKpUexModal();
+  };
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     배분/제출 엔진 (접수관리.html의 allocate/buildNormalRows/buildYoupflRows/submitPlanRows/
+     executeYoupflSubmit을 참고 — 접수관리와 완전히 동일한 검증된 로직이므로 그쪽에서 이식(읽기 전용,
+     접수관리.html 자체는 전혀 수정하지 않음). 범위를 의도적으로 축소:
+       - 일반 상품 + 유입플만 지원 (찰리·델타·네이비 블로그 상품은 미지원)
+       - 등급 자동매칭(ha/grades) 미지원 — 항상 상품 유형 설정 비율 그대로 배분
+       - 시간대 분할 예약 미지원 — 즉시 제출만
+       - BizFit 자동 캐시차감 미지원(§7-1-3 결정과 동일 — 캐시복구/충전하기로 수동 처리)
+     상품 설정은 ha/kimproProdSettings를 읽기 전용으로 사용(라이브 편집 UI는 미이식).
+══════════════════════════════════════════ -->
+<style>
+  #kimpro-page .kp-submit-tab { padding:9px 22px; font-size:13px; font-weight:700; border:none; border-bottom:3px solid transparent; background:none; cursor:pointer; color:var(--text2); font-family:inherit; margin-bottom:-2px; }
+  #kimpro-page .kp-submit-tab.active { color:#1d4ed8; border-bottom-color:#1d4ed8; }
+  #kimpro-page .kp-submit-tab:disabled { opacity:.3; cursor:not-allowed; }
+  #kimpro-page .kp-agency-block { margin-bottom:16px; border:1.5px solid #c7d2fe; border-radius:14px; overflow:hidden; }
+  #kimpro-page .kp-agency-block:last-child { margin-bottom:0; }
+  #kimpro-page .kp-agency-hd { padding:12px 16px; background:#eff4ff; border-bottom:1.5px solid #c7d2fe; }
+  #kimpro-page .kp-aname { font-size:15px; font-weight:800; color:#4f46e5; }
+  #kimpro-page .kp-ameta { font-size:12px; color:#6366f1; margin-top:1px; }
+  #kimpro-page .kp-ag-table { width:100%; border-collapse:collapse; font-size:12.5px; table-layout:fixed; }
+  #kimpro-page .kp-ag-table thead th { background:#f8fafc; color:var(--muted); font-size:11px; font-weight:700; padding:9px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #kimpro-page .kp-ag-table tbody tr { border-bottom:1px solid var(--border); }
+  #kimpro-page .kp-ag-table tbody tr:last-child { border-bottom:none; }
+  #kimpro-page .kp-ag-table tbody td { padding:8px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #kimpro-page .kp-agency-ft { background:#f0f4ff; border-top:1.5px solid #c7d2fe; padding:8px 16px; font-size:12px; min-height:16px; }
+</style>
+
+<script>
+(function() {
+  const KP_BIZFIT_PROXY  = 'https://bizfit-direct-proxy-938928195180.asia-northeast3.run.app';
+  const KP_BIZFIT_DOMAIN = 'http://higherad.co.kr';
+  const KP_BIZFIT_TAB    = '99';
+
+  const KP_DEFAULT_PRODS = [
+    {id:'p1',name:'블랙',color:'#3b82f6',active:true,ver:'ver.5.0/3.2',ratio:5,kwPct:5},
+    {id:'p2',name:'올리브',color:'#8b5cf6',active:true,ver:'ver.5.0/3.2',ratio:5,kwPct:5},
+    {id:'deduct',name:'차감',color:'#ef4444',active:false,ratio:0,kwPct:0,fixedAlloc:true,deductOnly:true,fixedPct:10,autoBalance:false},
+    {id:'yupfl',name:'유입플',color:'#f59e0b',active:false,ratio:0,kwPct:0,fixedAlloc:true,fixedPct:30,autoBalance:false,missionRules:[]},
+    {id:'yupfl2',name:'분할',color:'#06b6d4',active:false,ratio:0,kwPct:0,fixedAlloc:true,splitProduct:true,autoBalance:false,missionRules:[]},
+  ];
+  const FIXED_PROD_IDS = new Set(['charlie','deduct','yupfl','yupfl2','delta','navy']);
+  let prods = KP_DEFAULT_PRODS.map(p => ({...p}));
+  const ap = () => prods.filter(p => p.active);
+  let _prodsLoaded = false;
+  async function kpEnsureProds() {
+    if (_prodsLoaded) return;
+    try {
+      const snap = await window.HA.getDoc('ha/kimproProdSettings');
+      const data = snap.exists() ? snap.val() : null;
+      if (data && Array.isArray(data.prods) && data.prods.length) prods = data.prods;
+    } catch (e) { /* 기본값 유지 */ }
+    _prodsLoaded = true;
+  }
+
+  function kpSubEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function yupflAlloc(target, pct) { return Math.round(target * ((pct ?? 30) / 100)); }
+  function yupflRuleFor(yupfl, workKw) {
+    const rules = Array.isArray(yupfl?.missionRules) ? yupfl.missionRules : [];
+    const kw = (workKw||'').trim();
+    const kwCount = kw ? kw.split(',').map(k=>k.trim()).filter(k=>k).length : 0;
+    return rules.find(r => r.kw === kwCount) || null;
+  }
+  function yupflPctFor(yupfl, workKw) { const rule = yupflRuleFor(yupfl, workKw); return rule ? rule.fixedPct : yupfl?.fixedPct; }
+  function lrm(items, total) {
+    if (!items.length) return {};
+    const totalW = items.reduce((s,p)=>s+p.ratio,0) || 1;
+    const exact = items.map(p => total*p.ratio/totalW);
+    const floors = exact.map(v => Math.floor(v));
+    const rems = exact.map((v,i) => v-floors[i]);
+    let leftover = total - floors.reduce((s,v)=>s+v,0);
+    const order = rems.map((_,i)=>i).sort((a,b)=>rems[b]-rems[a]);
+    for (let i=0;i<leftover;i++) floors[order[i]]++;
+    return items.reduce((m,p,i)=>(m[p.id]=floors[i],m),{});
+  }
+  function allocate(asgn, target, workKw, splitKeywords) {
+    if (!asgn.length) return {};
+    const fixedProds = asgn.filter(p=>p.fixedAlloc);
+    if (fixedProds.length) {
+      const ordered = [...fixedProds.filter(p=>p.deductOnly), ...fixedProds.filter(p=>!p.deductOnly)];
+      const result = {};
+      let remaining = target;
+      ordered.forEach(p => {
+        let amt;
+        if (p.deductOnly) amt = yupflAlloc(remaining, p.fixedPct);
+        else if (p.splitProduct) {
+          const rules = Array.isArray(p.missionRules) ? p.missionRules : [];
+          amt = rules.reduce((s,rule) => { const kw = ((splitKeywords||{})[rule.mission]||'').trim(); return kw ? s+yupflAlloc(remaining, rule.fixedPct) : s; }, 0);
+        } else amt = yupflAlloc(remaining, yupflPctFor(p, workKw));
+        amt = Math.max(0, Math.min(amt, remaining));
+        result[p.id] = amt;
+        remaining -= amt;
+      });
+      return { ...result, ...lrm(asgn.filter(p=>!p.fixedAlloc), Math.max(0, remaining)) };
+    }
+    return lrm(asgn, target);
+  }
+  function kwForProd(keywords, prod) {
+    if (!keywords) return '';
+    const parts = keywords.split(',').map(k=>k.trim()).filter(k=>k);
+    if (!parts.length) return '';
+    const activeOthers = ap().filter(p=>!p.fixedAlloc);
+    const totalPct = activeOthers.reduce((s,p)=>s+(p.kwPct||0),0);
+    if (totalPct === 0) return parts.join(',');
+    const counts = lrm(activeOthers.map(p=>({id:p.id, ratio:p.kwPct||0})), parts.length);
+    let offset = 0;
+    for (const p of activeOthers) { if (p.id === prod.id) return parts.slice(offset, offset+(counts[p.id]||0)).join(','); offset += counts[p.id]||0; }
+    return '';
+  }
+
+  function kpBuildNormalRows(slots, prodFilter = p => !FIXED_PROD_IDS.has(p.id)) {
+    const AP = ap();
+    const deductProd = AP.find(p=>p.deductOnly);
+    const rows = [];
+    let deductTarget = 0, deductAmount = 0;
+    slots.forEach(r => {
+      const alloc = allocate(AP.slice(), r.dailyTarget||0, r.yupflKeyword, r.splitKeywords);
+      if (deductProd) {
+        const dAmt = alloc[deductProd.id] || 0;
+        if (dAmt > 0) { deductTarget += dAmt*(r.days||0); deductAmount += dAmt*(r.days||0)*(r.unitPrice||0); }
+      }
+      AP.filter(prodFilter).forEach(prod => {
+        const pp = alloc[prod.id] ?? 0;
+        if (pp <= 0) return;
+        const daysVal = prod.daysMultiplied ? pp*(r.days||0) : (r.days||0);
+        rows.push({
+          _slotKey: r._key, _doneKey: prod.name,
+          _normalSubmitted: !!(r.normalDoneProducts && r.normalDoneProducts.includes(prod.name)),
+          상품등급명: prod.name, 업체명: r.storeName||'', 업체URL: r.url||'', PID번호: r.mid||'',
+          순위키워드: r.rankKeyword||'', 일목표: pp, 일수: daysVal, 예약일: r.startDate||'',
+          검색키워드: kwForProd(r.searchKeyword||'', prod),
+        });
+      });
+    });
+    return { rows, deductTarget, deductAmount };
+  }
+
+  function kpBuildYoupflRows(slots) {
+    const AP = ap();
+    const yupfl = AP.find(p=>p.id==='yupfl' && p.fixedAlloc);
+    const split = AP.find(p=>p.id==='yupfl2' && p.splitProduct);
+    if (!yupfl && !split) return [];
+    const deduct = AP.find(p=>p.deductOnly);
+    const rows = [];
+    slots.forEach(s => {
+      const agencyId = s.agencyId || '(대행사 미지정)';
+      const unitPrice = (s.unitPrice!=null && s.unitPrice>0) ? s.unitPrice : null;
+      const base = s.dailyTarget||0;
+      const remaining = deduct ? Math.max(0, base - yupflAlloc(base, deduct.fixedPct)) : base;
+      if (yupfl) {
+        const workKw = (s.yupflKeyword||'').trim();
+        const rule = yupflRuleFor(yupfl, workKw);
+        const yAmt = Math.min(yupflAlloc(remaining, rule ? rule.fixedPct : yupfl.fixedPct), remaining);
+        if (yAmt > 0) {
+          rows.push({ _slotKey:s._key, _rowKey:s._key, _prodId:'yupfl', _prodLabel:yupfl.name, _prodColor:yupfl.color,
+            _fixedSubmitted: !!s.fixedSubmitted, agencyId, unitPrice, storeName:s.storeName||'', rankKw:s.rankKeyword||'',
+            workKw, placeId:s.mid||'', target:yAmt, days:s.days||0, startDate:s.startDate||'', autoMission: rule?rule.mission:null });
+        }
+      }
+      if (split && Array.isArray(split.missionRules)) {
+        split.missionRules.forEach(rule => {
+          const workKw = ((s.splitKeywords||{})[rule.mission]||'').trim();
+          if (!workKw) return;
+          const yAmt = Math.min(yupflAlloc(remaining, rule.fixedPct), remaining);
+          if (yAmt <= 0) return;
+          rows.push({ _slotKey:s._key, _rowKey:`${s._key}__${rule.mission}`, _prodId:'yupfl2', _prodLabel:split.name, _prodColor:split.color,
+            _fixedSubmitted: !!(s.splitFixedSubmitted && s.splitFixedSubmitted[rule.mission]), agencyId, unitPrice,
+            storeName:s.storeName||'', rankKw:s.rankKeyword||'', workKw, placeId:s.mid||'', target:yAmt, days:s.days||0,
+            startDate:s.startDate||'', autoMission: rule.mission });
+        });
+      }
+    });
+    return rows;
+  }
+
+  const kpAgencyLabel = s => (s.agencyId||'').trim() || '(대행사 미지정)';
+  function kpGetAgencies(slots) { const seen=new Set(), list=[]; slots.forEach(s=>{const ag=kpAgencyLabel(s); if(!seen.has(ag)){seen.add(ag);list.push(ag);}}); return list; }
+  function kpSlotsByAgency(slots, ag) { return slots.filter(s => kpAgencyLabel(s) === ag); }
+
+  async function kpFetchBizfitAccount(agencyId) {
+    try {
+      const snap = await window.HA.getDoc(`ha/bizfit_charge/${String(agencyId).replace(/[.#$[\]\/]/g,'_')}`);
+      return snap.exists() ? snap.val() : null;
+    } catch { return null; }
+  }
+  async function kpCallBizfitProxy(path, body) {
+    const res = await fetch(`${KP_BIZFIT_PROXY}${path}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    return res.json();
+  }
+
+  function kpRowIssueCounts(rows) {
+    const kwEmptyCount = rows.filter(r => (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length===0).length;
+    const lowTargetCount = rows.filter(r => (r.일목표||0) < 10).length;
+    return { kwEmptyCount, lowTargetCount };
+  }
+  function kpAgencyIssueSummaryHtml(plan) {
+    return plan.map(p => {
+      const { kwEmptyCount, lowTargetCount } = kpRowIssueCounts(p.rows);
+      if (!kwEmptyCount && !lowTargetCount) return '';
+      const parts = [];
+      if (kwEmptyCount) parts.push(`검색키워드 0개 ${kwEmptyCount}건`);
+      if (lowTargetCount) parts.push(`일 목표 10 미만 ${lowTargetCount}건`);
+      return `<div style="color:#dc2626;font-size:11px;margin-top:2px;">⚠️ ${kpSubEsc(p.agency)} - ${parts.join(' / ')}</div>`;
+    }).join('');
+  }
+  function kpValidateNormalRowsForSubmit(rows) {
+    let anyFail = false;
+    rows.forEach(r => {
+      if (r._normalSubmitted) return;
+      const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      if (kwCount === 0 || (r.일목표||0) < 10) { r._kwFail = true; anyFail = true; }
+    });
+    return anyFail;
+  }
+  function kpTruncateAndValidateRow(r) {
+    const kwList = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k);
+    if (kwList.length > 50) r.검색키워드 = kwList.slice(0,50).join(',');
+    const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+    if (kwCount === 0) return { title:'검색키워드 미입력', label:'❌ 키워드 미입력' };
+    if ((r.일목표||0) < 10) return { title:`일목표 ${r.일목표||0}개 — 10 미만`, label:'❌ 일목표 미달' };
+    return null;
+  }
+
+  function kpBuildSubmitAgencyBlock(p) {
+    if (!p.rows.length) return null;
+    const block = document.createElement('div');
+    block.className = 'kp-agency-block';
+    const totalTarget = p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
+    const deductNote = p.deductTarget ? ` · 차감 ${p.deductTarget.toLocaleString()} (${(p.deductAmount||0).toLocaleString()}원)` : '';
+    const { kwEmptyCount, lowTargetCount } = kpRowIssueCounts(p.rows);
+    const issueCount = kwEmptyCount + lowTargetCount;
+    const issueBadge = issueCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${issueCount}건</span>` : '';
+    const hd = document.createElement('div');
+    hd.className = 'kp-agency-hd';
+    hd.innerHTML = `<div class="kp-aname">${kpSubEsc(p.agency)}${issueBadge}</div><div class="kp-ameta">총 ${p.rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()}${deductNote}</div>`;
+    block.appendChild(hd);
+    const tbl = document.createElement('table');
+    tbl.className = 'kp-ag-table';
+    tbl.innerHTML = `<thead><tr>
+      <th style="width:64px">등급</th><th style="width:98px">업체명</th><th style="width:120px">URL</th><th style="width:96px">MID</th>
+      <th style="width:84px">순위키워드</th><th style="width:56px;text-align:right">일목표</th><th style="width:44px">일수</th>
+      <th style="width:74px">예약일</th><th style="width:64px;text-align:center">검색키워드</th><th style="width:76px;text-align:center">상태</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    p.rows.forEach(r => {
+      const kwCount = (r.검색키워드||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const kwEmpty = kwCount === 0;
+      const targetLow = (r.일목표||0) < 10;
+      const tr = document.createElement('tr');
+      const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
+      statusTd.innerHTML = r._normalSubmitted ? '<span style="color:var(--kp-accent);">✅ 완료</span>' : '-';
+      tr.innerHTML = `
+        <td style="font-weight:700">${kpSubEsc(r.상품등급명)}</td>
+        <td>${kpSubEsc(r.업체명)}</td>
+        <td style="font-size:11px;"><a href="${kpSubEsc(r.업체URL||'')}" target="_blank" style="color:var(--kp-accent);text-decoration:none;">${kpSubEsc(r.업체URL||'-')}</a></td>
+        <td style="font-size:11px;color:var(--text2)">${kpSubEsc(r.PID번호||'-')}</td>
+        <td>${kpSubEsc(r.순위키워드||'-')}</td>
+        <td style="text-align:right">${targetLow?`<span style="color:#dc2626;font-weight:700;">${(r.일목표||0).toLocaleString()} ⚠️</span>`:(r.일목표||0).toLocaleString()}</td>
+        <td>${r.일수||0}</td>
+        <td>${kpSubEsc(r.예약일||'-')}</td>
+        <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':'#eff6ff'};color:${kwEmpty?'#dc2626':'#1d4ed8'};">${kwCount}개${kwEmpty?' ⚠️':''}</span></td>
+      `;
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      r._statusTd = statusTd;
+    });
+    tbl.appendChild(tbody);
+    block.appendChild(tbl);
+    const ft = document.createElement('div'); ft.className = 'kp-agency-ft'; ft.innerHTML = '<div></div>';
+    block.appendChild(ft);
+    p.msgEl = ft.querySelector('div');
+    return block;
+  }
+
+  function kpBuildYoupflTableBlock(rows, agencyName) {
+    if (!rows.length) return null;
+    const block = document.createElement('div');
+    block.className = 'kp-agency-block';
+    const totalTarget = rows.reduce((a,r)=>a+(r.target||0)*(r.days||0),0);
+    const totalAmount = rows.reduce((a,r)=>a+(r.target||0)*(r.days||0)*(r.unitPrice||0),0);
+    const kwEmptyCount = rows.filter(r=>!r._fixedSubmitted && !r.workKw).length;
+    const issueBadge = kwEmptyCount ? ` <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">⚠️ 오류 ${kwEmptyCount}건</span>` : '';
+    const hd = document.createElement('div');
+    hd.className = 'kp-agency-hd';
+    hd.innerHTML = `<div class="kp-aname">${kpSubEsc(agencyName||'')} <span style="font-weight:400;font-size:13px;color:var(--text2)">(유입플)</span>${issueBadge}</div><div class="kp-ameta">총 ${rows.length}건 · 목표 합계 ${totalTarget.toLocaleString()} · 금액 ${totalAmount.toLocaleString()}원</div>`;
+    block.appendChild(hd);
+    const tbl = document.createElement('table');
+    tbl.className = 'kp-ag-table';
+    tbl.innerHTML = `<thead><tr>
+      <th style="width:64px;text-align:center">상품</th><th style="width:130px">업체명</th><th style="width:90px">순위키워드</th>
+      <th style="width:60px;text-align:center">작업키워드</th><th style="width:100px">플레이스ID</th><th style="width:64px;text-align:right">작업타수</th>
+      <th style="width:40px;text-align:center">일수</th><th style="width:80px">시작일</th><th style="width:60px;text-align:center">미션</th><th style="width:70px;text-align:center">상태</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => {
+      const kwCount = (r.workKw||'').split(',').map(k=>k.trim()).filter(k=>k).length;
+      const kwEmpty = kwCount === 0 && !r._fixedSubmitted;
+      const tr = document.createElement('tr');
+      const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap';
+      statusTd.innerHTML = r._fixedSubmitted ? '<span style="color:var(--kp-accent);">✅ 완료</span>' : '-';
+      const hasAutoMission = r.autoMission !== null && r.autoMission !== undefined;
+      const missionTd = document.createElement('td');
+      missionTd.style.cssText = 'text-align:center';
+      missionTd.innerHTML = `<input type="number" min="0" class="kp-ag-mission-input" data-key="${kpSubEsc(r._rowKey||'')}" value="${hasAutoMission?r.autoMission:''}" ${r._fixedSubmitted?'disabled':''} style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;font-size:12px;text-align:center;">`;
+      tr.innerHTML = `
+        <td style="text-align:center"><span style="font-size:10px;font-weight:800;padding:1px 7px;border-radius:6px;background:${r._prodColor||'#94a3b8'}1a;color:${r._prodColor||'#64748b'};border:1px solid ${r._prodColor||'#94a3b8'}55;">${kpSubEsc(r._prodLabel||'')}</span></td>
+        <td>${kpSubEsc(r.storeName||'-')}</td>
+        <td>${kpSubEsc(r.rankKw||'-')}</td>
+        <td style="text-align:center"><span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:${kwEmpty?'#fee2e2':'#eff6ff'};color:${kwEmpty?'#dc2626':'#1d4ed8'};">${kwCount}개${kwEmpty?' ⚠️':''}</span></td>
+        <td style="font-size:11px;color:var(--text2)">${kpSubEsc(r.placeId||'-')}</td>
+        <td style="text-align:right">${(r.target||0).toLocaleString()}</td>
+        <td style="text-align:center">${r.days||0}</td>
+        <td>${kpSubEsc(r.startDate||'-')}</td>
+      `;
+      tr.appendChild(missionTd);
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      r._statusTd = statusTd;
+    });
+    tbl.appendChild(tbody);
+    block.appendChild(tbl);
+    return block;
+  }
+
+  function kpMakeGate(hasNormal, hasFixed) {
+    const required = [];
+    if (hasNormal) required.push('normalKeys');
+    if (hasFixed) required.push('fixedKeys');
+    return {
+      required, normalKeys: null, fixedKeys: null,
+      async tryApprove() {
+        if (!required.length || !required.every(k => this[k] instanceof Set)) return;
+        let common = null;
+        for (const k of required) common = common === null ? new Set(this[k]) : new Set([...common].filter(x => this[k].has(x)));
+        if (!common || !common.size) return;
+        await Promise.all([...common].map(key => window.HA.updateKpSlot(key, { status:'active' })));
+        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+        common.forEach(key => { const s = allSlots.find(x=>x._key===key); if (s) s.status='active'; });
+        if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+      },
+    };
+  }
+
+  // 대행사(계정) 1곳 처리 — BizFit /grade-info → /register. 승인은 대상 슬롯의 모든 상품행이 성공해야만(gate) 반영.
+  // 접수관리.html submitPlanRows와 동일 로직(자동 캐시차감·시간대분할·multi-leg 게이트만 제외).
+  async function kpSubmitPlanRows(plan, gate) {
+    let okTotal = 0, failTotal = 0;
+    const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+    const slotMap = new Map(allSlots.map(s => [s._key, s]));
+    const approvedKeys = new Set();
+
+    async function processAgency(p) {
+      if (!p.rows.length) return;
+      async function finalizeSlotApprovals() {
+        const bySlot = new Map();
+        p.rows.forEach(r => { if (!r._slotKey) return; if (!bySlot.has(r._slotKey)) bySlot.set(r._slotKey, []); bySlot.get(r._slotKey).push(r); });
+        const okSlots = [...bySlot.entries()].filter(([,rs]) => rs.every(r => r._normalSubmitted || r._rowOk === true)).map(([k])=>k);
+        okSlots.forEach(k => approvedKeys.add(k));
+      }
+      const alreadyRows = p.rows.filter(r => r._normalSubmitted);
+      const pendingRows = p.rows.filter(r => !r._normalSubmitted);
+      alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--kp-accent);">✅ 완료</span>'; });
+      okTotal += alreadyRows.length;
+      if (!pendingRows.length) { if (p.msgEl) p.msgEl.innerHTML = '<span style="color:var(--kp-accent);font-size:11px;">✅ 전체 접수 완료</span>'; await finalizeSlotApprovals(); return; }
+      pendingRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#3b82f6;">⏳</span>'; });
+      pendingRows.forEach(r => {
+        const fail = kpTruncateAndValidateRow(r);
+        if (fail) { r._kwFail = true; if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(fail.title)}">${fail.label}</span>`; failTotal++; }
+      });
+      const validRows = pendingRows.filter(r => !r._kwFail);
+      if (!validRows.length) { if (p.msgEl) p.msgEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">전체 유효성 검사 실패 (키워드 초과 또는 일목표 미달)</span>'; await finalizeSlotApprovals(); return; }
+      const account = p.realAg ? await kpFetchBizfitAccount(p.realAg) : null;
+      if (!account) {
+        validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#dc2626;">❌ 계정 미등록</span>'; });
+        if (p.msgEl) p.msgEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">비즈핏 계정 정보 미등록 (회원관리에서 BizFit ID/PW 등록 필요)</span>';
+        failTotal += validRows.length; await finalizeSlotApprovals(); return;
+      }
+      let gi;
+      try {
+        gi = await kpCallBizfitProxy('/grade-info', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: KP_BIZFIT_TAB, rawData: validRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,...rest})=>rest) });
+      } catch(e) { gi = { success:false, message:'서버 호출 실패: '+e.message }; }
+      if (!gi.success || !gi.gradeGroups || !gi.gradeGroups.length) {
+        const msg = gi.message || '전송 가능한 등급이 없습니다.';
+        validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(msg)}">❌ 등급조회 실패</span>`; });
+        if (p.msgEl) p.msgEl.innerHTML = `<span style="color:#dc2626;font-size:11px;">${kpSubEsc(msg)}</span>`;
+        failTotal += validRows.length; await finalizeSlotApprovals(); return;
+      }
+      const matchedGrades = new Set(); let agencyFail = 0;
+      for (const g of gi.gradeGroups) {
+        const grpRows = validRows.filter(r => r.상품등급명 === g.gradeName);
+        if (!grpRows.length) continue;
+        matchedGrades.add(g.gradeName);
+        const payloadRows = grpRows.map(({_slotKey,_statusTd,_kwFail,_normalSubmitted,_doneKey,...rest})=>rest);
+        let result;
+        try {
+          result = await kpCallBizfitProxy('/register', { domain: KP_BIZFIT_DOMAIN, loginId: account.id, pwd: account.pw, tab: g.actualTab||KP_BIZFIT_TAB, gradeName: g.gradeName, classType: g.classType, gradeType: g.gradeType, rowData: payloadRows });
+        } catch(e) { result = { success:false, message:e.message }; }
+        if (result.success) {
+          const failByIdx = new Map((result.fail_rows||[]).map(f=>[f.index,f.reason]));
+          let okCount = 0;
+          grpRows.forEach((r,i) => {
+            const reason = failByIdx.get(i);
+            if (reason === undefined) { r._rowOk = true; okCount++; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--kp-accent);">✅ 완료</span>'; }
+            else if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="비즈핏 결제 제외 (${kpSubEsc(reason||'데이터 검증 실패')})">❌ 실패</span>`;
+          });
+          okTotal += okCount;
+          const failCount = grpRows.length - okCount;
+          if (failCount) { failTotal += failCount; agencyFail += failCount; }
+        } else {
+          failTotal += grpRows.length; agencyFail += grpRows.length;
+          grpRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(result.message||'')}">❌ 실패</span>`; });
+        }
+      }
+      const validGradeNames = new Set(validRows.map(r=>r.상품등급명));
+      validGradeNames.forEach(name => {
+        if (!matchedGrades.has(name)) {
+          const unmatchedRows = validRows.filter(r=>r.상품등급명===name);
+          unmatchedRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#dc2626;">❌ 등급 불일치</span>'; });
+          failTotal += unmatchedRows.length; agencyFail += unmatchedRows.length;
+        }
+      });
+      const newlyOkBySlot = new Map();
+      p.rows.forEach(r => { if (r._rowOk !== true || !r._slotKey) return; if (!newlyOkBySlot.has(r._slotKey)) newlyOkBySlot.set(r._slotKey, []); newlyOkBySlot.get(r._slotKey).push(r._doneKey || r.상품등급명); });
+      await Promise.all([...newlyOkBySlot.entries()].map(async ([slotKey, names]) => {
+        const s = slotMap.get(slotKey);
+        const merged = [...new Set([...(s?.normalDoneProducts||[]), ...names])];
+        await window.HA.updateKpSlot(slotKey, { normalDoneProducts: merged });
+        if (s) s.normalDoneProducts = merged;
+      }));
+      await finalizeSlotApprovals();
+      if (p.msgEl) {
+        const kwFailCount = p.rows.filter(r=>r._kwFail).length;
+        const parts = [kwFailCount?`유효성 실패 ${kwFailCount}건`:'', agencyFail?'일부 등급 실패 — 상태 칸 확인':''].filter(Boolean);
+        p.msgEl.innerHTML = parts.length ? `<span style="color:#dc2626;font-size:11px;">${parts.join(' / ')}</span>` : `<span style="color:var(--kp-accent);font-size:11px;">✅ 전체 접수 완료</span>`;
+      }
+    }
+
+    await Promise.all(plan.map(p => processAgency(p)));
+    gate.normalKeys = approvedKeys;
+    await gate.tryApprove();
+    return { okTotal, failTotal };
+  }
+
+  async function kpExecuteYoupflSubmit(rows, overlay, gate) {
+    const applyBtn = overlay.querySelector('#kp-youpfl-apply-btn');
+    const subEl = overlay.querySelector('#kp-youpfl-sub');
+    const rowsBySlot = new Map();
+    rows.forEach(r => { if (!rowsBySlot.has(r._slotKey)) rowsBySlot.set(r._slotKey, []); rowsBySlot.get(r._slotKey).push(r); });
+    const slotDone = (slotKey, succeededRowKeys) => (rowsBySlot.get(slotKey)||[]).every(r => r._fixedSubmitted || succeededRowKeys.has(r._rowKey));
+    const alreadyRows = rows.filter(r=>r._fixedSubmitted);
+    const pendingRows = rows.filter(r=>!r._fixedSubmitted);
+    alreadyRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--kp-accent);">✅ 완료</span>'; });
+    if (!pendingRows.length) {
+      subEl.innerHTML = '<span style="color:var(--kp-accent);font-weight:600;">✅ 이미 모두 접수 완료된 항목입니다.</span>';
+      applyBtn.disabled = true; applyBtn.textContent = `✅ 완료 (${rows.length}건)`;
+      gate.fixedKeys = new Set(rows.map(r=>r._slotKey).filter(Boolean));
+      await gate.tryApprove();
+      return;
+    }
+    pendingRows.forEach(r => { if (!r.workKw) { r._kwFail = true; if (r._statusTd) r._statusTd.innerHTML = '<span style="color:#dc2626;" title="키워드 미입력">❌ 키워드 미입력</span>'; } });
+    const validRows = pendingRows.filter(r=>!r._kwFail);
+    if (!validRows.length) {
+      subEl.innerHTML = '<span style="color:#dc2626;font-weight:600;">전체 유효성 검사 실패 (키워드 미입력)</span>';
+      applyBtn.disabled = true; applyBtn.textContent = '❌ 실패';
+      gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
+      await gate.tryApprove();
+      return;
+    }
+    const missionByKey = new Map();
+    for (const r of validRows) {
+      const el = overlay.querySelector(`.kp-ag-mission-input[data-key="${CSS.escape(r._rowKey||'')}"]`);
+      const val = el?.value;
+      if (val === '' || val === null || val === undefined) { alert(`"${r.storeName||r._rowKey}" 항목의 미션 번호를 지정해주세요.`); return; }
+      missionByKey.set(r._rowKey, Math.max(0, parseInt(val,10)||0));
+    }
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 업로드 중...';
+    function kpCalcIkil(startDate) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const start = startDate ? new Date(startDate) : today; start.setHours(0,0,0,0);
+      return Math.max(0, Math.round((start-today)/86400000));
+    }
+    let result;
+    try {
+      result = await kpCallBizfitProxy('/youpfl-upload', { rows: validRows.map(r => ({ rankKw:r.rankKw, workKw:r.workKw, placeId:r.placeId, target:r.target, days:r.days, mission:missionByKey.get(r._rowKey), ikil:kpCalcIkil(r.startDate) })) });
+    } catch(e) { result = { success:false, message:'서버 호출 실패: '+e.message }; }
+    if (result.success) {
+      validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--kp-accent);">✅ 완료</span>'; });
+      subEl.innerHTML = `<span style="color:var(--kp-accent);font-weight:600;">✅ ${kpSubEsc(result.message||'업로드 완료')}</span>`;
+      const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+      const slotMap = new Map(allSlots.map(s=>[s._key,s]));
+      const succeededRowKeys = new Set(validRows.map(r=>r._rowKey));
+      const yupflDoneSlots = [...new Set(validRows.filter(r=>r._prodId==='yupfl').map(r=>r._slotKey))];
+      await Promise.all(yupflDoneSlots.map(k => window.HA.updateKpSlot(k, { fixedSubmitted: true })));
+      yupflDoneSlots.forEach(k => { const s = slotMap.get(k); if (s) s.fixedSubmitted = true; });
+      const splitDoneBySlot = new Map();
+      validRows.filter(r=>r._prodId==='yupfl2').forEach(r => { const mission = r._rowKey.split('__')[1]; if (!splitDoneBySlot.has(r._slotKey)) splitDoneBySlot.set(r._slotKey, []); splitDoneBySlot.get(r._slotKey).push(mission); });
+      await Promise.all([...splitDoneBySlot.entries()].map(async ([slotKey, missions]) => {
+        const s = slotMap.get(slotKey);
+        const merged = { ...(s?.splitFixedSubmitted||{}) };
+        missions.forEach(m => { merged[m] = true; });
+        await window.HA.updateKpSlot(slotKey, { splitFixedSubmitted: merged });
+        if (s) s.splitFixedSubmitted = merged;
+      }));
+      const allDoneSlotKeys = [...rowsBySlot.keys()].filter(k => slotDone(k, succeededRowKeys));
+      gate.fixedKeys = new Set(allDoneSlotKeys);
+      await gate.tryApprove();
+      applyBtn.textContent = `✅ 완료 (${rows.length}건)`;
+    } else {
+      validRows.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(result.message||'')}">❌ 실패</span>`; });
+      subEl.innerHTML = `<span style="color:#dc2626;font-weight:600;">❌ ${kpSubEsc(result.message||'업로드 실패')}</span>`;
+      applyBtn.textContent = '❌ 실패';
+      gate.fixedKeys = new Set([...rowsBySlot.keys()].filter(k => slotDone(k, new Set())));
+      await gate.tryApprove();
+    }
+  }
+
+  async function kpOpenSubmitModal(target) {
+    await kpEnsureProds();
+    const agencies = kpGetAgencies(target);
+    const normalPlan = agencies.map(ag => ({ agency: ag, realAg: ag==='(대행사 미지정)'?'':ag, ...kpBuildNormalRows(kpSlotsByAgency(target, ag)) }));
+    const yupflRows = kpBuildYoupflRows(target);
+    const hasNormal = normalPlan.some(p => p.rows.length > 0);
+    const hasFixed = yupflRows.length > 0;
+    if (!hasNormal && !hasFixed) { alert('배분 대상 상품이 없습니다.\n상품 유형 설정(ha/kimproProdSettings)에 일반 상품 또는 유입플이 활성화돼 있는지 확인해주세요.'); return; }
+
+    const gate = kpMakeGate(hasNormal, hasFixed);
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="kp-modal-box" style="width:min(96vw,940px);max-height:82vh;overflow-y:auto;">
+        <div class="kp-modal-title">배분 제출</div>
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;">
+          <button id="kp-stab-normal" class="kp-submit-tab${hasNormal?' active':''}" onclick="kpSwitchSubmitTab('normal')" ${hasNormal?'':'disabled'}>일반</button>
+          <button id="kp-stab-fixed" class="kp-submit-tab${!hasNormal&&hasFixed?' active':''}" onclick="kpSwitchSubmitTab('fixed')" style="${hasFixed?'':'display:none;'}">유입플</button>
+        </div>
+        <div id="kp-stab-panel-normal" style="display:${hasNormal?'block':'none'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="font-size:12px;" id="kp-submit-sub"></div>
+            <div style="display:flex;gap:8px;">
+              <button class="kp-btn-cancel" id="kp-submit-close-btn">닫기</button>
+              <button id="kp-submit-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
+            </div>
+          </div>
+          <div id="kp-submit-body"></div>
+        </div>
+        <div id="kp-stab-panel-fixed" style="display:${!hasNormal&&hasFixed?'block':'none'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="font-size:12px;" id="kp-youpfl-sub"></div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--text2);">미션번호 일괄 적용</span>
+                <input type="number" min="0" id="kp-youpfl-mission-bulk-input" placeholder="예: 12" style="width:70px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;">
+                <button type="button" onclick="kpApplyYoupflMissionBulk(this)" style="padding:4px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:inherit;background:#f8fafc;cursor:pointer;">적용</button>
+              </div>
+              <button class="kp-btn-cancel" id="kp-youpfl-close-btn">닫기</button>
+              <button id="kp-youpfl-apply-btn" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">접수 신청</button>
+            </div>
+          </div>
+          <div id="kp-youpfl-body"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#kp-submit-close-btn')?.addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#kp-youpfl-close-btn')?.addEventListener('click', () => overlay.remove());
+
+    if (hasNormal) {
+      const bodyEl = overlay.querySelector('#kp-submit-body');
+      const subEl = overlay.querySelector('#kp-submit-sub');
+      const applyBtn = overlay.querySelector('#kp-submit-apply-btn');
+      let totalSlots = 0, totalTarget = 0;
+      normalPlan.forEach(p => {
+        const block = kpBuildSubmitAgencyBlock(p);
+        if (block) bodyEl.appendChild(block);
+        totalSlots += new Set(p.rows.map(r=>r._slotKey)).size;
+        totalTarget += p.rows.reduce((a,r)=>a+(r.일목표||0)*(r.일수||0),0);
+      });
+      subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${normalPlan.length}곳 · 일반 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>${kpAgencyIssueSummaryHtml(normalPlan)}`;
+      const allRows = normalPlan.flatMap(p=>p.rows);
+      const anyFail = kpValidateNormalRowsForSubmit(allRows);
+      if (anyFail) applyBtn.title = '오류가 있는 항목을 먼저 수정해주세요';
+      if (allRows.length && allRows.every(r=>r._normalSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
+      else applyBtn.onclick = async () => {
+        applyBtn.disabled = true; applyBtn.textContent = '⏳ 접수 중...';
+        const { okTotal, failTotal } = await kpSubmitPlanRows(normalPlan, gate);
+        applyBtn.disabled = false; applyBtn.textContent = `완료 (성공 ${okTotal} / 실패 ${failTotal})`;
+      };
+    }
+    if (hasFixed) {
+      const bodyEl = overlay.querySelector('#kp-youpfl-body');
+      const subEl = overlay.querySelector('#kp-youpfl-sub');
+      const applyBtn = overlay.querySelector('#kp-youpfl-apply-btn');
+      const byAgency = new Map();
+      yupflRows.forEach(r => { if (!byAgency.has(r.agencyId)) byAgency.set(r.agencyId, []); byAgency.get(r.agencyId).push(r); });
+      let totalSlots = 0, totalTarget = 0;
+      byAgency.forEach((rows, ag) => {
+        const block = kpBuildYoupflTableBlock(rows, ag);
+        if (block) bodyEl.appendChild(block);
+        totalSlots += new Set(rows.map(r=>r._slotKey)).size;
+        totalTarget += rows.reduce((a,r)=>a+(r.target||0)*(r.days||0),0);
+      });
+      subEl.innerHTML = `<span style="color:var(--text2)">대행사 ${byAgency.size}곳 · 유입플 ${totalSlots}건 · 목표 합계 ${totalTarget.toLocaleString()}</span>`;
+      if (yupflRows.every(r=>r._fixedSubmitted)) { applyBtn.disabled = true; applyBtn.textContent = '✅ 전체 완료'; }
+      else applyBtn.onclick = () => kpExecuteYoupflSubmit(yupflRows, overlay, gate);
+    }
+  }
+
+  window.kpSwitchSubmitTab = function(tab) {
+    document.getElementById('kp-stab-normal')?.classList.toggle('active', tab==='normal');
+    document.getElementById('kp-stab-fixed')?.classList.toggle('active', tab==='fixed');
+    const pn = document.getElementById('kp-stab-panel-normal'); if (pn) pn.style.display = tab==='normal'?'block':'none';
+    const pf = document.getElementById('kp-stab-panel-fixed'); if (pf) pf.style.display = tab==='fixed'?'block':'none';
+  };
+
+  window.kpApplyYoupflMissionBulk = function(btn) {
+    const overlay = btn.closest('.modal-overlay');
+    const val = overlay.querySelector('#kp-youpfl-mission-bulk-input').value;
+    if (val === '') return;
+    overlay.querySelectorAll('#kp-youpfl-body .kp-ag-mission-input').forEach(el => { if (!el.disabled && !el.value) el.value = val; });
+  };
+
+  window.kpSubmitDirect = async function() {
+    const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c=>c.dataset.key);
+    const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+    const keySet = new Set(checkedKeys);
+    const base = checkedKeys.length ? allSlots.filter(s=>keySet.has(s._key)) : allSlots;
+    const target = base.filter(s => s.status === 'accepted');
+    if (!target.length) { alert('접수(accepted) 상태인 캠페인이 없습니다.\n(체크박스를 선택하지 않으면 목록 전체 중 접수 상태 건을 대상으로 합니다)'); return; }
+    if (!confirm(`${target.length}건을 실제 BizFit에 배분·제출합니다.\n(일반/유입플 상품만 지원 — 찰리·델타·네이비는 아직 지원 안 함)\n\n진행하시겠습니까?`)) return;
+    await kpOpenSubmitModal(target);
   };
 })();
 </script>
