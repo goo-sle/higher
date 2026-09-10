@@ -966,9 +966,6 @@
       if (nameEl)   nameEl.textContent   = cur.name || cur.username;
       if (roleEl)   roleEl.textContent   = cur.role === 'admin' ? 'Super Admin' : '담당자';
       if (avatarEl) avatarEl.textContent = (cur.name || cur.username).charAt(0).toUpperCase();
-      // 김프로 메뉴는 통합 준비 단계라 admin 계정에게만 노출(staff는 안 보임)
-      const kimproNav = document.getElementById('nav-kimpro');
-      if (kimproNav) kimproNav.style.display = cur.role === 'admin' ? '' : 'none';
     }
     document.body.style.display = 'flex';
     lucide.createIcons();
