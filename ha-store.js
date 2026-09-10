@@ -69,6 +69,7 @@ const PATHS = {
   adClassify:      'ha/ad_classify',
   settleSnapshots: 'ha/settle_snapshots',
   kimproSlots:     'kimpro/slots',
+  kimproUsers:     'kimpro/users',
 };
 
 // ── 유틸: Firebase 스냅샷 → 배열 변환 ───────────────────────
@@ -207,6 +208,58 @@ const HA = {
       console.error('kimpro/slots 조회 오류:', e);
       return [];
     }
+  },
+
+  // ── kimpro/slots 직접 쓰기(강제종료·키워드변경 이식용) ──────
+  // updateSlot()의 kimpro 미러링과 다름: 대상이 애초에 kimpro/slots에만 존재하는(마이그레이션 전) 슬롯이라
+  // ha/slots는 건드리지 않고 kimpro/slots만 직접 쓴다. kimpro/store.js의 동명 함수와 동일 동작.
+  async addKimproSlot(data) {
+    await ensureKimproAuth();
+    const newSlot = {
+      status:        'pending',
+      createdAt:     new Date().toISOString(),
+      agencyId:      data.agencyId      || '',
+      userId:        data.userId        || '',
+      startDate:     data.startDate     || '',
+      endDate:       data.endDate       || '',
+      storeName:     data.storeName     || '',
+      rankKeyword:   data.rankKeyword   || '',
+      url:           data.url           || '',
+      mid:           data.mid           || '',
+      memo:          data.memo          || '',
+      days:          Number(data.days)        || 0,
+      dailyTarget:   Number(data.dailyTarget) || 0,
+      searchKeyword: data.searchKeyword  || '',
+      unitPrice:     data.unitPrice != null ? data.unitPrice : 0,
+    };
+    const newRef = await push(ref(kimproDb, PATHS.kimproSlots), newSlot);
+    return { ...newSlot, _key: newRef.key };
+  },
+
+  async updateKimproSlot(key, patch) {
+    await ensureKimproAuth();
+    await update(ref(kimproDb, `${PATHS.kimproSlots}/${key}`), patch);
+  },
+
+  // username -> unitPrice 맵 (강제종료 배치 재접수 시 kimpro/users 조회용, kimpro/store.js getUnitPriceMap과 동일)
+  async getKimproUnitPriceMap() {
+    try {
+      await ensureKimproAuth();
+      const uSnap = await get(ref(kimproDb, PATHS.kimproUsers));
+      const map = {};
+      snapToArray(uSnap).forEach(u => { map[u.username] = u.unitPrice || 0; });
+      return map;
+    } catch (e) { return {}; }
+  },
+
+  // 강제종료/키워드변경 처리 목록 저장(kimpro/bizfit_stop, kimpro/bizfit_keyword) — kimpro/store.js의 getDoc/setDoc과 동일 형태(raw snapshot)
+  async getKimproDoc(path) {
+    await ensureKimproAuth();
+    return get(ref(kimproDb, path));
+  },
+  async setKimproDoc(path, val) {
+    await ensureKimproAuth();
+    return set(ref(kimproDb, path), val);
   },
 
   async addSlot(data) {

@@ -27,8 +27,8 @@
     <div class="kp-logo">KIM <span>PRO</span></div>
     <div class="kp-nav">
       <button class="kp-btn" disabled>📊 엑셀 접수</button>
-      <button class="kp-btn" disabled>🛑 강제종료</button>
-      <button class="kp-btn" disabled>🔤 키워드 변경</button>
+      <button class="kp-btn" onclick="openStopModal()">🛑 강제종료</button>
+      <button class="kp-btn" onclick="openKwModal()">🔤 키워드 변경</button>
       <button class="kp-btn" onclick="openCrModal()">💰 캐시복구</button>
       <button class="kp-btn" disabled>⚡ 충전하기</button>
       <button class="kp-btn" disabled>💳 유입플 정산</button>
@@ -47,12 +47,12 @@
     <div class="kp-card">
       <div class="kp-name">🛑 강제종료</div>
       <div class="kp-desc">진행 중인 캠페인을 즉시 종료 처리</div>
-      <span class="kp-status todo">이식 예정</span>
+      <span class="kp-status reuse">연동 완료</span>
     </div>
     <div class="kp-card">
       <div class="kp-name">🔤 키워드변경</div>
       <div class="kp-desc">Pcode 기반 검색/유입플 키워드 일괄 변경</div>
-      <span class="kp-status todo">이식 예정</span>
+      <span class="kp-status reuse">연동 완료</span>
     </div>
     <div class="kp-card">
       <div class="kp-name">💰 캐시복구</div>
@@ -654,5 +654,1118 @@ async function downloadRankTable() {
     crAddLog('일괄 복구 완료 — 성공 ' + ok + '건 / 실패 ' + fail + '건', ok > 0 ? 'success' : 'fail');
     crUpdateBulkBtn();
   };
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     강제종료 모달 (kimpro/reception.html 이식 — 대상은 아직 kimpro/slots에 있는 슬롯이라
+     window.HA.updateKimproSlot 등 kimpro 전용 helper로 직접 씀, ha/slots는 안 건드림)
+══════════════════════════════════════════ -->
+<div id="stop-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+  <div style="background:#fff;border-radius:16px;width:1100px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:15px;font-weight:700;">🛑 강제종료</div>
+        <span class="bs-srv-badge bs-srv-chk" id="bs-srv-badge">⏳ 서버 확인 중</span>
+      </div>
+      <button id="bs-close-btn" onclick="closeStopModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+    </div>
+  <div style="padding:20px 24px;">
+    <style>
+      .bs-grid { display:grid; grid-template-columns:240px 1fr 380px; gap:14px; align-items:start; }
+      @media(max-width:1100px){ .bs-grid{ grid-template-columns:240px 1fr; } .bs-run-col{ grid-column:1/-1; } }
+      @media(max-width:700px){ .bs-grid{ grid-template-columns:1fr; } }
+      .bs-card { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+      .bs-card-head { background:#f8fafc; padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+      .bs-card-title { font-size:12px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px; }
+      .bs-card-body { padding:14px; }
+      .bs-upload-zone { border:2px dashed var(--border); border-radius:9px; padding:14px; text-align:center; cursor:pointer; transition:all .2s; background:#fafbfc; margin-top:4px; }
+      .bs-upload-zone:hover,.bs-upload-zone.drag-on { border-color:#7b1fa2; background:#faf5ff; }
+      .bs-upload-zone .uz-icon { font-size:22px; margin-bottom:4px; }
+      .bs-upload-zone .uz-text { font-size:12px; font-weight:600; color:var(--text2); }
+      .bs-upload-zone .uz-hint { font-size:10px; color:var(--muted); margin-top:2px; }
+      .bs-sel-row { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f8fafc; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; color:var(--text2); }
+      .bs-sel-row input[type=checkbox] { width:14px; height:14px; accent-color:#7b1fa2; cursor:pointer; }
+      .bs-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+      .bs-tbl thead th { background:#1e293b; color:#fff; padding:8px 10px; font-weight:500; text-align:left; white-space:nowrap; font-size:11px; }
+      .bs-tbl tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+      .bs-tbl tbody tr:last-child { border-bottom:none; }
+      .bs-tbl tbody tr:hover { background:#f8fafc; }
+      .bs-tbl tbody tr.bs-checked { background:#faf5ff; }
+      .bs-tbl td { padding:7px 10px; vertical-align:middle; }
+      .bs-td-mid { font-weight:700; color:var(--text); font-family:monospace; font-size:11.5px; }
+      .bs-td-name { color:var(--text2); font-size:11px; }
+      .bs-ab { display:inline-block; padding:1px 6px; border-radius:100px; font-size:10px; font-weight:700; margin-right:2px; }
+      .bs-ab-pause { background:#fef9c3; color:#b7791f; }
+      .bs-ab-force { background:#fed7d7; color:#c53030; }
+      .bs-sb { display:inline-block; padding:2px 7px; border-radius:100px; font-size:10px; font-weight:700; white-space:nowrap; }
+      .bs-sb-ready   { background:#f1f5f9; color:var(--text2); }
+      .bs-sb-running { background:#fef9c3; color:#b7791f; }
+      .bs-sb-success { background:#d1fae5; color:#065f46; }
+      .bs-sb-partial { background:#fef3c7; color:#92400e; }
+      .bs-sb-fail    { background:#fee2e2; color:#991b1b; }
+      .bs-empty { text-align:center; padding:36px 16px; color:var(--muted); font-size:12px; }
+      .bs-sum-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+      .bs-sum-item { background:#f8fafc; border-radius:8px; padding:10px; text-align:center; border:1px solid var(--border); }
+      .bs-sum-lbl { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.4px; }
+      .bs-sum-val { font-size:20px; font-weight:800; color:var(--text); margin-top:2px; }
+      .bs-sum-val.purple { color:#7b1fa2; }
+      .bs-btn-run { width:100%; padding:10px; border:none; border-radius:7px; background:#7b1fa2; color:#fff; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+      .bs-btn-run:hover { background:#6a1b9a; }
+      .bs-btn-run:disabled { background:var(--muted); cursor:not-allowed; }
+      .bs-prog-wrap { background:var(--border); border-radius:100px; height:4px; overflow:hidden; display:none; margin:8px 0; }
+      .bs-prog-bar { height:100%; background:linear-gradient(90deg,#7b1fa2,#e040fb); border-radius:100px; width:0%; transition:width .4s; }
+      .bs-prog-txt { text-align:center; font-size:11px; color:var(--text2); }
+      .bs-log { background:#1a202c; border-radius:9px; padding:10px 12px; height:260px; overflow-y:auto; font-family:monospace; font-size:11.5px; line-height:1.7; margin-top:12px; }
+      .bs-log-line { display:flex; gap:8px; }
+      .bs-log-time { color:#4a5568; flex-shrink:0; }
+      .bs-log-msg  { color:#e2e8f0; }
+      .bs-log-line.log-success .bs-log-msg { color:#68d391; }
+      .bs-log-line.log-fail    .bs-log-msg { color:#fc8181; }
+      .bs-log-line.log-info    .bs-log-msg { color:#b794f4; }
+      .bs-log-line.log-warn    .bs-log-msg { color:#f6e05e; }
+      .bs-search { display:flex; align-items:center; gap:5px; }
+      .bs-search input { border:none; background:transparent; outline:none; font-size:11px; color:var(--text); width:130px; padding:0; height:20px; font-family:inherit; }
+      .bs-badge { display:inline-block; padding:1px 7px; border-radius:100px; font-size:11px; font-weight:700; background:#faf5ff; color:#6b21a8; border:1px solid #e9d5ff; }
+      .bs-btn-del { padding:4px 10px; font-size:11px; font-weight:600; border-radius:5px; border:1px solid #fed7d7; background:#fff1f0; color:#e53e3e; cursor:pointer; font-family:inherit; }
+      .bs-btn-del:hover { background:#ffe0de; }
+      .bs-srv-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:100px; }
+      .bs-srv-ok  { background:#d1fae5; color:#065f46; }
+      .bs-srv-err { background:#fee2e2; color:#991b1b; }
+      .bs-srv-chk { background:#f1f5f9; color:var(--text2); }
+      .bs-pcode-badge { display:inline-block; padding:1px 6px; border-radius:100px; font-size:9.5px; font-weight:700; background:#e9d8fd; color:#553c9a; font-family:monospace; }
+      .excel-tpl-btn { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:5px; background:#fff; text-decoration:none; text-transform:none; cursor:pointer; transition:all .15s; }
+      .excel-tpl-btn.purple { color:#7b1fa2; border:1px solid #e9d5ff; }
+      .excel-tpl-btn.purple:hover { background:#faf5ff; border-color:#7b1fa2; }
+      .excel-tpl-btn.green { color:#059669; border:1px solid #a7f3d0; }
+      .excel-tpl-btn.green:hover { background:#ecfdf5; border-color:#059669; }
+    </style>
+
+    <div class="bs-grid">
+
+      <div class="bs-card">
+        <div class="bs-card-head">
+          <span class="bs-card-title">📂 엑셀 등록</span>
+          <a class="excel-tpl-btn purple" href="양식/강제종료_양식.xlsx" download="강제종료_양식.xlsx" title="양식 다운로드"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2h-4v11H5l7 7 7-7h-5V2z"/></svg></a>
+        </div>
+        <div class="bs-card-body">
+          <div class="bs-upload-zone" id="bs-drop-zone" onclick="document.getElementById('bs-file').click()">
+            <div class="uz-icon">📊</div>
+            <div class="uz-text">클릭 또는 드래그 업로드</div>
+            <div class="uz-hint">영업점 / MID / Pcode / 임시중단B(O) / 강제종료(O)</div>
+          </div>
+          <input type="file" id="bs-file" accept=".xlsx,.xls" style="display:none" onchange="bsHandleExcel(this.files[0])">
+        </div>
+      </div>
+
+      <div class="bs-card">
+        <div class="bs-card-head">
+          <span class="bs-card-title">📋 처리 목록 <span class="bs-badge" id="bs-entry-count">0</span></span>
+          <div class="bs-search">
+            <span style="font-size:11px">🔍</span>
+            <input type="text" placeholder="MID / Pcode 검색" oninput="bsFilterList(this.value)">
+          </div>
+        </div>
+        <div class="bs-sel-row">
+          <input type="checkbox" id="bs-chk-all" onchange="bsToggleAll(this)">
+          <span>전체 선택</span>
+          <span id="bs-sel-count" style="font-weight:400">0개 선택됨</span>
+          <div style="margin-left:auto">
+            <button class="bs-btn-del" onclick="bsRemoveAll()">전체삭제</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="bs-tbl">
+            <thead>
+              <tr>
+                <th style="width:34px"></th>
+                <th>영업점</th>
+                <th>MID</th>
+                <th>처리 작업</th>
+                <th style="width:68px">상태</th>
+              </tr>
+            </thead>
+            <tbody id="bs-tbody">
+              <tr><td colspan="5"><div class="bs-empty">📋 등록된 MID가 없습니다.</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bs-run-col bs-card">
+        <div class="bs-card-head">
+          <span class="bs-card-title">⚡ 실행</span>
+        </div>
+        <div class="bs-card-body">
+          <div class="bs-sum-grid">
+            <div class="bs-sum-item">
+              <div class="bs-sum-lbl">선택 항목</div>
+              <div class="bs-sum-val purple" id="bs-sum-count">0</div>
+            </div>
+            <div class="bs-sum-item">
+              <div class="bs-sum-lbl">미선택 작업</div>
+              <div class="bs-sum-val" id="bs-sum-noact" style="color:#e53e3e">0</div>
+            </div>
+          </div>
+          <button class="bs-btn-run" id="bs-btn-run" onclick="bsStartProcess()" disabled>⚡ 상태변경 시작</button>
+          <div class="bs-prog-wrap" id="bs-prog-wrap"><div class="bs-prog-bar" id="bs-prog-bar"></div></div>
+          <div class="bs-prog-txt" id="bs-prog-txt"></div>
+          <div class="bs-log" id="bs-log">
+            <div class="bs-log-line log-info">
+              <span class="bs-log-time">--:--:--</span>
+              <span class="bs-log-msg">MID를 불러오거나 엑셀로 등록하고 실행하세요.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+window.openStopModal = function() {
+  document.getElementById('stop-modal').style.display = 'flex';
+};
+window.closeStopModal = function() {
+  if (window.bsRunning) { alert('매크로 실행 중에는 팝업을 닫을 수 없습니다.'); return; }
+  document.getElementById('stop-modal').style.display = 'none';
+};
+
+(function() {
+  const SERVER = 'https://macro-7-bizfit-stop-938928195180.asia-northeast3.run.app';
+  let bsEntries = [];
+  let bsSearchQ = '';
+  let _bsUnitPriceMap = null;
+  async function getBsUnitPriceMap() {
+    if (!_bsUnitPriceMap) _bsUnitPriceMap = await window.HA.getKimproUnitPriceMap();
+    return _bsUnitPriceMap;
+  }
+
+  function bsEsc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function bsSave() {
+    if (window.bsFbSave) window.bsFbSave(bsEntries);
+  }
+
+  window.bsRemoveAll = function() {
+    if (!bsEntries.length) { alert('삭제할 항목이 없습니다.'); return; }
+    if (!confirm(`전체 ${bsEntries.length}개 항목을 삭제하시겠습니까?`)) return;
+    bsEntries = [];
+    bsSave(); bsRender();
+  };
+
+  window.bsToggleItem = function(i, el) {
+    bsEntries[i].checked = el.checked;
+    const row = document.getElementById(`bs-row-${i}`);
+    if (row) row.classList.toggle('bs-checked', el.checked);
+    bsSyncAll();
+  };
+
+  window.bsToggleAll = function(el) {
+    bsEntries.forEach(e => e.checked = el.checked);
+    bsSave(); bsRender();
+  };
+
+  function bsSyncAll() {
+    const total = bsEntries.length, checked = bsEntries.filter(e => e.checked).length;
+    const ca = document.getElementById('bs-chk-all');
+    ca.checked = total > 0 && checked === total;
+    ca.indeterminate = checked > 0 && checked < total;
+    document.getElementById('bs-sel-count').textContent = `${checked}개 선택됨`;
+    bsUpdateSummary();
+  }
+
+  function bsUpdateSummary() {
+    const sel = bsEntries.filter(e => e.checked);
+    const noAct = sel.filter(e => !e.do_pause && !e.do_force).length;
+    document.getElementById('bs-sum-count').textContent = sel.length;
+    document.getElementById('bs-sum-noact').textContent = noAct;
+    document.getElementById('bs-btn-run').disabled = sel.length === 0 || noAct > 0;
+  }
+
+  window.bsFilterList = function(val) { bsSearchQ = val.trim().toLowerCase(); bsRender(); };
+
+  function bsRender() {
+    const tbody = document.getElementById('bs-tbody');
+    document.getElementById('bs-entry-count').textContent = bsEntries.length;
+    if (!bsEntries.length) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="bs-empty">📋 등록된 MID가 없습니다.</div></td></tr>';
+      bsSyncAll(); return;
+    }
+    const list = bsSearchQ
+      ? bsEntries.filter(e => e.mid.includes(bsSearchQ) || (e.pcode||'').toLowerCase().includes(bsSearchQ))
+      : bsEntries;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="5"><div class="bs-empty">🔍 검색 결과가 없습니다.</div></td></tr>';
+      bsSyncAll(); return;
+    }
+    const sc = { ready:'bs-sb-ready', running:'bs-sb-running', success:'bs-sb-success', partial:'bs-sb-partial', fail:'bs-sb-fail' };
+    const st = { ready:'대기', running:'⏳ 진행중', success:'✅ 완료', partial:'⚠️ 부분', fail:'❌ 실패' };
+    tbody.innerHTML = list.map(e => {
+      const i = bsEntries.indexOf(e);
+      return `<tr id="bs-row-${i}" class="${e.checked?'bs-checked':''}">
+        <td><input type="checkbox" ${e.checked?'checked':''} onchange="bsToggleItem(${i},this)" style="width:14px;height:14px;accent-color:#7b1fa2;cursor:pointer;"></td>
+        <td class="bs-td-name">${bsEsc(e.agency||'-')}</td>
+        <td>
+          <div class="bs-td-mid">${bsEsc(e.mid)}</div>
+          ${e.pcode?`<div style="margin-top:2px;"><span class="bs-pcode-badge">${bsEsc(e.pcode)}</span></div>`:''}
+          ${e.result?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${bsEsc(e.result)}</div>`:''}
+        </td>
+        <td>
+          ${e.do_pause?'<span class="bs-ab bs-ab-pause">임시중단B</span>':''}
+          ${e.do_force?'<span class="bs-ab bs-ab-force">강제종료</span>':''}
+        </td>
+        <td><span class="bs-sb ${sc[e.status]||'bs-sb-ready'}">${st[e.status]||'대기'}</span></td>
+      </tr>`;
+    }).join('');
+    bsSyncAll();
+  }
+
+  function bsLog(msg, type='') {
+    const area = document.getElementById('bs-log');
+    const now  = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    const div  = document.createElement('div');
+    div.className = `bs-log-line${type?' log-'+type:''}`;
+    div.innerHTML = `<span class="bs-log-time">${now}</span><span class="bs-log-msg">${bsEsc(msg)}</span>`;
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  window.bsStartProcess = async function() {
+    const checked = bsEntries.filter(e => e.checked);
+    if (!checked.length) { alert('항목을 선택해주세요.'); return; }
+    const selected = checked.filter(e => e.status !== 'success');
+    const skipped  = checked.length - selected.length;
+    if (!selected.length) { alert('선택한 항목이 모두 완료 상태입니다.'); return; }
+
+    window.bsRunning = true;
+    const bsCloseBtn = document.getElementById('bs-close-btn');
+    if (bsCloseBtn) { bsCloseBtn.disabled = true; bsCloseBtn.style.opacity = '0.3'; bsCloseBtn.style.cursor = 'not-allowed'; }
+    document.getElementById('bs-btn-run').disabled = true;
+    document.getElementById('bs-prog-wrap').style.display = 'block';
+    const payload = selected.map(e => ({ mid: e.mid, pcode: e.pcode||'', agency: e.agency||'', do_pause: e.do_pause, do_force: e.do_force }));
+    selected.forEach(e => { e.status = 'running'; e.result = ''; });
+    bsRender();
+    bsLog(`▶ 시작 — ${selected.length}개 항목${skipped?' (완료 '+skipped+'건 건너뜀)':''}`, 'info');
+    document.getElementById('bs-prog-bar').style.width = '10%';
+    document.getElementById('bs-prog-txt').textContent = '로그인 중...';
+
+    let successCnt = 0, failCnt = 0, processed = 0;
+    const successMids = new Set();
+    try {
+      const res = await fetch(`${SERVER}/process-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: payload }),
+      });
+      if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let data;
+          try { data = JSON.parse(line.slice(6)); } catch { continue; }
+          if (data.ping) continue;
+          if (data.entry_result) {
+            const r = data.entry_result;
+            const entry = bsEntries.find(e => e.mid === r.mid && (e.pcode||'') === (r.pcode||''));
+            if (entry) {
+              entry.result = r.message;
+              if (r.success) {
+                entry.status = 'success'; successCnt++;
+                bsLog(`✅ ${r.mid} — ${r.message}`, 'success');
+                successMids.add(r.mid);
+              } else {
+                const isPartial = r.message.includes('OK') && r.message.includes('실패');
+                entry.status = isPartial ? 'partial' : 'fail'; failCnt++;
+                bsLog(`${isPartial?'⚠️':'❌'} ${r.mid} — ${r.message}`, isPartial?'warn':'fail');
+              }
+            }
+            processed++;
+            const pct = 10 + Math.round((processed / selected.length) * 90);
+            document.getElementById('bs-prog-bar').style.width = pct + '%';
+            document.getElementById('bs-prog-txt').textContent = `${processed} / ${selected.length} 처리 중...`;
+            bsRender();
+          }
+          if (data.error) {
+            selected.forEach(e => { if (e.status === 'running') { e.status = 'fail'; e.result = data.error; } });
+            bsLog(`❌ 서버 오류: ${data.error}`, 'fail');
+            document.getElementById('bs-prog-txt').textContent = '오류 발생';
+            break outer;
+          }
+          if (data.done) break outer;
+        }
+      }
+      document.getElementById('bs-prog-bar').style.width = '100%';
+      document.getElementById('bs-prog-txt').textContent = `완료 — 성공: ${successCnt}  실패: ${failCnt}`;
+      bsLog(`━━ 완료 — 성공: ${successCnt}  실패: ${failCnt}`, successCnt === selected.length ? 'success' : 'warn');
+    } catch(e) {
+      selected.forEach(entry => { entry.status = 'fail'; entry.result = e.message; });
+      bsLog(`❌ 서버 오류: ${e.message}`, 'fail');
+      document.getElementById('bs-prog-txt').textContent = '오류 발생';
+    }
+    const successPromises = [...successMids].map(mid => onBsEntrySuccess(mid).catch(err => console.error('onBsEntrySuccess 오류:', err)));
+    await Promise.all(successPromises);
+    window.bsRunning = false;
+    if (bsCloseBtn) { bsCloseBtn.disabled = false; bsCloseBtn.style.opacity = ''; bsCloseBtn.style.cursor = ''; }
+    bsSave(); bsRender();
+    document.getElementById('bs-btn-run').disabled = false;
+  };
+
+  window.bsHandleExcel = function(file) {
+    if (!file) return;
+    const load = cb => {
+      if (window.XLSX) { cb(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = cb; document.head.appendChild(s);
+    };
+    load(() => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb   = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+          if (!rows.length) { bsLog('⚠️ 빈 파일입니다.', 'warn'); return; }
+          const hdr       = rows[0].map(h => String(h||'').trim());
+          const hasHdr    = isNaN(Number(hdr[0]));
+          const agencyCol = hasHdr ? hdr.findIndex(h => /영업점/i.test(h)) : -1;
+          const midCol    = hasHdr ? Math.max(hdr.findIndex(h => /mid/i.test(h)), 0) : 1;
+          const pcodeCol  = hasHdr ? hdr.findIndex(h => /pcode/i.test(h)) : -1;
+          const pauseCol  = hasHdr ? hdr.findIndex(h => /임시중단/i.test(h)) : 3;
+          const forceCol  = hasHdr ? hdr.findIndex(h => /강제종료/i.test(h)) : 4;
+          const start     = hasHdr ? 1 : 0;
+          const missingCols = [];
+          if (agencyCol < 0) missingCols.push('영업점');
+          if (pcodeCol  < 0) missingCols.push('Pcode');
+          if (pauseCol  < 0) missingCols.push('임시중단B');
+          if (forceCol  < 0) missingCols.push('강제종료');
+          if (hasHdr && missingCols.length) {
+            bsLog(`⚠️ 양식이 맞지 않습니다 — ${missingCols.join('/')} 컬럼을 찾을 수 없습니다. 정식 양식(강제종료_양식.xlsx)을 다시 받아 확인해주세요.`, 'warn');
+            return;
+          }
+          let added = 0, skipped = 0;
+          for (let r = start; r < rows.length; r++) {
+            const row      = rows[r];
+            const agency   = agencyCol >= 0 ? String(row[agencyCol]||'').trim() : '';
+            const mid      = String(row[midCol]   ||'').trim();
+            const pcodeRaw = pcodeCol >= 0 ? String(row[pcodeCol]||'').trim() : '';
+            const do_pause = pauseCol >= 0 && String(row[pauseCol]||'').trim().toUpperCase() === 'O';
+            const do_force = forceCol >= 0 && String(row[forceCol]||'').trim().toUpperCase() === 'O';
+            if (!agency || !mid || !pcodeRaw || (!do_pause && !do_force)) { skipped++; continue; }
+            const pcodes = pcodeRaw.split(',').map(p => p.trim()).filter(Boolean);
+            for (const pcode of pcodes) {
+              if (bsEntries.some(e => e.mid === mid && (e.pcode||'') === pcode)) { skipped++; continue; }
+              bsEntries.push({ mid, pcode, agency, do_pause, do_force, status:'ready', result:'' });
+              added++;
+            }
+          }
+          bsSave(); bsRender();
+          document.getElementById('bs-file').value = '';
+          if (added > 0) bsLog(`📊 엑셀: ${added}개 추가${skipped?', '+skipped+'개 건너뜀':''}`, 'info');
+          else           bsLog('⚠️ 추가된 항목 없음 — 영업점·MID·Pcode·처리 작업 중 비어있거나 중복', 'warn');
+        } catch(err) { bsLog(`❌ 엑셀 읽기 실패: ${err.message}`, 'fail'); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  (function() {
+    const zone = document.getElementById('bs-drop-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-on'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-on'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-on');
+      if (e.dataTransfer.files[0]) window.bsHandleExcel(e.dataTransfer.files[0]);
+    });
+  })();
+
+  (async function() {
+    const badge = document.getElementById('bs-srv-badge');
+    bsLog('⏳ 서버 연결 확인 중...', 'info');
+    let attempt = 0;
+    while (true) {
+      try {
+        const res = await fetch(`${SERVER}/ping`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          badge.textContent = '✅ 서버 연결됨';
+          badge.className = 'bs-srv-badge bs-srv-ok';
+          bsLog('✅ 서버 연결됨', 'success');
+          return;
+        }
+      } catch(_) {}
+      attempt++;
+      badge.textContent = `❌ 연결 실패 (${attempt}회)`;
+      badge.className = 'bs-srv-badge bs-srv-err';
+      if (attempt === 1 || attempt % 10 === 0) bsLog(`↻ 서버 연결 실패 — ${attempt}번째 재시도 중...`, 'warn');
+      const delay = Math.min(5000 * Math.pow(2, Math.min(attempt - 1, 4)), 60000);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  })();
+
+  function isFutureStart(slot, todayStr) {
+    return !!(slot.startDate && slot.startDate > todayStr);
+  }
+
+  // 강제종료 성공 시 해당 MID 슬롯(kimpro/slots) 상태 자동 변경 + 재접수 슬롯 생성
+  async function onBsEntrySuccess(mid) {
+    if (!window.HA) return;
+    const entry    = bsEntries.find(e => e.mid === mid);
+    const didForce = entry ? !!entry.do_force : true;
+    const didPause = entry ? !!entry.do_pause : false;
+    const todayStr    = new Date().toISOString().slice(0, 10);
+    const tmrwDate    = new Date(); tmrwDate.setDate(tmrwDate.getDate() + 1);
+    const tomorrowStr = tmrwDate.toISOString().slice(0, 10);
+    try {
+      const slots   = await window.HA.getKimproSlotsByMid(mid);
+      const targets = slots.filter(s => {
+        if (s.mid !== mid) return false;
+        if (s.status === 'ended') return false;
+        if (isFutureStart(s, todayStr)) return false;
+        if (didForce && didPause && s.status === 'force_stopped' && s.paused) return false;
+        if (didForce && !didPause && s.status === 'force_stopped' && !s.paused) return false;
+        if (!didForce && didPause && s.status === 'paused') return false;
+        return true;
+      });
+      for (const s of targets) {
+        const originalEndDate = s.endDate || '';
+        let patch = {};
+        if (didForce && didPause) {
+          patch = { status: 'force_stopped', paused: true, origEndDate: originalEndDate, forceStoppedAt: todayStr };
+        } else if (didForce) {
+          patch = { status: 'force_stopped', origEndDate: originalEndDate, forceStoppedAt: todayStr };
+        } else if (didPause) {
+          patch = { status: 'paused' };
+        }
+        if (didForce && originalEndDate) {
+          const origEnd    = new Date(originalEndDate);
+          const remainDays = Math.round((origEnd - new Date(tomorrowStr)) / 86400000) + 1;
+          const alreadyExists = slots.some(x =>
+            x.mid === s.mid && x.startDate === tomorrowStr && x.endDate === originalEndDate && x.status !== 'ended'
+          );
+          if (remainDays >= 1 && !alreadyExists) {
+            const bsUnitPriceMap = await getBsUnitPriceMap();
+            const newSlot = await window.HA.addKimproSlot({
+              agencyId:      s.agencyId      || '',
+              userId:        s.userId        || '',
+              storeName:     s.storeName     || '',
+              url:           s.url           || '',
+              mid:           s.mid           || '',
+              rankKeyword:   s.rankKeyword   || '',
+              searchKeyword: s.searchKeyword || '',
+              dailyTarget:   s.dailyTarget   || 0,
+              days:          remainDays,
+              startDate:     tomorrowStr,
+              endDate:       originalEndDate,
+              memo:          s.memo || '',
+              unitPrice:     bsUnitPriceMap[s.userId || ''] || 0,
+            });
+            if (newSlot && newSlot._key) {
+              await window.HA.updateKimproSlot(newSlot._key, { status: 'requeue', isRequeue: true });
+            }
+            patch.requeueCreated = true;
+          }
+        }
+        if (Object.keys(patch).length) await window.HA.updateKimproSlot(s._key, patch);
+      }
+    } catch(e) { console.error('onBsEntrySuccess 오류:', e); }
+  }
+
+  window._bsSetEntries = function(data) {
+    if (Array.isArray(data) && data.length > 0) {
+      bsEntries = data.map(e => ({ ...e, status: 'ready', result: '', checked: e.checked ?? false }));
+      bsRender();
+      bsLog(`📂 목록 불러옴 (${bsEntries.length}개)`, 'info');
+    }
+  };
+
+  bsRender();
+})();
+
+(async function() {
+  const snap = await window.HA.getKimproDoc('kimpro/bizfit_stop').catch(() => null);
+  if (snap && snap.exists()) {
+    const data = snap.val();
+    if (Array.isArray(data) && window._bsSetEntries) window._bsSetEntries(data);
+  }
+  window.bsFbSave = (data) => window.HA.setKimproDoc('kimpro/bizfit_stop', data).catch(e => console.error('bs save error:', e));
+})();
+</script>
+
+<!-- ══════════════════════════════════════════
+     키워드 변경 모달 (kimpro/reception.html 이식)
+══════════════════════════════════════════ -->
+<div id="kw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;">
+  <div style="background:#fff;border-radius:16px;width:1100px;max-width:100%;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);background:#fff;border-radius:16px 16px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:15px;font-weight:700;">🔤 키워드 변경</div>
+        <span class="kw-srv-badge kw-srv-chk" id="kw-srv-badge">⏳ 서버 확인 중</span>
+      </div>
+      <button id="kw-close-btn" onclick="closeKwModal()" style="border:none;background:#f1f5f9;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+    </div>
+  <div style="padding:20px 24px;">
+    <style>
+      .kw-grid { display:grid; grid-template-columns:240px 1fr 380px; gap:14px; align-items:start; }
+      @media(max-width:1100px){ .kw-grid{ grid-template-columns:240px 1fr; } .kw-run-col{ grid-column:1/-1; } }
+      @media(max-width:700px){ .kw-grid{ grid-template-columns:1fr; } }
+      .kw-card { background:#fff; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+      .kw-card-head { background:#f8fafc; padding:10px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+      .kw-card-title { font-size:12px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px; }
+      .kw-card-body { padding:14px; }
+      .kw-type-badge { display:inline-block; padding:1px 7px; border-radius:100px; font-size:10px; font-weight:700; white-space:nowrap; }
+      .kw-type-pcode { background:#e9d8fd; color:#553c9a; }
+      .kw-type-mid   { background:#feebc8; color:#c05621; }
+      .kw-btn-add { width:100%; padding:8px; border:none; border-radius:7px; background:#059669; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+      .kw-btn-add:hover { background:#047857; }
+      .kw-upload-zone { border:2px dashed var(--border); border-radius:9px; padding:14px; text-align:center; cursor:pointer; transition:all .2s; background:#fafbfc; margin-top:4px; }
+      .kw-upload-zone:hover,.kw-upload-zone.drag-on { border-color:#0277bd; background:#e3f2fd; }
+      .kw-upload-zone .uz-icon { font-size:22px; margin-bottom:4px; }
+      .kw-upload-zone .uz-text { font-size:12px; font-weight:600; color:var(--text2); }
+      .kw-upload-zone .uz-hint { font-size:10px; color:var(--muted); margin-top:2px; }
+      .kw-sel-row { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f8fafc; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; color:var(--text2); }
+      .kw-sel-row input[type=checkbox] { width:14px; height:14px; accent-color:#0277bd; cursor:pointer; }
+      .kw-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+      .kw-tbl thead th { background:#1e293b; color:#fff; padding:8px 10px; font-weight:500; text-align:left; white-space:nowrap; font-size:11px; }
+      .kw-tbl tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+      .kw-tbl tbody tr:last-child { border-bottom:none; }
+      .kw-tbl tbody tr:hover { background:#f8fafc; }
+      .kw-tbl tbody tr.kw-checked { background:#e3f2fd; }
+      .kw-tbl td { padding:7px 10px; vertical-align:middle; }
+      .kw-td-id { font-weight:700; color:var(--text); font-family:monospace; font-size:11.5px; }
+      .kw-td-agency { color:var(--text2); font-size:11px; }
+      .kw-td-kw { color:var(--text2); font-size:11px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .kw-sb { display:inline-block; padding:2px 7px; border-radius:100px; font-size:10px; font-weight:700; white-space:nowrap; }
+      .kw-sb-ready   { background:#f1f5f9; color:var(--text2); }
+      .kw-sb-running { background:#e3f2fd; color:#1565c0; }
+      .kw-sb-success { background:#d1fae5; color:#065f46; }
+      .kw-sb-fail    { background:#fee2e2; color:#991b1b; }
+      .kw-empty { text-align:center; padding:36px 16px; color:var(--muted); font-size:12px; }
+      .kw-sum-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+      .kw-sum-item { background:#f8fafc; border-radius:8px; padding:10px; text-align:center; border:1px solid var(--border); }
+      .kw-sum-lbl { font-size:10px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.4px; }
+      .kw-sum-val { font-size:20px; font-weight:800; color:var(--text); margin-top:2px; }
+      .kw-sum-val.blue { color:#0277bd; }
+      .kw-btn-run { width:100%; padding:10px; border:none; border-radius:7px; background:#0277bd; color:#fff; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; }
+      .kw-btn-run:hover { background:#01579b; }
+      .kw-btn-run:disabled { background:var(--muted); cursor:not-allowed; }
+      .kw-prog-wrap { background:var(--border); border-radius:100px; height:4px; overflow:hidden; display:none; margin:8px 0; }
+      .kw-prog-bar { height:100%; background:linear-gradient(90deg,#0277bd,#26c6da); border-radius:100px; width:0%; transition:width .4s; }
+      .kw-prog-txt { text-align:center; font-size:11px; color:var(--text2); }
+      .kw-log { background:#1a202c; border-radius:9px; padding:10px 12px; height:260px; overflow-y:auto; font-family:monospace; font-size:11.5px; line-height:1.7; margin-top:12px; }
+      .kw-log-line { display:flex; gap:8px; }
+      .kw-log-time { color:#4a5568; flex-shrink:0; }
+      .kw-log-msg  { color:#e2e8f0; }
+      .kw-log-line.log-success .kw-log-msg { color:#68d391; }
+      .kw-log-line.log-fail    .kw-log-msg { color:#fc8181; }
+      .kw-log-line.log-info    .kw-log-msg { color:#63b3ed; }
+      .kw-log-line.log-warn    .kw-log-msg { color:#f6e05e; }
+      .kw-search { display:flex; align-items:center; gap:5px; }
+      .kw-search input { border:none; background:transparent; outline:none; font-size:11px; color:var(--text); width:130px; padding:0; height:20px; font-family:inherit; }
+      .kw-badge { display:inline-block; padding:1px 7px; border-radius:100px; font-size:11px; font-weight:700; background:#e3f2fd; color:#0277bd; border:1px solid #bbdefb; }
+      .kw-btn-del { padding:4px 10px; font-size:11px; font-weight:600; border-radius:5px; border:1px solid #fed7d7; background:#fff1f0; color:#e53e3e; cursor:pointer; font-family:inherit; }
+      .kw-btn-del:hover { background:#ffe0de; }
+      .kw-divider { border:none; border-top:1px solid var(--border); margin:12px 0; }
+      .kw-srv-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:100px; }
+      .kw-srv-ok  { background:#d1fae5; color:#065f46; }
+      .kw-srv-err { background:#fee2e2; color:#991b1b; }
+      .kw-srv-chk { background:#f1f5f9; color:var(--text2); }
+      .kw-switch-wrap { display:flex; align-items:center; gap:6px; }
+      .kw-switch-label { font-size:11px; font-weight:700; color:var(--text2); }
+      .kw-switch { position:relative; display:inline-block; width:34px; height:19px; flex-shrink:0; margin:0; }
+      .kw-switch input { opacity:0; width:0; height:0; }
+      .kw-switch .kw-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#cbd5e0; transition:.2s; border-radius:20px; }
+      .kw-switch .kw-slider::before { position:absolute; content:""; height:15px; width:15px; left:2px; bottom:2px; background-color:#fff; transition:.2s; border-radius:50%; }
+      .kw-switch input:checked + .kw-slider { background-color:#0277bd; }
+      .kw-switch input:checked + .kw-slider::before { transform:translateX(15px); }
+    </style>
+
+    <div class="kw-grid">
+
+      <div class="kw-card">
+        <div class="kw-card-head">
+          <span class="kw-card-title">📂 엑셀 등록</span>
+          <a class="excel-tpl-btn green" href="양식/키워드변경_양식.xlsx" download="키워드변경_양식.xlsx" title="양식 다운로드"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2h-4v11H5l7 7 7-7h-5V2z"/></svg></a>
+        </div>
+        <div class="kw-card-body">
+          <div class="kw-upload-zone" id="kw-drop-zone" onclick="document.getElementById('kw-file').click()">
+            <div class="uz-icon">📊</div>
+            <div class="uz-text">클릭 또는 드래그 업로드</div>
+            <div class="uz-hint">영업점 / MID / Pcode / 비즈핏 키워드 / 유입플 키워드</div>
+          </div>
+          <input type="file" id="kw-file" accept=".xlsx,.xls" style="display:none" onchange="kwHandleExcel(this.files[0])">
+        </div>
+      </div>
+
+      <div class="kw-card">
+        <div class="kw-card-head">
+          <span class="kw-card-title">📋 처리 목록 <span class="kw-badge" id="kw-entry-count">0</span></span>
+          <div class="kw-search">
+            <span style="font-size:11px">🔍</span>
+            <input type="text" placeholder="MID / Pcode 검색" oninput="kwFilterList(this.value)">
+          </div>
+        </div>
+        <div class="kw-sel-row">
+          <input type="checkbox" id="kw-chk-all" onchange="kwToggleAll(this)">
+          <span>전체 선택</span>
+          <span id="kw-sel-count" style="font-weight:400">0개 선택됨</span>
+          <div style="margin-left:auto">
+            <button class="kw-btn-del" onclick="kwRemoveAll()">전체삭제</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="kw-tbl">
+            <thead>
+              <tr>
+                <th style="width:34px"></th>
+                <th>영업점</th>
+                <th>MID</th>
+                <th>비즈핏 키워드</th>
+                <th>유입플 키워드</th>
+                <th style="width:68px">상태</th>
+              </tr>
+            </thead>
+            <tbody id="kw-tbody">
+              <tr><td colspan="6"><div class="kw-empty">📋 등록된 항목이 없습니다.</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="kw-run-col kw-card">
+        <div class="kw-card-head">
+          <span class="kw-card-title">⚡ 실행</span>
+          <div class="kw-switch-wrap" title="MID 캠페인 수만큼 키워드 균등 배분">
+            <span class="kw-switch-label">배분</span>
+            <label class="kw-switch">
+              <input type="checkbox" id="kw-distribute-global" checked>
+              <span class="kw-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="kw-card-body">
+          <div class="kw-sum-grid">
+            <div class="kw-sum-item">
+              <div class="kw-sum-lbl">선택 항목</div>
+              <div class="kw-sum-val blue" id="kw-sum-count">0</div>
+            </div>
+            <div class="kw-sum-item">
+              <div class="kw-sum-lbl">키워드 없음</div>
+              <div class="kw-sum-val" id="kw-sum-nokw" style="color:#e53e3e">0</div>
+            </div>
+          </div>
+          <button class="kw-btn-run" id="kw-btn-run" onclick="kwStartProcess()" disabled>⚡ 키워드 변경 시작</button>
+          <div class="kw-prog-wrap" id="kw-prog-wrap"><div class="kw-prog-bar" id="kw-prog-bar"></div></div>
+          <div class="kw-prog-txt" id="kw-prog-txt"></div>
+          <div class="kw-log" id="kw-log">
+            <div class="kw-log-line log-info">
+              <span class="kw-log-time">--:--:--</span>
+              <span class="kw-log-msg">캠페인을 불러오거나 엑셀로 등록하고 실행하세요.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+window.openKwModal = function() {
+  document.getElementById('kw-modal').style.display = 'flex';
+};
+window.closeKwModal = function() {
+  if (window.kwRunning) { alert('매크로 실행 중에는 팝업을 닫을 수 없습니다.'); return; }
+  document.getElementById('kw-modal').style.display = 'none';
+};
+
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  if (!window.bsRunning && typeof closeStopModal === 'function') closeStopModal();
+  if (!window.kwRunning && typeof closeKwModal === 'function') closeKwModal();
+  if (typeof closeCrModal === 'function') closeCrModal();
+});
+
+(function() {
+  const SERVER = 'https://macro-3-bizfit-keyword-938928195180.asia-northeast3.run.app';
+  let kwEntries = [];
+  let kwSearchQ = '';
+
+  function kwEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function kwSave() { if (window.kwFbSave) window.kwFbSave(kwEntries); }
+  function kwCountBadge(str) {
+    const list = String(str||'').split(',').map(k=>k.trim()).filter(Boolean);
+    if (!list.length) return '<span style="color:#c0c8d4;font-size:11px;">-</span>';
+    return `<span title="${kwEsc(list.join(', '))}" style="display:inline-block;padding:1px 7px;border-radius:100px;font-size:10px;font-weight:700;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:default;">${list.length}개</span>`;
+  }
+
+  window.kwRemoveAll = function() {
+    if (!kwEntries.length) { alert('삭제할 항목이 없습니다.'); return; }
+    if (!confirm(`전체 ${kwEntries.length}개 항목을 삭제하시겠습니까?`)) return;
+    kwEntries = [];
+    kwSave(); kwRender();
+  };
+
+  window.kwToggleItem = function(i, el) {
+    kwEntries[i].checked = el.checked;
+    const row = document.getElementById(`kw-row-${i}`);
+    if (row) row.classList.toggle('kw-checked', el.checked);
+    kwSyncAll();
+  };
+
+  window.kwToggleAll = function(el) { kwEntries.forEach(e => e.checked = el.checked); kwSave(); kwRender(); };
+
+  function kwSyncAll() {
+    const total = kwEntries.length, checked = kwEntries.filter(e => e.checked).length;
+    const ca = document.getElementById('kw-chk-all');
+    ca.checked = total > 0 && checked === total;
+    ca.indeterminate = checked > 0 && checked < total;
+    document.getElementById('kw-sel-count').textContent = `${checked}개 선택됨`;
+    kwUpdateSummary();
+  }
+
+  function kwUpdateSummary() {
+    const sel = kwEntries.filter(e => e.checked);
+    const noKw = sel.filter(e => !e.keywords).length;
+    document.getElementById('kw-sum-count').textContent = sel.length;
+    document.getElementById('kw-sum-nokw').textContent = noKw;
+    document.getElementById('kw-btn-run').disabled = sel.length === 0 || !sel.some(e => e.keywords || e.yupflKeywords);
+  }
+
+  window.kwFilterList = function(val) { kwSearchQ = val.trim().toLowerCase(); kwRender(); };
+
+  function kwRender() {
+    const tbody = document.getElementById('kw-tbody');
+    document.getElementById('kw-entry-count').textContent = kwEntries.length;
+    if (!kwEntries.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="kw-empty">📋 등록된 항목이 없습니다.</div></td></tr>';
+      kwSyncAll(); return;
+    }
+    const list = kwSearchQ
+      ? kwEntries.filter(e => e.mid.includes(kwSearchQ) || (e.pcode||'').toLowerCase().includes(kwSearchQ))
+      : kwEntries;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="kw-empty">🔍 검색 결과가 없습니다.</div></td></tr>';
+      kwSyncAll(); return;
+    }
+    const sc = { ready:'kw-sb-ready', running:'kw-sb-running', success:'kw-sb-success', fail:'kw-sb-fail' };
+    const st = { ready:'대기', running:'⏳ 진행중', success:'✅ 완료', fail:'❌ 실패' };
+    tbody.innerHTML = list.map(e => {
+      const i = kwEntries.indexOf(e);
+      return `<tr id="kw-row-${i}" class="${e.checked?'kw-checked':''}">
+        <td><input type="checkbox" ${e.checked?'checked':''} onchange="kwToggleItem(${i},this)" style="width:14px;height:14px;accent-color:#0277bd;cursor:pointer;"></td>
+        <td class="kw-td-agency">${kwEsc(e.agency||'-')}</td>
+        <td>
+          <div class="kw-td-id">${kwEsc(e.mid)}</div>
+          ${e.pcode?`<div style="margin-top:2px;"><span class="kw-type-badge kw-type-pcode" title="${kwEsc(e.pcode)}" style="cursor:default;">Pcode</span></div>`:''}
+          ${e.result?`<div style="font-size:10px;color:var(--muted);margin-top:2px;">${kwEsc(e.result)}</div>`:''}
+        </td>
+        <td>${kwCountBadge(e.keywords)}</td>
+        <td>${kwCountBadge(e.yupflKeywords)}</td>
+        <td><span class="kw-sb ${sc[e.status]||'kw-sb-ready'}">${st[e.status]||'대기'}</span></td>
+      </tr>`;
+    }).join('');
+    kwSyncAll();
+  }
+
+  function kwLog(msg, type='') {
+    const area = document.getElementById('kw-log');
+    const now  = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    const div  = document.createElement('div');
+    div.className = `kw-log-line${type?' log-'+type:''}`;
+    div.innerHTML = `<span class="kw-log-time">${now}</span><span class="kw-log-msg">${kwEsc(msg)}</span>`;
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  async function kwRunStream(url, payload, onResult) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: payload }),
+    });
+    if (!res.ok) throw new Error(`서버 응답 오류 (${res.status})`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let data;
+        try { data = JSON.parse(line.slice(6)); } catch { continue; }
+        if (data.ping) continue;
+        if (data.entry_result) onResult(data.entry_result);
+        if (data.error) throw new Error(data.error);
+        if (data.done) return;
+      }
+    }
+  }
+
+  // MID 일치 슬롯(kimpro/slots)의 검색키워드·유입플키워드를 최신화 — status는 절대 안 건드림
+  async function kwSyncSlotKeyword(mid, field, value) {
+    const histField = field === 'searchKeyword' ? 'keywordHistory' : field === 'yupflKeyword' ? 'yupflKeywordHistory' : null;
+    try {
+      const slots = await window.HA.getKimproSlotsByMid(mid);
+      await Promise.all(slots.filter(s => s.status !== 'ended' && s.status !== 'expired').map(slot => {
+        const updates = { [field]: value };
+        if (histField) updates[histField] = [...(slot[histField] || []), { keyword: value, date: new Date().toISOString() }].slice(-10);
+        return window.HA.updateKimproSlot(slot._key, updates);
+      }));
+    } catch(e) { console.error('kwSyncSlotKeyword 오류:', e); }
+  }
+
+  function kwFinalizeEntry(entry) {
+    if (entry._bizOk === true && !entry._bizSynced) {
+      kwSyncSlotKeyword(entry.mid, 'searchKeyword', entry.keywords);
+      entry._bizSynced = true;
+    }
+    if (entry._yupflOk === true && !entry._yupflSynced) {
+      kwSyncSlotKeyword(entry.mid, 'yupflKeyword', entry.yupflKeywords);
+      entry._yupflSynced = true;
+    }
+
+    const needsBiz   = !!entry.keywords;
+    const needsYupfl = !!entry.yupflKeywords;
+    const bizDone    = !needsBiz   || entry._bizOk   !== undefined;
+    const yupflDone  = !needsYupfl || entry._yupflOk !== undefined;
+    if (!bizDone || !yupflDone) {
+      const parts = [];
+      if (entry._bizOk   !== undefined) parts.push(`비즈핏: ${entry._bizMsg}`);
+      if (entry._yupflOk !== undefined) parts.push(`유입플: ${entry._yupflMsg}`);
+      entry.status = 'running';
+      entry.result = parts.join(' / ');
+      return;
+    }
+    const parts = [];
+    let allOk = true;
+    if (needsBiz)   { parts.push(`비즈핏: ${entry._bizMsg}`);   allOk = allOk && entry._bizOk; }
+    if (needsYupfl) { parts.push(`유입플: ${entry._yupflMsg}`); allOk = allOk && entry._yupflOk; }
+    entry.status = allOk ? 'success' : 'fail';
+    entry.result = parts.join(' / ');
+  }
+
+  window.kwStartProcess = async function() {
+    const checked = kwEntries.filter(e => e.checked);
+    if (!checked.length) { alert('항목을 선택해주세요.'); return; }
+    const doneSkipped  = checked.filter(e => e.status === 'success').length;
+    const notDone      = checked.filter(e => e.status !== 'success');
+    const bizTargets   = notDone.filter(e => e.keywords);
+    const yupflTargets = notDone.filter(e => e.yupflKeywords);
+    const runTargets   = [...new Set([...bizTargets, ...yupflTargets])];
+
+    if (!runTargets.length) {
+      alert(doneSkipped
+        ? '선택한 항목이 모두 완료 상태입니다. (이미 완료된 항목은 재실행 시 자동으로 건너뜁니다)'
+        : '실행할 비즈핏/유입플 키워드가 없습니다.');
+      return;
+    }
+
+    const distribute = document.getElementById('kw-distribute-global').checked;
+    const skipNote = doneSkipped ? ` (완료 ${doneSkipped}건 건너뜀)` : '';
+
+    window.kwRunning = true;
+    const kwCloseBtn = document.getElementById('kw-close-btn');
+    if (kwCloseBtn) { kwCloseBtn.disabled = true; kwCloseBtn.style.opacity = '0.3'; kwCloseBtn.style.cursor = 'not-allowed'; }
+    document.getElementById('kw-btn-run').disabled = true;
+    document.getElementById('kw-prog-wrap').style.display = 'block';
+
+    runTargets.forEach(e => {
+      e.status = 'running'; e.result = '';
+      e._bizOk = undefined; e._bizMsg = ''; e._yupflOk = undefined; e._yupflMsg = '';
+      e._bizSynced = false; e._yupflSynced = false;
+    });
+    kwRender();
+    kwLog(`▶ 시작 — ${runTargets.length}개 캠페인${distribute ? ' (배분 모드)' : ''}${skipNote}`, 'info');
+    document.getElementById('kw-prog-bar').style.width = '10%';
+    document.getElementById('kw-prog-txt').textContent = '로그인 중...';
+
+    const totalOps = bizTargets.length + yupflTargets.length;
+    let processed = 0;
+    function bumpProgress() {
+      processed++;
+      const pct = 10 + Math.round((processed / totalOps) * 90);
+      document.getElementById('kw-prog-bar').style.width = pct + '%';
+      document.getElementById('kw-prog-txt').textContent = `${processed} / ${totalOps} 처리 중...`;
+    }
+
+    async function runMacroBatch(url, targets, payload, matchFn, okField, msgField, label) {
+      try {
+        await kwRunStream(url, payload, r => {
+          const entry = matchFn(r);
+          if (entry) {
+            entry[okField] = r.success; entry[msgField] = r.message;
+            kwFinalizeEntry(entry);
+            kwLog(`${r.success?'✅':'❌'} [${label}] ${r.mid}${r.pcode?' / '+r.pcode:''} — ${r.message}`, r.success?'success':'fail');
+          }
+          bumpProgress(); kwRender();
+        });
+      } catch (e) {
+        targets.forEach(entry => {
+          if (entry[okField] === undefined) {
+            entry[okField] = false; entry[msgField] = e.message;
+            kwFinalizeEntry(entry);
+          }
+        });
+        kwLog(`❌ ${label} 서버 오류: ${e.message}`, 'fail');
+        kwRender();
+      }
+    }
+
+    const tasks = [];
+    if (bizTargets.length) {
+      const payload = bizTargets.map(e => ({ mid: e.mid, pcode: e.pcode||'', agency: e.agency||'', keywords: e.keywords, distribute }));
+      tasks.push(runMacroBatch(`${SERVER}/process-stream`, bizTargets, payload,
+        r => kwEntries.find(e => e.mid === r.mid && (e.pcode||'') === (r.pcode||'')),
+        '_bizOk', '_bizMsg', '비즈핏'));
+    }
+    if (yupflTargets.length) {
+      const payload = yupflTargets.map(e => ({ mid: e.mid, keywords: e.yupflKeywords }));
+      tasks.push(runMacroBatch(`${SERVER}/yupfl-process-stream`, yupflTargets, payload,
+        r => kwEntries.find(e => e.mid === r.mid),
+        '_yupflOk', '_yupflMsg', '유입플'));
+    }
+    await Promise.all(tasks);
+
+    const successCnt = runTargets.filter(e => e.status === 'success').length;
+    const failCnt     = runTargets.filter(e => e.status === 'fail').length;
+    document.getElementById('kw-prog-bar').style.width = '100%';
+    document.getElementById('kw-prog-txt').textContent = `완료 — 성공: ${successCnt}  실패: ${failCnt}`;
+    kwLog(`━━ 완료 — 성공: ${successCnt}  실패: ${failCnt}`, successCnt === runTargets.length ? 'success' : 'warn');
+    window.kwRunning = false;
+    if (kwCloseBtn) { kwCloseBtn.disabled = false; kwCloseBtn.style.opacity = ''; kwCloseBtn.style.cursor = ''; }
+    kwSave(); kwRender();
+    document.getElementById('kw-btn-run').disabled = false;
+  };
+
+  window.kwHandleExcel = function(file) {
+    if (!file) return;
+    const load = cb => {
+      if (window.XLSX) { cb(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = cb; document.head.appendChild(s);
+    };
+    load(() => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const wb   = window.XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+          if (!rows.length) { kwLog('⚠️ 빈 파일입니다.', 'warn'); return; }
+          const hdr       = rows[0].map(h => String(h||'').trim());
+          const hasHdr    = isNaN(Number(hdr[0]));
+          const agencyCol = hasHdr ? hdr.findIndex(h => /영업점/i.test(h)) : 0;
+          const midCol    = hasHdr ? Math.max(hdr.findIndex(h => /mid/i.test(h)), 0) : 1;
+          const pcodeCol  = hasHdr ? hdr.findIndex(h => /pcode/i.test(h)) : 2;
+          const yupflCol  = hasHdr ? hdr.findIndex(h => /유입플/.test(h)) : 4;
+          const kwCol     = hasHdr ? hdr.findIndex((h, i) => /키워드/i.test(h) && i !== yupflCol) : 3;
+          const start     = hasHdr ? 1 : 0;
+          const missingCols = [];
+          if (agencyCol < 0) missingCols.push('영업점');
+          if (pcodeCol  < 0) missingCols.push('Pcode');
+          if (hasHdr && missingCols.length) {
+            kwLog(`⚠️ 양식이 맞지 않습니다 — ${missingCols.join('/')} 컬럼을 찾을 수 없습니다. 정식 양식(키워드변경_양식.xlsx)을 다시 받아 확인해주세요.`, 'warn');
+            return;
+          }
+          let added = 0, skipped = 0;
+          for (let r = start; r < rows.length; r++) {
+            const row           = rows[r];
+            const agency        = agencyCol >= 0 ? String(row[agencyCol]||'').trim() : '';
+            const mid           = String(row[midCol] || '').trim();
+            const pcode         = pcodeCol >= 0 ? String(row[pcodeCol]||'').trim() : '';
+            const keywords      = kwCol    >= 0 ? String(row[kwCol]   ||'').trim() : '';
+            const yupflKeywords = yupflCol >= 0 ? String(row[yupflCol]||'').trim() : '';
+            if (!mid || (!keywords && !yupflKeywords)) { skipped++; continue; }
+            if (keywords && (!pcode || !agency)) { skipped++; continue; }
+            if (kwEntries.some(e => e.mid === mid && (e.pcode||'') === pcode)) { skipped++; continue; }
+            kwEntries.push({ mid, pcode, agency, keywords, yupflKeywords, status: 'ready', result: '' });
+            added++;
+          }
+          kwSave(); kwRender();
+          document.getElementById('kw-file').value = '';
+          if (added > 0) kwLog(`📊 엑셀 가져오기: ${added}개 추가${skipped?', '+skipped+'개 건너뜀':''}`, 'info');
+          else           kwLog('⚠️ 추가된 항목 없음 — MID·키워드가 비어있거나 중복, 또는 비즈핏 키워드 행에 영업점/Pcode 누락', 'warn');
+        } catch(err) { kwLog(`❌ 엑셀 읽기 실패: ${err.message}`, 'fail'); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  (function() {
+    const zone = document.getElementById('kw-drop-zone');
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-on'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-on'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-on');
+      if (e.dataTransfer.files[0]) window.kwHandleExcel(e.dataTransfer.files[0]);
+    });
+  })();
+
+  (async function() {
+    const badge = document.getElementById('kw-srv-badge');
+    kwLog('⏳ 서버 연결 확인 중...', 'info');
+    let attempt = 0;
+    while (true) {
+      try {
+        const res = await fetch(`${SERVER}/ping`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          badge.textContent = '✅ 서버 연결됨';
+          badge.className = 'kw-srv-badge kw-srv-ok';
+          kwLog('✅ 서버 연결됨', 'success');
+          return;
+        }
+      } catch(_) {}
+      attempt++;
+      badge.textContent = `❌ 연결 실패 (${attempt}회)`;
+      badge.className = 'kw-srv-badge kw-srv-err';
+      if (attempt === 1 || attempt % 10 === 0) kwLog(`↻ 서버 연결 실패 — ${attempt}번째 재시도 중...`, 'warn');
+      const delay = Math.min(5000 * Math.pow(2, Math.min(attempt - 1, 4)), 60000);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  })();
+
+  window._kwSetEntries = function(data) {
+    if (Array.isArray(data) && data.length > 0) {
+      kwEntries = data.map(e => ({
+        ...e,
+        mid:     e.mid   ?? (e.id_type === 'mid' ? e.id : ''),
+        pcode:   e.pcode ?? (e.id_type === 'mid' ? '' : e.id) ?? '',
+        yupflKeywords: e.yupflKeywords || '',
+        status:  'ready',
+        result:  '',
+        checked: e.checked ?? false,
+      }));
+      kwRender();
+      kwLog(`📂 목록 불러옴 (${kwEntries.length}개)`, 'info');
+    }
+  };
+
+  kwRender();
+})();
+
+(async function() {
+  const snap = await window.HA.getKimproDoc('kimpro/bizfit_keyword').catch(() => null);
+  if (snap && snap.exists()) {
+    const data = snap.val();
+    if (Array.isArray(data) && window._kwSetEntries) window._kwSetEntries(data);
+  }
+  window.kwFbSave = (data) => window.HA.setKimproDoc('kimpro/bizfit_keyword', data).catch(e => console.error('kw save error:', e));
 })();
 </script>
