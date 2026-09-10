@@ -2370,8 +2370,9 @@ document.addEventListener('keydown', function(e) {
 </script>
 
 <!-- ══════════════════════════════════════════
-     캠페인 목록/상세/승인 (kimpro/reception.html 이식 — 조회·상세·승인/상태변경, 등급 배지/필터 포함.
-     MID 키워드 히스토리 병합·애드로그·시간대분할예약은 미이식. 데이터는 ha/kimproSlots 전용.
+     캠페인 목록/상세/승인 (kimpro/reception.html 이식 — 조회·상세·승인/상태변경, 등급 배지/필터, 동시편집
+     잠금(ha/kimproDetailLocks), MID 키워드 히스토리(자체 이력만, cross-app 병합 제외), 델타/네이비 블로그URL
+     자동조회 전부 포함. 데이터는 ha/kimproSlots 전용.
 ══════════════════════════════════════════ -->
 <script>
 (function() {
@@ -2389,8 +2390,65 @@ document.addEventListener('keydown', function(e) {
   };
 
   function kpEsc(v) { return String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // onclick="fn('${v}')" 같은 홑따옴표 JS 문자열용 — kpEsc는 큰따옴표만 방어해 홑따옴표로 탈출 가능하므로 JS 이스케이프 후 속성 이스케이프
+  function kpEscJsAttr(v) { return String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function kpFmtDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  // ── 상세 팝업 잠금 (동시 편집 방지, 접수관리.html 이식 — 절대 접수관리 ha/detail_locks와 안 섞이게
+  //    별도 격리 노드 ha/kimproDetailLocks 사용) ──────────────────────────────────
+  const KP_LOCK_TTL_MS = 10 * 60 * 1000; // 10분 초과 잠금은 자동 무효
+  const KP_LOCK_CHECK_CACHE = new Map(); // key → { conflict, by, ts }
+  const KP_LOCK_CACHE_TTL   = 10_000;    // 10초 캐시
+  async function kpAcquireDetailLock(key) {
+    const cu = window.HA?.getCurrentUser?.() || {};
+    const staffId   = cu.username || cu.id || 'unknown';
+    const staffName = cu.name || staffId;
+    const lockData  = { staffId, staffName, lockedAt: new Date().toISOString() };
+    const { getDatabase, ref, runTransaction, onDisconnect } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+    const lockRef = ref(getDatabase(), `ha/kimproDetailLocks/${key}`);
+    let conflictBy = null;
+    const result = await runTransaction(lockRef, current => {
+      if (current && current.staffId !== staffId) {
+        const age = Date.now() - new Date(current.lockedAt).getTime();
+        if (age < KP_LOCK_TTL_MS) { conflictBy = current.staffName || current.staffId; return; }
+      }
+      return lockData;
+    }, { applyLocally: false });
+    if (!result.committed) {
+      const by = conflictBy || '다른 담당자';
+      KP_LOCK_CHECK_CACHE.set(key, { conflict: true, by, ts: Date.now() });
+      return { acquired: false, by };
+    }
+    KP_LOCK_CHECK_CACHE.delete(key);
+    onDisconnect(lockRef).remove();
+    return { acquired: true };
+  }
+  async function kpReleaseDetailLock(key) {
+    KP_LOCK_CHECK_CACHE.delete(key);
+    try {
+      const { getDatabase, ref, remove, onDisconnect } = await import('https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js');
+      const lockRef = ref(getDatabase(), `ha/kimproDetailLocks/${key}`);
+      await remove(lockRef);
+      onDisconnect(lockRef).cancel();
+    } catch (_) {}
+  }
+  function kpShowLockNotice(byName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="kp-modal-box" style="width:340px;text-align:center;padding:36px 28px;">
+        <div style="font-size:32px;margin-bottom:14px;">🔒</div>
+        <div class="kp-modal-title" style="margin-bottom:8px;">편집 중</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px;">
+          <strong style="color:var(--text)">${kpEsc(byName)}</strong> 님이 현재 이 항목을<br>편집하고 있습니다.<br>
+          <span style="font-size:12px;color:var(--muted)">창을 닫으면 다시 열 수 있습니다.</span>
+        </div>
+        <button class="kp-btn-cancel" onclick="this.closest('.modal-overlay').remove()">확인</button>
+      </div>`;
+    document.body.appendChild(overlay);
   }
 
   const stMap = {
@@ -2680,15 +2738,30 @@ document.addEventListener('keydown', function(e) {
     kpCloseModalAndRefresh();
   };
 
-  window.kpViewDetail = function(key) {
+  window.kpViewDetail = async function(key) {
     if (_detailOpen) return;
     const s = allSlots.find(x=>x._key===key);
     if (!s) return;
     _detailOpen = true;
+
+    const _cached = KP_LOCK_CHECK_CACHE.get(key);
+    if (_cached && _cached.conflict && Date.now() - _cached.ts < KP_LOCK_CACHE_TTL) {
+      _detailOpen = false;
+      kpShowLockNotice(_cached.by);
+      return;
+    }
+    let lock;
+    try { lock = await kpAcquireDetailLock(key); }
+    catch (e) { _detailOpen = false; alert('편집 잠금 획득에 실패했습니다. 다시 시도해주세요.'); return; }
+    if (!lock.acquired) { _detailOpen = false; kpShowLockNotice(lock.by); return; }
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay kp-detail-overlay';
     const isSplit = s.status === 'split';
     const dis = isSplit ? 'disabled' : '';
+    const kwCount = (s.searchKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
+    const yupflKwCount = (s.yupflKeyword||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
+    const urlCount = (s.deltaBlogUrl||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
     overlay.innerHTML = `
       <div class="kp-modal-box">
         <div class="kp-modal-title">캠페인 상세</div>
@@ -2718,15 +2791,241 @@ document.addEventListener('keydown', function(e) {
           <div class="kp-modal-field"><label>종료일</label><input type="date" id="kd-endDate" value="${kpEsc(s.endDate)}" ${dis}></div>
         </div>
         <div class="kp-modal-field"><label>메모</label><textarea id="kd-memo" rows="2" ${dis}>${kpEsc(s.memo)}</textarea></div>
-        <div class="kp-modal-field"><label>검색키워드</label><input type="text" id="kd-searchKeyword" value="${kpEsc(s.searchKeyword)}" placeholder="키워드를 입력해주세요" ${dis}></div>
-        <div class="kp-modal-field"><label>유입플 키워드</label><input type="text" id="kd-yupflKeyword" value="${kpEsc(s.yupflKeyword)}" placeholder="유입플 키워드를 입력해주세요" ${dis}></div>
-        <div class="kp-modal-field"><label>블로그 URL (델타·네이비 전용, 분할 개수만큼 콤마로 구분)</label><input type="text" id="kd-deltaBlogUrl" value="${kpEsc(s.deltaBlogUrl)}" placeholder="https://blog.naver.com/...,https://blog.naver.com/..." ${dis}></div>
+        <div class="kp-modal-field">
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:6px;">검색키워드 <span id="kp-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCount}개</span></span>
+            ${s.mid ? `<button type="button" onclick="kpToggleMidHistory('${kpEscJsAttr(s.mid)}','${key}')" id="kp-mid-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
+          </label>
+          <input type="text" id="kd-searchKeyword" value="${kpEsc(s.searchKeyword)}" placeholder="키워드를 입력해주세요" oninput="kpUpdateKwBadge(this,'kp-kw-count-badge')" ${dis} style="margin-top:5px;">
+          <div id="kp-mid-history-area" style="display:none;margin-top:8px;"></div>
+        </div>
+        <div class="kp-modal-field">
+          <label style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="display:flex;align-items:center;gap:6px;">유입플 키워드 <span id="kp-yupfl-kw-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${yupflKwCount}개</span></span>
+            ${s.mid ? `<button type="button" onclick="kpToggleYupflMidHistory('${kpEscJsAttr(s.mid)}')" id="kp-yupfl-hist-btn" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;color:var(--text2);cursor:pointer;font-family:inherit;">이전 키워드 보기</button>` : ''}
+          </label>
+          <input type="text" id="kd-yupflKeyword" value="${kpEsc(s.yupflKeyword)}" placeholder="유입플 키워드를 입력해주세요" oninput="kpUpdateKwBadge(this,'kp-yupfl-kw-count-badge')" ${dis} style="margin-top:5px;">
+          <div id="kp-yupfl-history-area" style="display:none;margin-top:8px;"></div>
+        </div>
+        <div class="kp-modal-field">
+          <label style="display:flex;align-items:center;gap:6px;">블로그 URL (델타·네이비 전용, 분할 개수만큼 콤마로 구분) <span id="kp-url-count-badge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${urlCount}개</span></label>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:5px;">
+            <input type="text" id="kd-deltaBlogUrl" value="${kpEsc(s.deltaBlogUrl)}" placeholder="https://blog.naver.com/...,https://blog.naver.com/..." oninput="kpUpdateKwBadge(this,'kp-url-count-badge')" style="flex:1;" ${dis}>
+            <button type="button" onclick="kpApplyDeltaBlogUrls('${key}')" id="kp-delta-url-apply-btn" ${dis} style="flex-shrink:0;font-size:11px;padding:6px 10px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;font-family:inherit;">적용</button>
+          </div>
+        </div>
         <div class="kp-modal-footer">
           <button class="kp-btn-cancel" onclick="kpCloseDetailModal('${key}')">닫기</button>
           ${isSplit ? '' : `<button class="kp-btn-save" onclick="kpAcceptFromDetail('${key}')">접수</button>`}
         </div>
       </div>`;
     document.body.appendChild(overlay);
+  };
+  window.kpUpdateKwBadge = function(inputEl, badgeId) {
+    if (!inputEl) return;
+    const badge = document.getElementById(badgeId||''); if (!badge) return;
+    const count = (inputEl.value||'').split(',').map(k=>k.trim()).filter(k=>k.length>0).length;
+    badge.textContent = count + '개';
+  };
+
+  // 델타/네이비 공용 "블로그 URL" 적용 버튼 — 플레이스 URL에서 블로그 리뷰 URL을 분할 개수만큼 자동으로 가져와 채움(접수관리.html 이식)
+  const KP_BLOG_TAG_SEARCH_PROXY = 'https://blog-tag-search-938928195180.asia-northeast3.run.app';
+  window.kpApplyDeltaBlogUrls = async function(key) {
+    const s = allSlots.find(x => x._key === key);
+    const input = document.getElementById('kd-deltaBlogUrl');
+    const btn = document.getElementById('kp-delta-url-apply-btn');
+    if (!s || !s.url) { alert('플레이스 URL이 없습니다.'); return; }
+    let blogSplit = 1; // 분할 개수는 상품 설정(delta/navy blogSplit)에서 조회
+    try {
+      const snap = await window.HA.getDoc('ha/kimproProdSettings/prods');
+      const prodsVal = snap.exists() ? snap.val() : null;
+      const arr = Array.isArray(prodsVal) ? prodsVal : (prodsVal ? Object.values(prodsVal) : []);
+      const splitProd = arr.find(p => p.id === 'delta' && p.active) || arr.find(p => p.id === 'navy' && p.active) || arr.find(p => p.id === 'delta');
+      blogSplit = Math.max(1, parseInt(splitProd?.blogSplit, 10) || 1);
+    } catch (e) { /* 기본값(1) 유지 */ }
+    if (btn) { btn.disabled = true; btn.textContent = '조회 중...'; }
+    try {
+      const res = await fetch(`${KP_BLOG_TAG_SEARCH_PROXY}/place-blog?url=${encodeURIComponent(s.url)}&count=${blogSplit}`);
+      const data = await res.json();
+      if (!data.success) { alert('블로그 URL 조회 실패: ' + (data.message || '')); return; }
+      if (!data.urls || !data.urls.length) { alert('블로그 리뷰를 찾을 수 없습니다.'); return; }
+      input.value = data.urls.join(',');
+      window.kpUpdateKwBadge(input, 'kp-url-count-badge');
+    } catch (e) {
+      alert('블로그 URL 조회 오류: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '적용'; }
+    }
+  };
+
+  // ── MID 이전 키워드 히스토리 (접수관리.html 이식 — 데이터 분리 원칙에 따라 ha/kimproSlots 자체
+  //    이력만 사용, 접수관리 쪽 cross-app 병합은 하지 않음. LIVE 섹션은 higher 전체가 공유하는
+  //    공개 노드 ha/grades를 그대로 읽음) ──────────────────────────────────
+  window.kpToggleMidHistory = async function(mid, currentKey) {
+    const area = document.getElementById('kp-mid-history-area');
+    const btn  = document.getElementById('kp-mid-hist-btn');
+    if (!area) return;
+    if (area.style.display !== 'none') { area.style.display = 'none'; btn.textContent = '이전 키워드 보기'; return; }
+    area.style.display = 'block';
+    btn.textContent = '닫기';
+    area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
+    const [sheetKeywords, history] = await Promise.all([
+      kpFetchSheetKeywordByMid(mid),
+      Promise.resolve(kpLocalKeywordHistory(mid)),
+    ]);
+    let html = '';
+    const liveKwCount = sheetKeywords===null ? 0 : sheetKeywords.reduce((acc,kw)=>acc+kw.split(',').map(k=>k.trim()).filter(k=>k).length,0);
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
+      등급 시트 현재 키워드
+      ${liveKwCount>0 ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${liveKwCount}개</span>` : ''}
+    </div>`;
+    if (sheetKeywords === null) {
+      html += `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;margin-bottom:10px;">⚠️ 데이터를 불러올 수 없습니다.</div>`;
+    } else if (!sheetKeywords.length) {
+      html += `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:11px;color:var(--muted);margin-bottom:10px;">해당 MID(${kpEsc(mid)})로 등록된 키워드가 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;margin-bottom:10px;">
+        ${sheetKeywords.map(kw => `<div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${kpEsc(kw)}</div>
+          <button type="button" onclick="(function(){var el=document.getElementById('kd-searchKeyword');el.value='${kpEscJsAttr(kw)}';window.kpUpdateKwBadge(el,'kp-kw-count-badge');})()"
+            style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">적용</button>
+        </div>`).join('')}
+      </div>`;
+    }
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#94a3b8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">히스토리</span>
+      접수 이력 키워드
+    </div>`;
+    if (!history.length) {
+      html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 접수 키워드 내역이 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
+        ${history.map(h => {
+          const kwStr = h.keyword || '';
+          const kwCnt = kwStr.split(',').map(k=>k.trim()).filter(k=>k).length;
+          const dateStr = h.date ? kpFmtDate(new Date(h.date)) : '';
+          return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
+                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCnt}개</span>
+              </div>
+              <button type="button" onclick="(function(){var el=document.getElementById('kd-searchKeyword');el.value='${kpEscJsAttr(kwStr)}';window.kpUpdateKwBadge(el,'kp-kw-count-badge');})()"
+                style="font-size:10px;padding:2px 7px;border:1px solid var(--kp-accent);border-radius:4px;background:#fff;color:var(--kp-accent);cursor:pointer;font-family:inherit;white-space:nowrap;">적용</button>
+            </div>
+            <div style="overflow:hidden;white-space:nowrap;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;user-select:all;">${kpEsc(kwStr)}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+    area.innerHTML = html;
+  };
+
+  const KP_MISSION_BADGE_COLORS = ['#1d4ed8','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#4d7c0f'];
+  function kpMissionBadgeColor(mission) {
+    const n = parseInt(mission, 10);
+    if (!Number.isFinite(n)) return '#64748b';
+    return KP_MISSION_BADGE_COLORS[((n % KP_MISSION_BADGE_COLORS.length) + KP_MISSION_BADGE_COLORS.length) % KP_MISSION_BADGE_COLORS.length];
+  }
+  async function kpFetchGradeSnapshotVal(mid) {
+    try {
+      const res = await fetch(`https://higherad-b9d62-default-rtdb.asia-southeast1.firebasedatabase.app/ha/grades/${mid}.json`);
+      return res.ok ? await res.json() : undefined;
+    } catch { return undefined; }
+  }
+  async function kpFetchSheetKeywordByMid(mid) {
+    try {
+      const data = await kpFetchGradeSnapshotVal(mid);
+      if (data === undefined || data === null) return [];
+      const entries = window.KpGrade.parseGradeEntries(data);
+      const findKw = entries.map(g => g.findKw).find(kw => kw && kw.trim());
+      return findKw ? [findKw] : [];
+    } catch (e) { return null; }
+  }
+  async function kpFetchYoupflKeywordByMid(mid) {
+    try {
+      const data = await kpFetchGradeSnapshotVal(mid);
+      if (data === undefined || data === null) return [];
+      const entries = [];
+      window.KpGrade.parseGradeEntries(data).forEach(g => {
+        if (g.missionKeywords && typeof g.missionKeywords === 'object') {
+          Object.entries(g.missionKeywords).forEach(([mission, kw]) => {
+            const trimmedKw = (kw||'').trim();
+            if (trimmedKw) entries.push({ mission: mission.replace(/[^0-9]/g,'')||mission, keyword: trimmedKw });
+          });
+          return;
+        }
+        const kw = (g.yupflKw||'').trim();
+        if (!kw) return;
+        const missions = (g.mission||'').split(',').map(m=>m.trim()).filter(Boolean);
+        if (!missions.length) { entries.push({ mission:'', keyword:kw }); return; }
+        missions.forEach(m => entries.push({ mission: m.replace(/[^0-9]/g,'')||m, keyword: kw }));
+      });
+      return entries;
+    } catch (e) { return null; }
+  }
+  window.kpToggleYupflMidHistory = async function(mid) {
+    const area = document.getElementById('kp-yupfl-history-area');
+    const btn  = document.getElementById('kp-yupfl-hist-btn');
+    if (!area) return;
+    if (area.style.display !== 'none') { area.style.display = 'none'; btn.textContent = '이전 키워드 보기'; return; }
+    area.style.display = 'block';
+    btn.textContent = '닫기';
+    area.innerHTML = '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;color:var(--muted);">불러오는 중...</div>';
+    const [entries, history] = await Promise.all([kpFetchYoupflKeywordByMid(mid), Promise.resolve(kpLocalYupflKeywordHistory(mid))]);
+    let html = `<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#3b82f6;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">LIVE</span>
+      유입플 작업키워드
+      ${entries && entries.length ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${entries.length}건</span>` : ''}
+    </div>`;
+    if (entries === null) {
+      html += `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:7px;padding:9px 12px;font-size:11px;color:#856404;">⚠️ 데이터를 불러올 수 없습니다.</div>`;
+    } else if (!entries.length) {
+      html += `<div style="background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:11px;color:var(--muted);">해당 MID(${kpEsc(mid)})로 등록된 유입플 작업키워드가 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+        ${entries.map(e => {
+          const badge = e.mission ? `미션:${e.mission}` : '미션 미지정';
+          const badgeColor = kpMissionBadgeColor(e.mission);
+          const kwCnt = e.keyword.split(',').map(k=>k.trim()).filter(k=>k).length;
+          return `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:${badgeColor};color:#fff;white-space:nowrap;flex-shrink:0;">${kpEsc(badge)}</span>
+            <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#dbeafe;color:#1d4ed8;white-space:nowrap;flex-shrink:0;">${kwCnt}개</span>
+            <div style="flex:1;overflow:hidden;white-space:nowrap;font-size:12px;color:#1d4ed8;font-weight:500;background:#dbeafe;padding:4px 8px;border-radius:5px;user-select:all;">${kpEsc(e.keyword)}</div>
+            <button type="button" onclick="(function(){var el=document.getElementById('kd-yupflKeyword');if(el){el.value='${kpEscJsAttr(e.keyword)}';window.kpUpdateKwBadge(el,'kp-yupfl-kw-count-badge');}})()"
+              style="font-size:10px;padding:2px 8px;border:1px solid #3b82f6;border-radius:4px;background:#fff;color:#3b82f6;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">적용</button>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+    html += `<div style="font-size:11px;font-weight:700;color:var(--text2);margin:10px 0 6px;display:flex;align-items:center;gap:5px;">
+      <span style="background:#94a3b8;color:#fff;padding:1px 6px;border-radius:4px;font-size:10px;">히스토리</span>
+      접수 이력 키워드
+    </div>`;
+    if (!history.length) {
+      html += `<div style="font-size:11px;color:var(--muted);padding:6px 0;">이전 유입플 키워드 내역이 없습니다.</div>`;
+    } else {
+      html += `<div style="background:#f8fafc;border-radius:7px;padding:8px 12px;border:1px solid var(--border);max-height:220px;overflow-y:auto;">
+        ${history.map(h => {
+          const kwStr = h.keyword || '';
+          const kwCnt = kwStr.split(',').map(k=>k.trim()).filter(k=>k).length;
+          const dateStr = h.date ? kpFmtDate(new Date(h.date)) : '';
+          return `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:11px;color:var(--text2);">${dateStr}</span>
+                <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">${kwCnt}개</span>
+              </div>
+              <button type="button" onclick="(function(){var el=document.getElementById('kd-yupflKeyword');if(el){el.value='${kpEscJsAttr(kwStr)}';window.kpUpdateKwBadge(el,'kp-yupfl-kw-count-badge');}})()"
+                style="font-size:10px;padding:2px 7px;border:1px solid var(--kp-accent);border-radius:4px;background:#fff;color:var(--kp-accent);cursor:pointer;font-family:inherit;white-space:nowrap;">적용</button>
+            </div>
+            <div style="overflow:hidden;white-space:nowrap;font-size:11px;color:#475569;background:#f1f5f9;padding:4px 8px;border-radius:5px;user-select:all;">${kpEsc(kwStr)}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+    area.innerHTML = html;
   };
 
   async function kpSaveDetailFields(key) {
@@ -2764,12 +3063,14 @@ document.addEventListener('keydown', function(e) {
   }
   window.kpCloseDetailModal = async function(key) {
     await kpSaveDetailFields(key);
+    await kpReleaseDetailLock(key);
     kpCloseModalAndRefresh();
   };
   window.kpAcceptFromDetail = async function(key) {
     await kpSaveDetailFields(key);
     await HA.updateKpSlot(key, { status:'accepted' });
     const idx = allSlots.findIndex(x=>x._key===key); if (idx!==-1) allSlots[idx].status='accepted';
+    await kpReleaseDetailLock(key);
     kpCloseModalAndRefresh();
   };
 
