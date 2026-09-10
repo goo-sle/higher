@@ -136,6 +136,50 @@ function subscribeLiveSlots(onChange) {
   return () => { cancelled = true; _liveSlotsSubs.delete(wrapped); };
 }
 
+// ── 김프로(ha/kimproSlots) 실시간 슬롯 배열 공유 캐시 — 위쪽 패턴을 그대로 이식.
+// 목록/정산/순위표 등 여러 호출부가 각자 getKpSlots()를 부르면 페이지 전환마다 ha/kimproSlots 전체가
+// 중복 다운로드되므로, 세션 내 최초 호출자만 받고 이후는 캐시+구독으로 재사용한다.
+let _liveKpSlotsPromise = null;
+let _liveKpSlots         = [];
+const _liveKpSlotsSubs   = new Set();
+let _liveKpSlotsNotifyPending = false;
+
+function ensureLiveKpSlots() {
+  if (!_liveKpSlotsPromise) {
+    _liveKpSlotsPromise = (async () => {
+      _liveKpSlots = await HA.getKpSlots();
+      await HA.subscribeKpSlots(_liveKpSlots, {
+        onAdded(slot)   { if (!_liveKpSlots.some(s => s._key === slot._key)) { _liveKpSlots.push(slot); notifyLiveKpSlots(); } },
+        onChanged(slot) { const i = _liveKpSlots.findIndex(s => s._key === slot._key); if (i === -1) _liveKpSlots.push(slot); else _liveKpSlots[i] = slot; notifyLiveKpSlots(); },
+        onRemoved(key)  { const i = _liveKpSlots.findIndex(s => s._key === key); if (i !== -1) _liveKpSlots.splice(i, 1); notifyLiveKpSlots(); },
+      });
+    })();
+  }
+  return _liveKpSlotsPromise;
+}
+
+function sortedLiveKpSlots() {
+  return [..._liveKpSlots].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function notifyLiveKpSlots() {
+  if (_liveKpSlotsNotifyPending) return;
+  _liveKpSlotsNotifyPending = true;
+  setTimeout(() => {
+    _liveKpSlotsNotifyPending = false;
+    const sorted = sortedLiveKpSlots();
+    _liveKpSlotsSubs.forEach(cb => cb(sorted));
+  }, 300);
+}
+
+function subscribeLiveKpSlots(onChange) {
+  let cancelled = false;
+  ensureLiveKpSlots().then(() => { if (!cancelled) onChange(sortedLiveKpSlots()); });
+  const wrapped = slots => { if (!cancelled) onChange(slots); };
+  _liveKpSlotsSubs.add(wrapped);
+  return () => { cancelled = true; _liveKpSlotsSubs.delete(wrapped); };
+}
+
 // ════════════════════════════════════════════════════════════
 const HA = {
 
@@ -231,6 +275,16 @@ const HA = {
     return snapToArray(snap).sort((a, b) =>
       new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
     );
+  },
+
+  // 공유 캐시(ensureLiveKpSlots) 경유 — getKpSlots()와 인터페이스는 같지만 세션 내 최초 호출자만
+  // ha/kimproSlots를 받고 이후는 캐시 재사용(getSlotsLive와 동일 패턴, 목록/정산/순위표 등에서 사용)
+  async getKpSlotsLive() {
+    await ensureLiveKpSlots();
+    return sortedLiveKpSlots();
+  },
+  subscribeKpSlotsLive(callback) {
+    return subscribeLiveKpSlots(callback);
   },
 
   async addKpSlot(data) {

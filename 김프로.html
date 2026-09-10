@@ -337,7 +337,7 @@ async function downloadRankTable() {
       if (isNaN(dt)) return '';
       return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
     };
-    const slots = await HA.getKpSlots();
+    const slots = await HA.getKpSlotsLive();
     const midEntries = slots
       .filter(s => s.mid)
       .map(s => ({
@@ -2476,7 +2476,7 @@ document.addEventListener('keydown', function(e) {
     if (!_slotsLoaded || forceReload) {
       document.getElementById('kp-receipt-body').innerHTML =
         '<tr><td colspan="15"><div class="loading-wrap"><div class="spinner"></div> 데이터 불러오는 중...</div></td></tr>';
-      allSlots = await HA.getKpSlots();
+      allSlots = await HA.getKpSlotsLive();
       _slotsLoaded = true;
       attachKpSlotsLiveSync();
 
@@ -5286,7 +5286,7 @@ document.addEventListener('keydown', function(e) {
     selectedSnapKeys.clear();
     if (!_settleLoaded || forceReload) {
       document.getElementById('kp-settle-body').innerHTML = '<tr><td colspan="10" style="padding:30px;color:var(--muted);">불러오는 중...</td></tr>';
-      [allSlots, paidSet] = await Promise.all([window.HA.getKpSlots(), window.HA.getKpPaidSet()]);
+      [allSlots, paidSet] = await Promise.all([window.HA.getKpSlotsLive(), window.HA.getKpPaidSet()]);
       try { refundMap = (await window.HA.getKpRefunds()) || {}; } catch(e) { refundMap = {}; }
       try { snapshotMap = await window.HA.getAllKpSettleSnapshots(); } catch(e) { snapshotMap = {}; }
       _settleLoaded = true;
