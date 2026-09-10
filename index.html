@@ -153,12 +153,14 @@
     /* ── 사이드바 접기(데스크톱) ── */
     aside.collapsed { width:var(--sidebar-w-collapsed); }
     aside.collapsed .brand-logo,
-    aside.collapsed .nav-item .nav-text, aside.collapsed .nav-item .badge,
+    aside.collapsed .nav-item .nav-text,
     aside.collapsed .admin-info { display:none; }
     aside.collapsed .brand { padding:20px 0; justify-content:center; }
     /* 라벨 텍스트 대신 섹션 구분선만 남김(글자는 숨기고 위쪽 테두리만 남김) */
     aside.collapsed .nav-label { font-size:0; height:0; padding:8px 0 0; margin:8px 14px 0; border-top:1px solid rgba(255,255,255,.1); }
-    aside.collapsed .nav-item { justify-content:center; padding:10px; }
+    aside.collapsed .nav-item { justify-content:center; padding:10px; position:relative; }
+    /* 접힌 상태에선 라벨 옆이 아니라 아이콘 위 우상단에 배지로 띄움 */
+    aside.collapsed .nav-item .badge { display:flex; position:absolute; top:4px; right:6px; margin-left:0; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; font-size:9px; line-height:1; }
     aside.collapsed .sidebar-bottom { justify-content:center; }
     aside.collapsed ~ main { margin-left:var(--sidebar-w-collapsed); }
     /* lucide.createIcons()가 <i data-lucide>를 <svg>로 통째로 갈아치워서 <i> 셀렉터로는 못 잡음 — 버튼 자체를 돌림 */

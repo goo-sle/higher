@@ -3,16 +3,16 @@
   /* 모달 등 동적으로 document.body에 붙는 요소는 #kimpro-page의 후손이 아니라 --kp-* 변수가 안 보임 —
      :root에 둬서 페이지 어디서든(모달 포함) 항상 참조되게 함 */
   :root { --kp-navy:#0f172a; --kp-accent:#10b981; }
-  .kp-banner { display:flex; align-items:center; gap:10px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#9a3412; }
-  .kp-banner b { font-weight:700; }
-  /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼 */
-  .kp-header { background:var(--kp-navy); border-radius:12px; padding:6px 10px; display:flex; align-items:center; gap:0; margin-bottom:22px; }
+  /* 김프로(kimpro.kro.kr) reception.html 상단 헤더바를 그대로 재현 — 같은 색상(--navy:#0f172a/--accent:#10b981), 같은 이모지+라벨 버튼.
+     body.kp-mode main의 좌우 padding(10px)을 음수 마진으로 상쇄해 메뉴바가 좌우 꽉 차게(원본처럼 카드 여백 없이) */
+  .kp-header { background:var(--kp-navy); border-radius:0; padding:6px 10px; display:flex; align-items:center; gap:0; margin:0 -10px 22px; }
   .kp-header .kp-logo { font-size:18px; font-weight:900; color:#fff; letter-spacing:-.5px; padding:8px 14px 8px 10px; flex:0 0 auto; }
   .kp-header .kp-logo span { color:var(--kp-accent); }
   .kp-nav { display:flex; align-items:center; justify-content:center; flex:1 1 auto; flex-wrap:wrap; row-gap:2px; }
   .kp-btn { display:flex; align-items:center; gap:5px; padding:7px 14px; background:transparent; border:none; color:#fff; font-size:13px; font-weight:600; font-family:inherit; cursor:default; white-space:nowrap; }
   .kp-btn:not(:disabled) { cursor:pointer; }
   .kp-btn:not(:disabled):hover { background:rgba(255,255,255,.15); }
+  .kp-btn + .kp-btn { border-left:1px solid rgba(255,255,255,.2); }
 </style>
 
   <div class="kp-header">
@@ -27,11 +27,6 @@
       <button class="kp-btn" id="backlink-rank-btn" onclick="downloadBacklinkRank()">🔗 백링크 순위</button>
       <button class="kp-btn" id="rank-table-btn" onclick="downloadRankTable()">📈 순위표</button>
     </div>
-  </div>
-
-  <div class="kp-banner">
-    <i data-lucide="construction" size="16"></i>
-    <span><b>김프로 이관이 완료되었습니다.</b> 목록·상세·승인·엑셀 접수·배분 제출(일반/유입플/찰리/델타/네이비)·등급 자동매칭·시간대 분할 예약(일반/찰리/블로그, 재분류·키워드분배·등급변경 포함)·정산관리(접수관리와 화면 통합)까지 전부 연동되었습니다 — <code>어드민 통합.md</code> 참고.</span>
   </div>
 
   <style>
@@ -144,12 +139,12 @@
     <div class="kp-stat-box"><div class="kp-sb-label">대기</div><div class="kp-sb-val" id="kp-stat-pending" style="color:#b45309">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">접수</div><div class="kp-sb-val" id="kp-stat-accepted" style="color:#1d4ed8">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">승인</div><div class="kp-sb-val" id="kp-stat-active" style="color:var(--kp-accent)">-</div></div>
+    <div class="kp-stat-box" style="cursor:pointer;" onclick="openKpSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="kp-sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="kp-sb-val" id="kp-stat-split" style="color:#b45309">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">재접수 대기</div><div class="kp-sb-val" id="kp-stat-requeue" style="color:#b45309">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">재접수 접수</div><div class="kp-sb-val" id="kp-stat-requeue-accepted" style="color:#1d4ed8">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">재접수 승인</div><div class="kp-sb-val" id="kp-stat-requeue-active" style="color:var(--kp-accent)">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">임시중단</div><div class="kp-sb-val" id="kp-stat-paused" style="color:#7c3aed">-</div></div>
     <div class="kp-stat-box"><div class="kp-sb-label">강제종료</div><div class="kp-sb-val" id="kp-stat-force" style="color:#dc2626">-</div></div>
-    <div class="kp-stat-box" style="cursor:pointer;" onclick="openKpSplitScheduleModal()" title="클릭하면 예약 분할 현황이 열립니다"><div class="kp-sb-label">예약 <span style="font-size:10px;">↗</span></div><div class="kp-sb-val" id="kp-stat-split" style="color:#b45309">-</div></div>
   </div>
 
   <!-- 상품 유형 설정 패널 (접수관리.html 이식 — 그룹 프리셋 포함) -->
@@ -187,6 +182,7 @@
           <span class="kp-ps-sect-lbl">고정</span>
           <div class="kp-ps-row-inner" id="kpPsWrapFixed" style="margin-left:28px;"></div>
           <button class="kp-action-btn" id="kp-dl-main-btn" style="background:#0d9488;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="kpDownloadExcel()">시트 분류</button>
+          <button class="kp-action-btn" id="kp-adlog-btn" style="background:#2563eb;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="kpSubmitAdlog()">애드로그</button>
           <button class="kp-action-btn" id="kp-dl-submit-btn" style="background:#EA580C;color:#fff;padding:7px 16px;font-size:12px;flex-shrink:0;" onclick="kpSubmitDirect()">접수</button>
         </div>
       </div>
@@ -266,11 +262,17 @@
     </div>
   </div>
 
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
+    <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
+    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
+  </div>
+
   <div class="kp-filter-bar">
     <select id="kp-filter-status" onchange="kpRenderReceipts()">
       <option value="">전체 상태</option>
       <option value="pending">대기</option>
       <option value="accepted">접수</option>
+      <option value="split">분할</option>
       <option value="active">승인</option>
       <option value="requeue">재접수|대기</option>
       <option value="requeue_accepted">재접수|접수</option>
@@ -288,11 +290,6 @@
       <button class="kp-action-btn" style="background:#475569;color:#fff;padding:6px 14px;" onclick="kpRenderReceipts()">검색</button>
       <button class="kp-action-btn" style="background:#fff;border:1px solid var(--border);padding:6px 12px;" onclick="kpResetFilters()">초기화</button>
     </div>
-  </div>
-
-  <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
-    <button class="kp-action-btn" style="background:#7c3aed;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpOpenReacceptModal()">🔁 재접수</button>
-    <button class="kp-action-btn" style="background:#16a34a;color:#fff;padding:7px 16px;font-size:12px;" onclick="kpDownloadExcelList()">📥 엑셀 다운로드</button>
   </div>
 
   <div class="kp-dl-prog-wrap" id="kp-dl-prog-wrap" style="display:none;">
@@ -2564,7 +2561,7 @@ document.addEventListener('keydown', function(e) {
           <td style="color:var(--text2)">${s.createdAt ? kpFmtDate(new Date(s.createdAt)) : '-'}</td>
           <td style="font-weight:600">${kpEsc(s.agencyId||'-')}</td>
           <td>${KP_GRADEABLE_STATUSES.includes(s.status) ? `<span id="kp-grade-${s._key}" style="color:#94a3b8;font-size:11px">···</span>` : `<span style="color:#cbd5e1">-</span>`}</td>
-          <td>${s.url ? `<a href="${kpEsc(s.url)}" target="_blank" style="color:var(--kp-accent);font-weight:500;text-decoration:none;">${kpEsc(s.storeName||'-')}</a>` : kpEsc(s.storeName||'-')}</td>
+          <td>${s.url ? `<a href="${kpEsc(s.url)}" target="_blank" style="color:var(--kp-accent);font-weight:500;text-decoration:none;">${kpEsc(s.storeName||'-')}</a>` : kpEsc(s.storeName||'-')}${s.adlogSubmitted ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#2563eb;margin-left:4px;vertical-align:1px;" title="애드로그 등록 완료"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : ''}</td>
           <td style="color:var(--text2);font-size:11px">${kpEsc(s.mid||'-')}</td>
           <td style="color:var(--text2)">${kpEsc(s.rankKeyword||'-')}</td>
           <td style="color:var(--text2)">${s.days||'-'}</td>
@@ -4990,6 +4987,162 @@ document.addEventListener('keydown', function(e) {
       document.head.appendChild(s);
     }
   };
+
+  // ── 애드로그 대량등록 접수 (kimpro/reception.html 이식 — 그룹/키워드/URL/메모) ──
+  // 프론트(SheetJS)가 만든 xlsx를 그대로 프록시로 릴레이 — openpyxl 등 서버에서 새로 생성한 xlsx는 adlog.kr이 거부함(실측 확인)
+  window.kpSubmitAdlog = function() {
+    const checkedKeys = [...document.querySelectorAll('.kp-row-check:checked')].map(c => c.dataset.key);
+    const keySet = new Set(checkedKeys);
+    const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+    const filteredAll = window.kpGetFilteredForExport ? window.kpGetFilteredForExport() : allSlots;
+    // 체크박스로 직접 선택한 경우 — 승인(active) 상태도 예외적으로 허용 (재등록 목적)
+    const target = checkedKeys.length
+      ? allSlots.filter(s => keySet.has(s._key) && (s.status === 'accepted' || s.status === 'active'))
+      : filteredAll.filter(s => s.status === 'accepted');
+    if (!target.length) { alert('접수 상태인 캠페인이 없습니다.\n(체크박스 선택시 승인 항목도 재등록 가능)'); return; }
+    kpOpenAdlogModal(target);
+  };
+  function kpBuildAdlogRows(slots) {
+    return slots.map(s => {
+      let memo = '';
+      if (s.startDate) { const [, m, d] = s.startDate.split('-').map(Number); memo = `1test ${m}/${d}`; }
+      return { _slotKey: s._key, group: s.agencyId||'(대행사 미지정)', keyword: s.rankKeyword||'', mid: s.mid||'', memo, _statusTd: null };
+    });
+  }
+  function kpOpenAdlogModal(target) {
+    const rows = kpBuildAdlogRows(target);
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="kp-modal-box" style="width:min(96vw,760px);max-height:82vh;overflow-y:auto;overflow-x:hidden;">
+        <div class="kp-modal-title">애드로그 대량등록 확인</div>
+        <div style="font-size:12px;margin-bottom:14px;" id="kp-adlog-sub"></div>
+        <div id="kp-adlog-body"></div>
+        <div class="kp-modal-footer">
+          <button class="kp-btn-cancel" id="kp-adlog-close-btn">닫기</button>
+          <button id="kp-adlog-apply-btn" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;white-space:nowrap;">등록 신청</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#kp-adlog-body').appendChild(kpBuildAdlogTable(rows));
+    overlay.querySelector('#kp-adlog-sub').innerHTML = `<span style="color:var(--muted)">총 ${rows.length}건 —</span> <span style="color:#dc2626;font-weight:600;">검토 후 등록 신청을 눌러주세요.</span>`;
+    overlay.querySelector('#kp-adlog-close-btn').onclick = () => { if (!window.kpAdlogSubmitting) overlay.remove(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay && !window.kpAdlogSubmitting) overlay.remove(); });
+    overlay.querySelector('#kp-adlog-apply-btn').onclick = () => kpExecuteAdlogSubmit(rows, overlay);
+  }
+  function kpBuildAdlogTable(rows) {
+    const block = document.createElement('div');
+    const ell = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0';
+    const tbl = document.createElement('table');
+    tbl.style.cssText = 'table-layout:fixed;width:100%;border-collapse:collapse;font-size:12.5px;';
+    tbl.innerHTML = `<thead><tr style="background:#f8fafc;color:var(--muted);font-size:11px;font-weight:700;">
+      <th style="width:120px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);">대행사</th>
+      <th style="width:160px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);">순위키워드</th>
+      <th style="width:140px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);">MID</th>
+      <th style="width:110px;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);">메모</th>
+      <th style="width:76px;text-align:center;padding:9px 10px;border-bottom:1px solid var(--border);">상태</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      const statusTd = document.createElement('td');
+      statusTd.style.cssText = 'text-align:center;white-space:nowrap;padding:8px 10px;';
+      statusTd.textContent = '-';
+      tr.innerHTML = `
+        <td style="${ell};font-weight:700;padding:8px 10px;" title="${kpSubEsc(r.group)}">${kpSubEsc(r.group)}</td>
+        <td style="${ell};padding:8px 10px;" title="${kpSubEsc(r.keyword)}">${kpSubEsc(r.keyword||'-')}</td>
+        <td style="${ell};font-size:11px;color:var(--text2);padding:8px 10px;" title="${kpSubEsc(r.mid)}">${kpSubEsc(r.mid||'-')}</td>
+        <td style="padding:2px 4px"><input type="text" value="${kpSubEsc(r.memo)}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:4px;padding:3px 5px;font-size:12px;font-family:inherit;background:#fff;color:inherit"></td>
+      `;
+      tr.appendChild(statusTd);
+      tbody.appendChild(tr);
+      r._statusTd = statusTd;
+      tr.querySelector('input').addEventListener('input', e => { r.memo = e.target.value; });
+    });
+    tbl.appendChild(tbody);
+    block.appendChild(tbl);
+    return block;
+  }
+  function kpBuildAdlogXlsxBase64(rows) {
+    const XLSX = window.XLSX;
+    const header = ['그룹(띄어쓰기까지 일치해야됨)', '키워드(필수)', 'URL(필수)', '메모(미작성시 공란)'];
+    const aoa = [header, ...rows.map(r => [r.group, r.keyword, r.mid, r.memo])];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:22},{wch:20},{wch:20},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, ws, '대량등록');
+    const arr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const bytes = new Uint8Array(arr);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+  const KP_ADLOG_BATCH_SIZE = 100; // adlog.kr 대량등록 1회 최대 100건 제한
+  async function kpExecuteAdlogSubmit(rows, overlay) {
+    const applyBtn = overlay.querySelector('#kp-adlog-apply-btn');
+    const closeBtn = overlay.querySelector('#kp-adlog-close-btn');
+    const subEl    = overlay.querySelector('#kp-adlog-sub');
+    applyBtn.disabled = true; applyBtn.textContent = '⏳ 등록 중...'; applyBtn.style.background = '#6b7280'; applyBtn.style.cursor = 'default';
+    closeBtn.disabled = true;
+    window.kpAdlogSubmitting = true;
+
+    async function run() {
+      const chunks = [];
+      for (let i = 0; i < rows.length; i += KP_ADLOG_BATCH_SIZE) chunks.push(rows.slice(i, i + KP_ADLOG_BATCH_SIZE));
+      let totalCount = 0, totalRegistered = 0, hadFailure = false;
+      const failMessages = [];
+      const succeededSlotKeys = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        if (chunks.length > 1) {
+          applyBtn.textContent = `⏳ 등록 중... (${i+1}/${chunks.length}배치)`;
+          subEl.innerHTML = `<span style="color:var(--muted)">배치 ${i+1}/${chunks.length} 전송 중 (${chunk.length}건)...</span>`;
+        }
+        let result;
+        try {
+          const fileBase64 = kpBuildAdlogXlsxBase64(chunk);
+          result = await kpCallBizfitProxy('/adlog-register', { fileBase64 });
+        } catch(e) { result = { success:false, message: '서버 호출 실패: ' + e.message }; }
+        if (result.success) {
+          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = '<span style="color:var(--kp-accent);">✅ 완료</span>'; if (r._slotKey) succeededSlotKeys.push(r._slotKey); });
+          totalCount      += (result.total ?? chunk.length);
+          totalRegistered += (result.registered ?? chunk.length);
+        } else {
+          hadFailure = true;
+          failMessages.push(result.message || '알 수 없는 오류');
+          chunk.forEach(r => { if (r._statusTd) r._statusTd.innerHTML = `<span style="color:#dc2626;" title="${kpSubEsc(result.message||'')}">❌ 실패</span>`; });
+        }
+      }
+      if (succeededSlotKeys.length) {
+        await Promise.all(succeededSlotKeys.map(k => window.HA.updateKpSlot(k, { adlogSubmitted: true })));
+        const allSlots = window.getKpAllSlots ? window.getKpAllSlots() : [];
+        succeededSlotKeys.forEach(k => { const s = allSlots.find(x => x._key === k); if (s) s.adlogSubmitted = true; });
+        if (window.kpRenderReceipts) window.kpRenderReceipts(false);
+      }
+      if (!hadFailure) {
+        const batchNote = chunks.length > 1 ? ` (${chunks.length}개 배치로 전송)` : '';
+        subEl.innerHTML = `<span style="color:var(--kp-accent);font-weight:600;">✅ 총${totalCount}개 중 ${totalRegistered}개 등록 되었습니다.${batchNote}</span>`;
+        applyBtn.textContent = '✅ 등록 완료'; applyBtn.style.background = '#475569'; applyBtn.style.cursor = 'default';
+      } else {
+        subEl.innerHTML = `<span style="color:#dc2626;font-weight:600;">❌ 일부 배치 실패: ${kpSubEsc(failMessages.join(' / '))}</span>`;
+        applyBtn.textContent = '❌ 등록 실패'; applyBtn.style.background = '#b91c1c'; applyBtn.style.cursor = 'default';
+      }
+      applyBtn.disabled = true;
+      closeBtn.disabled = false;
+      window.kpAdlogSubmitting = false;
+    }
+
+    if (window.XLSX) { await run(); } else {
+      await new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+      });
+      await run();
+    }
+  }
 
   // 예약 분할 현황(별도 스크립트 블록)의 잔여 재분류/등급 변경이 쓰는 내부 함수·상수 노출 — <script> 블록마다
   // blob URL로 분리 로드돼 스코프가 안 섞이므로 window 경유로만 공유 가능.
